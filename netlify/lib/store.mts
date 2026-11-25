@@ -4,7 +4,9 @@ import { newState, type Note, type State } from "./pino.mts";
 // Site-wide store. Only the scheduled "tick" function writes "state".
 // Everything visitors do (notes, pets, treats, chats) goes into its own key,
 // so nothing ever overwrites Pino's state behind his back.
-export const store = () => getStore({ name: "pino", consistency: "strong" });
+// Pinned to us-east-2, where his memories were first written, so a
+// change in the functions region can never make him "forget" everything.
+export const store = () => getStore({ name: "pino", consistency: "strong", region: "us-east-2" });
 
 const newKey = (prefix: string) => `${prefix}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
