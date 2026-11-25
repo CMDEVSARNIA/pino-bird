@@ -276,7 +276,6 @@
     <div class="controls">
       <button class="fab" id="soundBtn" type="button" aria-pressed="false" title="Sound: birds, music and Pino">🔇</button>
       <button class="fab" id="treatBtn" type="button" title="Give Pino a quick treat">🍪 🌱2</button>
-      <button class="fab" id="museumBtn" type="button" title="Go inside the museum">🏛️</button>
       <button class="fab" id="followBtn" type="button" aria-pressed="false">🎥 Follow</button>
     </div>
   </div>
@@ -1889,7 +1888,7 @@ function renderMuseum(s) {
   const sig = (s.museumLog || []).length + "#" + (s.museumLog || []).at(-1)?.t;
   if (sig === museumSig) return; museumSig = sig;
   const seen = new Set((s.museumLog || []).map((m) => m.id));
-  $("museumCount").textContent = `Pino has seen ${seen.size} of the museum's ${MUSEUM.length} exhibits. Tap 🏛️ on the town view to go inside yourself.`;
+  $("museumCount").textContent = `Pino has seen ${seen.size} of the museum's ${MUSEUM.length} exhibits. Tap the museum building in town to go inside yourself.`;
   const box = $("exhibitList"); box.replaceChildren();
   let hall = "";
   for (const ex of MUSEUM) {
@@ -1922,11 +1921,9 @@ window.addEventListener("pino:view", (e) => {
   $("stage").classList.toggle("inmuseum", inside);
   $("museumBar").hidden = !inside; $("plaque").hidden = true;
   if (txt) $("roomNote").textContent = txt[0];
-  $("museumBtn").textContent = inside ? "🏘️" : "🏛️"; $("museumBtn").title = inside ? "Back to town" : "Go inside the museum";
   if (inside && followOn && world && !world.inRoom()) { followOn = false; $("followBtn").setAttribute("aria-pressed", false); world.setFollow(false); }
   if (txt) toast(world && world.inRoom() ? txt[1] : txt[2]);
 });
-$("museumBtn").addEventListener("click", () => { if (!world) return; world.viewMode() !== "town" ? world.exitMuseum() : world.enterMuseum(); });
 $("museumBack").addEventListener("click", () => world && world.exitMuseum());
 window.addEventListener("pino:thunder", () => ambience?.thunder());
 
