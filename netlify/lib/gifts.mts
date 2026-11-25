@@ -1,11 +1,13 @@
 // Things visitors can give Pino. Each gift exists once: when someone gives it,
 // it's gone from the Give tab for everyone and becomes part of Pino's world.
 import { BOOKS } from "./library.mts";
+import { SONGS } from "./music.mts";
 
 type Fx = { food?: number; energy?: number; joy?: number; kind?: "journal" | "drawing" };
 export type Gift = {
   id: string;
-  kind: "book" | "treat" | "snack" | "thing";
+  kind: "book" | "treat" | "snack" | "thing" | "song";
+  price: number;       // in seeds
   name: string;        // "a telescope"
   emoji: string;
   desc: string;        // shown on the Give tab
@@ -14,9 +16,12 @@ export type Gift = {
   activity?: string;   // the new thing he can do there
   fx?: Fx;             // what that activity does for him
   book?: string;       // books: slug
+  song?: string;       // songs: id
 };
+export const PRICES = { treat: 10, song: 20, snack: 25, book: 30, thing: 50 } as const;
+export const QUICK_TREAT_PRICE = 2;
 
-const TREATS: Gift[] = [
+const TREATS: Omit<Gift, "price">[] = [
   { id: "treat-muffin", kind: "treat", name: "a warm blueberry muffin", emoji: "🫐", desc: "Still warm. Crumbly on top.", effects: { food: 30, joy: 8 } },
   { id: "treat-apple", kind: "treat", name: "a shiny red apple", emoji: "🍎", desc: "Polished until it gleams.", effects: { food: 20, joy: 5 } },
   { id: "treat-seeds", kind: "treat", name: "a bag of sunflower seeds", emoji: "🌻", desc: "Salty, crunchy, very peckable.", effects: { food: 18, joy: 6 } },
@@ -25,7 +30,7 @@ const TREATS: Gift[] = [
   { id: "treat-worms", kind: "treat", name: "a bowl of juicy worms", emoji: "🪱", desc: "A kiwi's favourite. Wriggly.", effects: { food: 35, joy: 7 } },
 ];
 
-const SNACKS: Gift[] = [
+const SNACKS: Omit<Gift, "price">[] = [
   { id: "snack-cookies", kind: "snack", name: "honey oat cookies for the vending machine", emoji: "🍪", desc: "Adds a new button to the vending machine, forever.", place: "vending", activity: "get some honey oat cookies", fx: { food: 26, joy: 6 } },
   { id: "snack-smoothie", kind: "snack", name: "mango smoothies for the vending machine", emoji: "🥭", desc: "Adds a new button to the vending machine, forever.", place: "vending", activity: "get a mango smoothie", fx: { food: 14, energy: 10, joy: 5 } },
   { id: "snack-beetles", kind: "snack", name: "beetle bites for the vending machine", emoji: "🪲", desc: "Crunchy protein. Kiwis love them.", place: "vending", activity: "get a pack of beetle bites", fx: { food: 28, joy: 4 } },
@@ -34,7 +39,7 @@ const SNACKS: Gift[] = [
   { id: "snack-milk", kind: "snack", name: "strawberry milk for the vending machine", emoji: "🍓", desc: "Pink and very sweet.", place: "vending", activity: "get a strawberry milk", fx: { food: 15, energy: 5, joy: 7 } },
 ];
 
-const THINGS: Gift[] = [
+const THINGS: Omit<Gift, "price">[] = [
   { id: "thing-telescope", kind: "thing", name: "a telescope", emoji: "🔭", desc: "Set up beside his house, pointed at the sky.", place: "house", activity: "look at the sky through my telescope", fx: { joy: 12, energy: -2 } },
   { id: "thing-train", kind: "thing", name: "a toy train set", emoji: "🚂", desc: "A little train that goes round a track in the park.", place: "park", activity: "play with my toy train", fx: { joy: 14, energy: -6 } },
   { id: "thing-birdbath", kind: "thing", name: "a birdbath", emoji: "🛁", desc: "A stone birdbath for the park.", place: "park", activity: "splash in the birdbath", fx: { joy: 10, energy: -4 } },
@@ -44,9 +49,15 @@ const THINGS: Gift[] = [
 ];
 
 const BOOK_GIFTS: Gift[] = Object.values(BOOKS).filter((b) => b.gift).map((b) => ({
-  id: `book-${b.slug}`, kind: "book", name: `the book "${b.title}"`, emoji: "📕",
+  id: `book-${b.slug}`, kind: "book", name: `the book "${b.title}"`, emoji: "📕", price: PRICES.book,
   desc: `${b.title} by ${b.author} (${b.year}). Goes on his library shelf.`, book: b.slug,
 }));
 
-export const GIFTS: Gift[] = [...BOOK_GIFTS, ...TREATS, ...SNACKS, ...THINGS];
+const SONG_GIFTS: Gift[] = SONGS.filter((s) => s.gift).map((s) => ({
+  id: `song-${s.id}`, kind: "song", name: `the record "${s.title}"`, emoji: "💿", price: PRICES.song,
+  desc: `${s.title} by ${s.by}. A new record for his gramophone.`, song: s.id,
+}));
+
+export const GIFTS: Gift[] = ([...BOOK_GIFTS, ...SONG_GIFTS, ...TREATS, ...SNACKS, ...THINGS] as (Omit<Gift, "price"> & { price?: number })[])
+  .map((g) => ({ ...g, price: g.price ?? PRICES[g.kind] }));
 export const GIFT_BY_ID: Record<string, Gift> = Object.fromEntries(GIFTS.map((g) => [g.id, g]));

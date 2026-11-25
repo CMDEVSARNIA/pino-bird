@@ -1,5 +1,5 @@
 import { getStore } from "@netlify/blobs";
-import { newState, type Note, type Person, type State } from "./pino.mts";
+import { newState, START_SEEDS, type Note, type Person, type State } from "./pino.mts";
 
 // Site-wide store. Only the scheduled "tick" function writes "state".
 // Everything visitors do (notes, pets, treats, chats) goes into its own key,
@@ -124,7 +124,7 @@ export async function peopleIndex() {
 export async function meet(who: Who | null, change: (p: Person) => void) {
   if (!who || !safeId(who.id)) return null;
   const now = Date.now();
-  const p: Person = (await getPerson(who.id)) ?? { id: who.id, name: "", firstMet: now, lastSeen: 0, visits: 0, chats: 0, facts: [], gave: [], pets: 0 };
+  const p: Person = (await getPerson(who.id)) ?? { id: who.id, name: "", firstMet: now, lastSeen: 0, visits: 0, chats: 0, facts: [], gave: [], pets: 0, seeds: START_SEEDS };
   if (who.name && who.name !== p.name) p.name = who.name;
   if (now - p.lastSeen > 30 * 60_000) p.visits += 1; // a new visit after 30 quiet minutes
   p.lastSeen = now;

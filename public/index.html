@@ -148,6 +148,11 @@
   .bookrow:last-child { border-bottom: 0; }
   .bookrow small { color: var(--muted); grid-column: 1 / -1; font-size: 12px; }
   .bookrow .bar > i { background: #7a9e5a; }
+  .wallet { display: inline-flex; align-items: center; gap: 4px; border: 1px solid #cfe3c0; background: #f1f8ea; color: #2f5d1f; border-radius: 999px;
+    padding: 4px 10px; font-weight: 800; font-size: 14px; cursor: pointer; font-family: inherit; transition: transform .2s; }
+  .wallet.bump { transform: scale(1.15); }
+  .earned { color: #4b8a2e; font-weight: 800; font-size: 13px; opacity: 0; transition: opacity .4s; }
+  .earned.show { opacity: 1; }
   .me { margin-top: 10px; font-size: 13px; color: var(--muted); display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
   .me b { color: var(--ink); }
   .me input { flex: 1; min-width: 140px; border: 1px solid var(--line); border-radius: 999px; padding: 7px 12px; font: inherit; font-size: 15px; background: #fff; }
@@ -199,12 +204,14 @@
     <div class="nowplaying" id="nowPlaying" hidden></div>
     <div class="controls">
       <button class="fab" id="soundBtn" type="button" aria-pressed="false" title="Sound: birds, music and Pino">🔇</button>
-      <button class="fab" id="treatBtn" type="button">🍪 Treat</button>
+      <button class="fab" id="treatBtn" type="button">🍪 🌱2</button>
       <button class="fab" id="followBtn" type="button" aria-pressed="false">🎥 Follow</button>
     </div>
   </div>
 
   <div class="me" id="meBox"></div>
+  <div class="me"><button class="wallet" id="wallet" type="button" title="How to earn seeds">🌱 <span id="seedCount">…</span></button><span class="earned" id="earned"></span>
+    <span style="flex:1"></span><span style="font-size:12px">Earn seeds by watching &amp; chatting with Pino</span></div>
   <form class="talk" id="talkForm" autocomplete="off">
     <input id="talkText" maxlength="280" placeholder="Say something to Pino…" enterkeyhint="send">
     <button type="submit" id="talkBtn">Send</button>
@@ -246,7 +253,7 @@
     <ul class="list" id="reading"></ul>
   </div>
   <div class="card panel" id="p-give" hidden>
-    <p class="givehint">Every gift here is one of a kind. Once someone gives it, it's Pino's for good and disappears from this list.</p>
+    <p class="givehint">Every gift here is one of a kind and costs seeds 🌱. Once someone gives it, it's Pino's for good and disappears from this list. Earn seeds by watching Pino, chatting with him and petting him.</p>
     <div id="giveList"></div>
     <h3 style="margin-top:14px">Gifts Pino has received</h3>
     <ul class="list" id="giftLog"></ul>
@@ -908,6 +915,7 @@ function renderChat() {
 
 function render(s) {
   latest = s;
+  if (s.me) setSeeds(s.me.seeds);
   checkVersion(s.version);
   $("name").textContent = `${s.name}'s Town`; document.title = `${s.name}'s Town`;
   $("clock").textContent = `${s.weekday} · ${s.clock}`;
@@ -1100,12 +1108,35 @@ $("soundBtn").addEventListener("click", () => {
   } else { ambience?.stop(); gramophone.disable(); }
 });
 
+// ---- seeds 🌱: the spectator currency
+let mySeeds = 0, earnedTimer;
+function setSeeds(n, got = 0) {
+  const changed = n !== mySeeds; mySeeds = n;
+  $("seedCount").textContent = n;
+  if (got > 0) {
+    const e = $("earned"); e.textContent = `+${got} 🌱`; e.classList.add("show");
+    clearTimeout(earnedTimer); earnedTimer = setTimeout(() => e.classList.remove("show"), 2200);
+  }
+  if (changed) { $("wallet").classList.add("bump"); setTimeout(() => $("wallet").classList.remove("bump"), 250); if (latest) { giveSig = ""; renderGive(latest); } }
+}
+$("wallet").addEventListener("click", () => {
+  const r = latest?.me?.rules, e = latest?.me?.earned;
+  if (!r) return;
+  toast(`Earn seeds 🌱 — watching: ${r.watch.each}/min (${e?.watch ?? 0}/${r.watch.cap} today) · chatting: ${r.chat.each} each (${e?.chat ?? 0}/${r.chat.cap}) · petting: ${r.pet.each} (${e?.pet ?? 0}/${r.pet.cap})`);
+});
+// watching earns seeds: one ping a minute while the page is open and visible
+setInterval(async () => {
+  if (document.hidden) return;
+  const j = await post("/api/watch").catch(() => ({}));
+  if (typeof j.seeds === "number") setSeeds(j.seeds, j.got);
+}, 60_000);
+
 // ---- give tab
-const KINDS = [["book", "Books for his library"], ["treat", "Treats (eaten right away)"], ["snack", "New snacks for the vending machine"], ["thing", "Things for his town"]];
+const KINDS = [["book", "Books for his library"], ["song", "Records for his gramophone"], ["treat", "Treats (eaten right away)"], ["snack", "New snacks for the vending machine"], ["thing", "Things for his town"]];
 let giveSig = "";
 function renderGive(s) {
   const avail = s.giftsAvailable || [];
-  const sig = avail.map((g) => g.id).join("|") + "#" + (s.gifts || []).length;
+  const sig = avail.map((g) => g.id).join("|") + "#" + (s.gifts || []).length + "#" + mySeeds;
   if (sig === giveSig) return; giveSig = sig;
   const box = $("giveList"); box.replaceChildren();
   if (!avail.length) box.append(el("div", "empty", "Pino has been given everything! More gifts coming soon."));
@@ -1114,13 +1145,15 @@ function renderGive(s) {
     box.append(el("div", "gkind", label));
     const grid = el("div", "gifts");
     for (const g of items) {
-      const card = el("div", "gift"), btn = el("button", null, "Give"); btn.type = "button";
-      card.append(el("span", "em", g.emoji), el("b", null, g.name.replace(/^(a |an |the book )/, "").replace(/ for the vending machine$/, "")), el("small", null, g.desc), btn);
+      const card = el("div", "gift"), btn = el("button", null, `Give · 🌱 ${g.price}`); btn.type = "button";
+      if (mySeeds < g.price) { btn.disabled = true; btn.title = `You need 🌱 ${g.price}`; }
+      card.append(el("span", "em", g.emoji), el("b", null, g.name.replace(/^(a |an |the book |the record )/, "").replace(/ for the vending machine$/, "")), el("small", null, g.desc), btn);
       btn.onclick = async () => {
         btn.disabled = true; btn.textContent = "Giving…";
         const j = await post("/api/give", { id: g.id });
+        if (typeof j.seeds === "number") setSeeds(j.seeds);
         if (j.ok) { toast(j.reaction); card.remove(); if (world) { g.kind === "treat" || g.kind === "snack" ? world.treat() : world.pet(); } setTimeout(refresh, 1500); }
-        else { toast(j.error || "That didn't work. Try again."); btn.disabled = false; btn.textContent = "Give"; if (j.error && /already/.test(j.error)) { card.remove(); } }
+        else { toast(j.error || "That didn't work. Try again."); btn.disabled = false; btn.textContent = `Give · 🌱 ${g.price}`; if (j.error && /already/.test(j.error)) { card.remove(); } }
       };
       grid.append(card);
     }
@@ -1146,7 +1179,7 @@ function renderBooks(s) {
 
 async function refresh() {
   try {
-    const r = await fetch("/api/state", { cache: "no-store" });
+    const r = await fetch(`/api/state?who=${encodeURIComponent(me.id)}`, { cache: "no-store" });
     if (!r.ok) throw new Error(r.status);
     render(await r.json());
   } catch { $("banner").hidden = false; $("banner").textContent = "Can't reach Pino's town right now. Retrying…"; }
@@ -1164,6 +1197,7 @@ window.addEventListener("pino:pet", async () => {
   chirp(true);
   if (Date.now() - lastPet < 1500) return; lastPet = Date.now();
   const j = await post("/api/pet"); if (j.reaction) toast(j.reaction);
+  if (typeof j.seeds === "number") setSeeds(j.seeds, j.got);
 });
 // knock on his door while he's inside
 window.addEventListener("pino:knock", (e) => {
@@ -1174,6 +1208,7 @@ window.addEventListener("pino:knock", (e) => {
 $("treatBtn").addEventListener("click", async () => {
   const btn = $("treatBtn"); btn.disabled = true;
   const j = await post("/api/treat");
+  if (typeof j.seeds === "number") setSeeds(j.seeds);
   if (j.ok && world) world.treat();
   if (j.reaction) toast(j.reaction);
   setTimeout(() => (btn.disabled = false), 4000);
@@ -1194,6 +1229,7 @@ $("talkForm").addEventListener("submit", async (e) => {
   $("talkBtn").disabled = false;
   if (j.ok) {
     pending.push({ at: j.at || Date.now(), you: text, pino: j.reply, name: me.name || "You", react: j.react, mine: true });
+    if (typeof j.seeds === "number") setSeeds(j.seeds, j.got);
     seenChat = Math.max(seenChat, j.at || 0);
     speaking = Date.now() + 14000; showBubble("speech", j.reply); chirp(/happy|excited/.test(j.mood || ""));
     const youLine = el("div", "you", `You: ${text}`); if (j.react) youLine.append(el("span", "react", j.react));

@@ -44,6 +44,35 @@ export const SONG_NOTES = {
     melody: "C4:0.5 E4:0.5 G4:1 A4:0.5 G4:0.5 E4:1 D4:0.5 E4:0.5 G4:1 E4:2 C4:0.5 E4:0.5 G4:1 A4:0.5 C5:0.5 A4:1 G4:3 R:1 " +
             "A4:0.5 C5:0.5 D5:1 C5:0.5 A4:0.5 G4:1 E4:0.5 G4:0.5 A4:1 G4:2 E4:0.5 D4:0.5 C4:1 D4:0.5 E4:0.5 G4:1 C4:3 R:1",
     chords: "C:4 Am:4 F:4 G:4 F:4 C:4 G:4 C:4" },
+  // ---- records visitors can give him ----
+  jingle: { bpm: 132, wave: "triangle",
+    melody: "E4:1 E4:1 E4:2 E4:1 E4:1 E4:2 E4:1 G4:1 C4:1.5 D4:0.5 E4:4 F4:1 F4:1 F4:1.5 F4:0.5 F4:1 E4:1 E4:1 E4:0.5 E4:0.5 E4:1 D4:1 D4:1 E4:1 D4:2 G4:2 " +
+            "E4:1 E4:1 E4:2 E4:1 E4:1 E4:2 E4:1 G4:1 C4:1.5 D4:0.5 E4:4 F4:1 F4:1 F4:1.5 F4:0.5 F4:1 E4:1 E4:1 E4:0.5 E4:0.5 G4:1 G4:1 F4:1 D4:1 C4:4",
+    chords: "C:4 C:4 C:4 C:4 F:4 C:4 D:4 G:4 C:4 C:4 C:4 C:4 F:4 C:4 G:4 C:4" },
+  birthday: { bpm: 104, wave: "triangle",
+    melody: "G4:0.75 G4:0.25 A4:1 G4:1 C5:1 B4:2 G4:0.75 G4:0.25 A4:1 G4:1 D5:1 C5:2 G4:0.75 G4:0.25 G5:1 E5:1 C5:1 B4:1 A4:2 F5:0.75 F5:0.25 E5:1 C5:1 D5:1 C5:3",
+    chords: "R:1 C:3 G:3 G:3 C:3 C:3 F:3 C:2 G:1 C:3" },
+  lullaby: { bpm: 84, wave: "sine",
+    melody: "E4:0.5 E4:0.5 G4:2 E4:0.5 E4:0.5 G4:2 E4:0.5 G4:0.5 C5:1 B4:1.5 A4:0.5 A4:1 G4:1 D4:0.5 E4:0.5 F4:1 D4:1 D4:0.5 E4:0.5 F4:2 D4:0.5 F4:0.5 B4:0.5 A4:0.5 G4:1 B4:1 C5:3",
+    chords: "C:3 C:3 C:3 G:3 G:3 G:3 G:3 C:3" },
+  greensleeves: { bpm: 120, wave: "triangle",
+    melody: "A4:1 C5:2 D5:1 E5:1.5 F5:0.5 E5:1 D5:2 B4:1 G4:1.5 A4:0.5 B4:1 C5:2 A4:1 A4:1.5 G#4:0.5 A4:1 B4:2 G#4:1 E4:2 " +
+            "A4:1 C5:2 D5:1 E5:1.5 F5:0.5 E5:1 D5:2 B4:1 G4:1.5 A4:0.5 B4:1 C5:1.5 B4:0.5 A4:1 G#4:1.5 F#4:0.5 G#4:1 A4:3",
+    chords: "R:1 Am:3 C:3 G:3 Em:3 Am:3 F:3 E:3 E:3 Am:3 C:3 G:3 Em:3 Am:2 E:3 Am:3" },
+  morning: { bpm: 96, wave: "sine",
+    melody: "G5:1 E5:1 D5:1 C5:1 D5:1 E5:1 G5:1 E5:1 D5:1 C5:1 D5:0.5 E5:0.5 D5:0.5 E5:0.5 G5:1 E5:1 G5:1 A5:1 E5:1 A5:1 G5:1 E5:1 D5:1 C5:3",
+    chords: "C:6 C:6 C:3 F:3 C:3 G:3 C:3" },
+  polka: { bpm: 152, wave: "square",
+    melody: "C5:0.5 G4:0.5 E4:0.5 G4:0.5 C5:1 C5:1 D5:0.5 B4:0.5 G4:0.5 B4:0.5 D5:1 D5:1 E5:0.5 D5:0.5 C5:0.5 B4:0.5 A4:0.5 G4:0.5 F4:0.5 E4:0.5 D4:1 G4:1 C4:2 " +
+            "E5:0.5 C5:0.5 G4:0.5 C5:0.5 E5:1 E5:1 F5:0.5 D5:0.5 B4:0.5 D5:0.5 F5:1 F5:1 E5:0.5 C5:0.5 D5:0.5 B4:0.5 C5:1 G4:1 C5:2",
+    chords: "C:2 C:2 G:2 G:2 C:2 G:2 G:2 C:2 C:2 C:2 G:2 G:2 C:2 G:2 C:2" },
+  starlight: { bpm: 66, wave: "sine",
+    melody: "E5:2 D5:1 B4:1 A4:2 G4:2 E4:2 G4:1 A4:1 B4:4 D5:2 B4:1 A4:1 G4:2 E4:2 D4:2 E4:1 G4:1 E4:4",
+    chords: "C:4 Am:4 C:4 G:4 Em:4 C:4 G:4 C:4" },
+  trainride: { bpm: 138, wave: "triangle",
+    melody: "G4:0.5 G4:0.5 G4:0.5 G4:0.5 B4:1 D5:1 C5:0.5 C5:0.5 C5:0.5 C5:0.5 A4:1 F4:1 G4:0.5 G4:0.5 B4:0.5 D5:0.5 G5:1 F5:0.5 E5:0.5 D5:2 R:1 G5:1 " +
+            "E5:0.5 E5:0.5 E5:0.5 E5:0.5 C5:1 A4:1 D5:0.5 D5:0.5 D5:0.5 D5:0.5 B4:1 G4:1 A4:0.5 B4:0.5 C5:0.5 D5:0.5 E5:1 F#5:1 G5:3 R:1",
+    chords: "G:4 F:4 G:4 D:4 C:4 G:4 D:4 G:4" },
   rain: { bpm: 72, wave: "sine",
     melody: "A4:2 C5:1 E5:1 D5:3 C5:1 B4:2 G4:2 A4:4 E4:1 A4:1 C5:2 B4:1 A4:1 G4:2 F4:2 E4:1 D4:1 E4:4 " +
             "A4:2 C5:1 E5:1 G5:2 F5:1 E5:1 D5:2 B4:2 C5:4 B4:1 C5:1 D5:2 C5:1 B4:1 A4:2 G#4:2 B4:2 A4:4",

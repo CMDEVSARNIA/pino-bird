@@ -387,8 +387,9 @@ export function applyChoice(
 
     // the gramophone
     s.music ??= silence();
-    if (action === "turn on the gramophone") s.music = { on: true, song: randomSong(), since: now };
-    else if (action === "skip to the next song") s.music = { on: true, song: nextSong(s.music.song), since: now };
+    const records = s.gifts?.received ?? [];
+    if (action === "turn on the gramophone") s.music = { on: true, song: randomSong(records), since: now };
+    else if (action === "skip to the next song") s.music = { on: true, song: nextSong(s.music.song, records), since: now };
     else if (action === "turn off the gramophone") s.music = silence();
     if (/gramophone|next song/.test(action) && s.music.on) {
       const song = SONG_BY_ID[s.music.song];
@@ -496,7 +497,9 @@ export function applyVisits(s: State, visits: Visit[], now: number) {
     s.gifts.received.push(g.id);
     s.gifts.log.push({ t, id: g.id, name: g.name, emoji: g.emoji, from: whoName(v) });
     s.gifts.log = s.gifts.log.slice(-200);
+    if (g.kind === "song" && g.song) s.music = { on: true, song: g.song, since: now };
     const what = g.kind === "book" ? `${g.name} for my library shelf`
+      : g.kind === "song" ? `${g.name} - it's playing on my gramophone right now!`
       : g.kind === "snack" ? `${g.name} - now I can "${g.activity}"`
       : g.kind === "thing" ? `${g.name} at the ${PLACES[g.place!]?.label} - now I can "${g.activity}"` : g.name;
     remember(`was given ${what} by ${whoName(v)}`,
@@ -512,7 +515,25 @@ export function applyVisits(s: State, visits: Visit[], now: number) {
 export type Person = {
   id: string; name: string; firstMet: number; lastSeen: number; visits: number; chats: number;
   facts: string[]; gave: string[]; pets: number;
+  seeds?: number;                                                   // spectator currency 🌱
+  earned?: { day: string; watch: number; chat: number; pet: number }; // today's earnings, for daily caps
+  lastWatch?: number;
 };
+
+// ---- seeds 🌱: earned by watching and interacting, spent on gifts
+export const START_SEEDS = 15;
+export const EARN = { watch: { each: 1, cap: 120 }, chat: { each: 3, cap: 30 }, pet: { each: 1, cap: 10 } } as const;
+const today = (now: number) => new Intl.DateTimeFormat("en-CA", { timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(now));
+export function seedsOf(p: Person | null) { return p?.seeds ?? START_SEEDS; }
+export function earn(p: Person, kind: keyof typeof EARN, now: number) {
+  const d = today(now);
+  if (!p.earned || p.earned.day !== d) p.earned = { day: d, watch: 0, chat: 0, pet: 0 };
+  p.seeds ??= START_SEEDS;
+  const rule = EARN[kind];
+  const got = Math.max(0, Math.min(rule.each, rule.cap - p.earned[kind]));
+  p.earned[kind] += got; p.seeds += got;
+  return got;
+}
 
 export function describePerson(p: Person | null, now: number) {
   if (!p || (p.chats === 0 && p.pets === 0 && p.gave.length === 0)) {
