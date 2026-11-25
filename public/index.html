@@ -362,7 +362,7 @@ function buildWorld() {
   }
   // scattered little trees and flowers
   const pineMat = M(0x4f9a52), trunkMat = M(0x7b5636);
-  [[-10, -9], [-12, -2], [11, -9], [12, 1], [-11, 8], [9, 10], [0, -11], [-2, 11], [13, 6]].forEach(([x, z], i) => {
+  [[-10, -9], [-12, -2], [11, -9], [12, 1], [-11, 8], [9, 10], [0, -11], [-7, 12], [13, 6]].forEach(([x, z], i) => {
     const t = new THREE.Group(); t.position.set(x, 0, z); t.scale.setScalar(0.8 + (i % 3) * 0.2);
     add(box(0.3, 0.8, 0.3, trunkMat), t).position.y = 0.4;
     add(new THREE.Mesh(new THREE.ConeGeometry(1, 2, 6), pineMat), t).position.y = 1.7;
@@ -413,7 +413,7 @@ function buildWorld() {
   add(new THREE.Mesh(new THREE.PlaneGeometry(2.2, 0.42), new THREE.MeshBasicMaterial({ map: textTexture("LIBRARY", "#5b4a3a", "#f6efe2", 512, 96) })), lib).position.set(0, 2.38, 1.43);
 
   // ---- VENDING MACHINE
-  const vm = new THREE.Group(); vm.position.set(5.0, 0, 3.4); scene.add(vm);
+  const vm = new THREE.Group(); vm.position.set(0, 0, -5.3); scene.add(vm);
   add(box(1.2, 2.1, 0.85, M(0xd24b4b)), vm).position.y = 1.05;
   const screenTex = snacksTexture();
   const screenMat = new THREE.MeshStandardMaterial({ map: screenTex, emissive: 0xffffff, emissiveMap: screenTex, emissiveIntensity: 0.25, roughness: 0.4 });
@@ -437,22 +437,23 @@ function buildWorld() {
     const a = Math.random() * 6.28, r = Math.random() * 0.6;
     l.position.set(Math.cos(a) * r, 0.08 + Math.random() * 0.25 * (1 - r), Math.sin(a) * r); l.scale.y = 0.4;
   }
-  const bench = new THREE.Group(); bench.position.set(-3.4, 0, 6.6); bench.rotation.y = Math.PI + 0.3; park.add(bench);
+  const POND = V(-2.8, 0, 8.6);
+  const bench = new THREE.Group(); bench.position.set(-3.6, 0, 5.9); bench.rotation.y = 0.15; park.add(bench);
   const wood = M(0xc58b4d);
   add(box(1.8, 0.1, 0.5, wood), bench).position.set(0, 0.5, 0);
   add(box(1.8, 0.4, 0.08, wood), bench).position.set(0, 0.85, -0.25);
   for (const x of [-0.75, 0.75]) add(box(0.1, 0.5, 0.45, M(0x6b5a4a)), bench).position.set(x, 0.25, 0);
   const pond = add(new THREE.Mesh(new THREE.CircleGeometry(1.7, 28).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0x6fbbe0, roughness: 0.15, metalness: 0.1 })), park, { cast: false, receive: false });
-  pond.position.set(-2.4, 0.05, 3.6);
-  add(new THREE.Mesh(new THREE.TorusGeometry(1.75, 0.12, 5, 28).rotateX(Math.PI / 2), M(0xa8a39a)), park, { cast: false }).position.set(-2.4, 0.04, 3.6);
+  pond.position.set(POND.x, 0.05, POND.z);
+  add(new THREE.Mesh(new THREE.TorusGeometry(1.75, 0.12, 5, 28).rotateX(Math.PI / 2), M(0xa8a39a)), park, { cast: false }).position.set(POND.x, 0.04, POND.z);
   const duck = new THREE.Group(); park.add(duck);
   add(new THREE.Mesh(new THREE.IcosahedronGeometry(0.22, 1), M(0xffffff)), duck).scale.set(1, 0.7, 1.4);
   add(new THREE.Mesh(new THREE.IcosahedronGeometry(0.13, 1), M(0xffffff)), duck).position.set(0, 0.22, 0.22);
   add(new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.14, 5).rotateX(Math.PI / 2), M(0xf2a23c)), duck).position.set(0, 0.2, 0.38);
 
   // spots where Pino stands at each place, what he faces, and extra spots for some activities
-  const SPOTS = { house: V(-5, 0, -2.4), library: V(5, 0, -2.5), vending: V(3.9, 0, 4.7), park: V(-4.3, 0, 4.9) };
-  const LOOK = { house: V(-5, 0, -4), library: V(5, 0, -4), vending: V(5.0, 0, 3.4), park: V(-2.4, 0, 3.6) };
+  const SPOTS = { house: V(-5, 0, -2.4), library: V(5, 0, -2.5), vending: V(0, 0, -3.85), park: V(-4.3, 0, 4.9), gallery: V(3.69, 0, 4.01) };
+  const LOOK = { house: V(-5, 0, -4), library: V(5, 0, -4), vending: V(0, 0, -5.3), park: POND, gallery: V(4.2, 0, 2.6) };
   // [activity, where he goes, what he faces, building he disappears into]
   const HOUSE_DOOR = V(-5, 0, -3.75), LIB_DOOR = V(5, 0, -3.65);
   const ACT = [
@@ -466,13 +467,45 @@ function buildWorld() {
     [/gramophone|next song/, V(-4.55, 0, 5.55), V(-5.1, 0, 6.3)],
     [/dance/, V(-3.9, 0, 5.2), V(-3.9, 0, 12)],
     [/leaf/, V(-5.3, 0, 4.7), V(-6.0, 0, 4.4)],
-    [/ducks/, V(-3.6, 0, 5.0), V(-2.4, 0, 3.6)],
-    [/bench|sit and think/, V(-3.4, 0.52, 6.6), V(-2.4, 0, 3.6)],
+    [/ducks/, V(-2.4, 0, 6.5), POND],
+    [/bench|sit and think/, V(-3.6, 0.52, 5.9), POND],
   ];
   const INSIDE_ANCHOR = { house: V(-5, 2.4, -3.7), library: V(5, 2.9, -3.6) };
   const CHIMNEY = V(-4.1, 4.0, -5.5);
   for (const k of Object.keys(SPOTS)) strip(JUNCTION, SPOTS[k]);
   strip(SPOTS.house, V(-5, 0, -3.9), 0.9); strip(SPOTS.library, V(5, 0, -3.8), 0.9);
+
+  // ---- Pino's art gallery: six frames that show the drawings he chose to hang
+  const gal = new THREE.Group(); gal.position.set(4.2, 0, 2.6); gal.rotation.y = -0.35; scene.add(gal);
+  add(box(3.1, 0.14, 2.0, M(0xd9d2c3)), gal, { receive: true }).position.y = 0.07;
+  add(box(2.9, 2.3, 0.18, M(0xf4efe4)), gal).position.set(0, 1.29, -0.82);
+  add(box(3.3, 0.16, 1.1, M(0x7a9e8a)), gal).position.set(0, 2.55, -0.4);   // short roof, so the art stays in view
+  for (const x of [-1.35, 1.35]) add(new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.09, 2.45, 8), M(0xf4efe4)), gal).position.set(x, 1.32, 0.05);
+  add(new THREE.Mesh(new THREE.PlaneGeometry(1.3, 0.3), new THREE.MeshBasicMaterial({ map: textTexture("GALLERY", "#7a9e8a", "#ffffff", 256, 56) })), gal).position.set(0, 2.55, 0.16);
+  const blankArt = new THREE.MeshStandardMaterial({ color: 0xece6d8, roughness: 0.95 });
+  const frames = [];
+  for (let row = 0; row < 2; row++) for (let col = 0; col < 3; col++) {
+    const f = new THREE.Group(); f.position.set((col - 1) * 0.88, 0.95 + row * 0.82, -0.71); gal.add(f);  // bottom row fills first
+    add(box(0.72, 0.72, 0.05, M(0x6b4a2e)), f, { cast: false });
+    const pic = add(new THREE.Mesh(new THREE.PlaneGeometry(0.6, 0.6), blankArt), f, { cast: false }); pic.position.z = 0.03;
+    frames.push({ pic, key: "" });
+  }
+  function setGallery(list) {
+    frames.forEach((fr, i) => {
+      const d = list[i]; const key = d ? d.t : "";
+      if (fr.key === key) return; fr.key = key;
+      if (!d || !d.svg) { fr.pic.material = blankArt; return; }
+      const img = new Image();
+      img.onload = () => {
+        const c = Object.assign(document.createElement("canvas"), { width: 256, height: 256 });
+        c.getContext("2d").drawImage(img, 0, 0, 256, 256);
+        const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
+        // gallery lighting: the art glows softly so it reads even under the roof
+        if (fr.key === key) fr.pic.material = new THREE.MeshStandardMaterial({ map: tex, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: 0.55, roughness: 0.9 });
+      };
+      img.src = artUrl(d);
+    });
+  }
 
   // ---- the gramophone in the park
   const gram = new THREE.Group(); gram.position.set(-5.1, 0, 6.3); gram.rotation.y = 0.6; scene.add(gram);
@@ -544,7 +577,7 @@ function buildWorld() {
   pino.group.position.copy(SPOTS.house);
 
   // ---------------------------------------------------------------- overlays
-  const labels = [["home", V(-5, 4.2, -5.2)], ["library", V(5, 4.1, -5.4)], ["snacks", V(5.0, 2.75, 3.4)], ["park", V(-7.2, 4.1, 2.4)]].map(([t, p]) => {
+  const labels = [["home", V(-5, 4.2, -5.2)], ["library", V(5, 4.1, -5.4)], ["snacks", V(0, 2.75, -5.3)], ["park", V(-7.2, 4.1, 2.4)], ["gallery", V(4.2, 3.0, 2.6)]].map(([t, p]) => {
     const d = el("div", "ov label", t); stage.append(d); return { d, p };
   });
   const bubble = el("div", "ov bubble thought"); bubble.hidden = true; stage.append(bubble);
@@ -729,7 +762,7 @@ function buildWorld() {
     }
 
     // duck paddling
-    const da = t * 0.35; duck.position.set(-2.4 + Math.cos(da) * 1.0, 0.1 + Math.sin(t * 3) * 0.015, 3.6 + Math.sin(da) * 1.0); duck.rotation.y = -da;
+    const da = t * 0.35; duck.position.set(POND.x + Math.cos(da) * 1.0, 0.1 + Math.sin(t * 3) * 0.015, POND.z + Math.sin(da) * 1.0); duck.rotation.y = -da;
 
     // day / night
     state.nightF += ((state.night ? 1 : 0) - state.nightF) * Math.min(1, dt * 0.8);
@@ -780,6 +813,7 @@ function buildWorld() {
     treat: () => { dropTreat(); state.happy = 1.5; },
     isInside: () => !!state.indoor && !state.path.length,
     setMusic: (on) => (musicOn = on),
+    setGallery,
     setOwned: (ids) => { owned.clear(); ids.forEach((i) => owned.add(i)); for (const [id, p] of Object.entries(props)) p.visible = owned.has(id); },
     bubble,
   };
@@ -842,7 +876,7 @@ function snacksTexture() {
 
 // ================================================================ UI + DATA
 const BADGES = [[/sleep|nap/, "💤"], [/read/, "📖"], [/journal/, "✏️"], [/draw/, "🎨"], [/seed bar/, "🍫"], [/crisps/, "🥨"], [/juice/, "🧃"],
-  [/leaf/, "🍂"], [/ducks/, "🦆"], [/bench|sit/, "💭"], [/window/, "🪟"], [/tidy/, "🧹"], [/talked/, "💬"], [/petted/, "❤️"], [/treat/, "🍪"], [/reflect/, "🌙"], [/walked/, "👣"], [/swing/, "🎠"], [/telescope/, "🔭"], [/toy train/, "🚂"], [/birdbath/, "💦"], [/kite/, "🪁"], [/given/, "🎁"], [/gramophone|next song/, "🎶"], [/dance/, "💃"]];
+  [/leaf/, "🍂"], [/ducks/, "🦆"], [/bench|sit/, "💭"], [/window/, "🪟"], [/tidy/, "🧹"], [/talked/, "💬"], [/petted/, "❤️"], [/treat/, "🍪"], [/reflect/, "🌙"], [/walked/, "👣"], [/swing/, "🎠"], [/telescope/, "🔭"], [/toy train/, "🚂"], [/birdbath/, "💦"], [/kite/, "🪁"], [/given/, "🎁"], [/gramophone|next song/, "🎶"], [/dance/, "💃"], [/hung my drawing|art on the walls|hang/, "🖼️"]];
 let latest = null, first = true, speaking = 0, followOn = false;
 
 // ---- who you are: a random id this browser keeps, plus the name you tell Pino
@@ -955,7 +989,7 @@ function render(s) {
   list("journal", s.journal, (j) => { const li = el("li"); li.append(el("span", "meta", j.t), document.createTextNode(j.text)); return li; }, "He hasn't written anything yet.");
   renderGallery(s.drawings || []);
   renderBooks(s);
-  if (world) world.setOwned(s.owned || []);
+  if (world) { world.setOwned(s.owned || []); world.setGallery(s.galleryWall || []); }
   syncMusic(s.music || { on: false });
   renderGive(s);
   list("friends", s.friends || [], (f) => {
@@ -1003,7 +1037,8 @@ function artUrl(d) {
 }
 let gallerySig = "";
 function renderGallery(drawings) {
-  const sig = drawings.map((d) => d.t + (d.svg ? "✓" : "") + (d.skill ?? "")).join("|");
+  const hung = new Set((latest?.galleryWall || []).map((d) => d.t));
+  const sig = drawings.map((d) => d.t + (d.svg ? "✓" : "") + (d.skill ?? "") + (hung.has(d.t) ? "H" : "")).join("|");
   if (sig === gallerySig) return; gallerySig = sig;
   const g = $("drawings"); g.replaceChildren();
   if (!drawings.length) { g.append(el("div", "empty", "No drawings yet. He draws at the library when he feels like it.")); return; }
@@ -1011,7 +1046,7 @@ function renderGallery(drawings) {
     const card = el("button", "art"); card.type = "button";
     if (d.svg) { const img = new Image(); img.alt = d.title || d.text; img.src = artUrl(d); img.loading = "lazy"; card.append(img); }
     else card.append(el("div", "sketch", "✏️ still drawing… “" + d.text + "”"));
-    card.append(el("b", null, d.title || "Untitled"), el("span", null, d.t));
+    card.append(el("b", null, d.title || "Untitled"), el("span", null, d.t + (hung.has(d.t) ? " · 🖼️ in his gallery" : "")));
     card.addEventListener("click", () => {
       if (!d.svg) return;
       $("viewerImg").src = artUrl(d); $("viewerImg").alt = d.title || d.text;

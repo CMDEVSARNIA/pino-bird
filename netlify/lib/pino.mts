@@ -54,6 +54,13 @@ export const PLACES: Record<string, Place> = {
       "get a berry juice": { food: 12, energy: 8, joy: 4 },
     },
   },
+  gallery: {
+    label: "art gallery",
+    desc: "your own little open-air art gallery, with frames on the walls for your drawings",
+    activities: {
+      "look at the art on the walls": { joy: 6, energy: 1 },
+    },
+  },
   park: {
     label: "park",
     desc: "a small park with a big tree, a leaf pile, a bench, a swing set, a pond where ducks paddle about, and your gramophone (a wind-up record player)",
@@ -91,6 +98,7 @@ export type State = {
   art: { drawn: number; lessons: string[] };     // how practised he is, and notes-to-self after each drawing
   gifts: { received: string[]; log: { t: string; id: string; name: string; emoji: string; from: string }[] };
   music: Music;                                  // the gramophone in the park
+  galleryWall: (Drawing & { hungAt: string })[]; // drawings he chose to hang in his art gallery
   wants: Want[];                                 // what he wants right now, in his own words
   pastWants: Want[];                             // wishes he's let go of or moved on from
   conversations: { t: string; visitor: string; reply: string }[];
@@ -106,7 +114,7 @@ export function newState(now: number): State {
     personality: "I'm new here and I don't know what I like yet. I want to find out.",
     insights: [], memories: [], journal: [], drawings: [], conversations: [], tried: {},
     books: {}, lastRead: null, readingLog: [], pendingDrawing: null, wants: [], pastWants: [], art: { drawn: 0, lessons: [] },
-    gifts: { received: [], log: [] }, music: silence(),
+    gifts: { received: [], log: [] }, music: silence(), galleryWall: [],
     thought: "Where am I? It's cosy here...", doing: "waking up for the first time",
     last_error: "", last_tick_at: 0,
   };
@@ -201,7 +209,17 @@ export function hasBook(s: State, slug: string) {
   return !!b && (!b.gift || (s.gifts?.received ?? []).includes(`book-${slug}`));
 }
 
-export type Option = { type: "do" | "go" | "reply" | "rest" | "read"; name: string; label: string };
+export type Option = { type: "do" | "go" | "reply" | "rest" | "read" | "hang"; name: string; label: string };
+
+export const GALLERY_SIZE = 6;
+function hangOptions(s: State): Option[] {
+  const hung = new Set((s.galleryWall ?? []).map((d) => d.t));
+  const full = (s.galleryWall ?? []).length >= GALLERY_SIZE;
+  return (s.drawings ?? []).filter((d) => d.svg && !hung.has(d.t)).slice(-3).reverse().map((d) => ({
+    type: "hang" as const, name: d.t,
+    label: `hang your drawing "${d.title ?? d.text.slice(0, 40)}" (from ${d.t}) on the gallery wall${full ? " - the wall is full, so it replaces the oldest one" : ""}`,
+  }));
+}
 
 export function buildOptions(s: State, notes: Note[]): Option[] {
   const here = s.place;
@@ -215,6 +233,7 @@ export function buildOptions(s: State, notes: Note[]): Option[] {
     opts.push({ type: "reply", name: "reply to a visitor's note", label: 'reply to the visitor\'s note (write your reply in "note")' });
   }
   if (here === "library") opts.push(...bookOptions(s));
+  if (here === "gallery") opts.push(...hangOptions(s));
   if (here !== "house" && s.needs.energy < 45) {
     opts.push({ type: "do", name: "take a nap right here", label: `take a nap right here at the ${PLACES[here].label} (your bed at home is cosier)` });
   }
@@ -234,6 +253,7 @@ export function townDescription(s: State) {
     `- Your little house: your bed, a rug and a window over the path${extras("house").length ? `; plus ${extras("house").join(", ")}` : ""}.`,
     `- The library: ${books} books on your shelf, your journal and a big drawing table${extras("library").length ? `; plus ${extras("library").join(", ")}` : ""}.`,
     `- The vending machine: ${snacks.join(", ")} (no coins needed).`,
+    `- Your art gallery: ${(s.galleryWall ?? []).length ? `${s.galleryWall.length} of your drawings hang on the walls (${s.galleryWall.map((d) => `"${d.title ?? "untitled"}"`).join(", ")})` : `empty frames waiting for your drawings`}. You can hang any drawing you've finished.`,
     `- The park: a big tree, a leaf pile, a bench, a swing set, a pond with ducks, and your gramophone - a wind-up record player with ${records} records (${playing})${extras("park").length ? `; plus ${extras("park").join(", ")}` : ""}.`,
   ].join("\n");
 }
@@ -372,7 +392,16 @@ export function applyChoice(
   }
   s.lastRead = null;
 
-  if (opt.type === "read" && BOOKS[opt.name]) {
+  if (opt.type === "hang") {
+    const d = (s.drawings ?? []).find((x) => x.t === opt.name);
+    s.galleryWall ??= [];
+    if (d?.svg) {
+      s.galleryWall = [...s.galleryWall, { ...d, hungAt: t }].slice(-GALLERY_SIZE);
+      action = `hung my drawing "${d.title ?? "untitled"}" in the gallery`;
+      deltas = { joy: 10, energy: -1 };
+    } else { action = "looked for a drawing to hang, but couldn't find it"; deltas = {}; }
+    note = "";
+  } else if (opt.type === "read" && BOOKS[opt.name]) {
     const b = BOOKS[opt.name];
     const done = s.books[b.slug] ?? 0;
     const page = done >= b.pages.length ? 1 : done + 1; // finished books start over
@@ -609,6 +638,7 @@ export function publicView(s: State, unread: number, now: number, chats: { at: n
     readingLog: s.readingLog.slice(-40),
     wants: s.wants, pastWants: s.pastWants.slice(-15),
     gifts: (s.gifts?.log ?? []).slice(-40), owned: s.gifts?.received ?? [],
+    galleryWall: (s.galleryWall ?? []).map(({ t, title, text, svg, skill, seed, hungAt }) => ({ t, title, text, svg, skill, seed, hungAt })),
     music: s.music?.on ? { ...s.music, title: SONG_BY_ID[s.music.song]?.title, by: SONG_BY_ID[s.music.song]?.by } : { on: false },
     unread, tick: s.tick, last_error: s.last_error, last_tick_at: s.last_tick_at, pace: paceMinutes(s, now),
     places: Object.fromEntries(Object.entries(PLACES).map(([k, p]) => [k, p.label])),
