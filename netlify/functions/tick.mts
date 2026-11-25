@@ -94,7 +94,7 @@ async function moment(s: State, start: number) {
 
     try {
       const friends = await friendsSummary(now);
-      const { text, model } = await ask(identityPrompt(s), decisionPrompt(s, opts, notes, now, friends), timeLeft());
+      const { text, model } = await ask(identityPrompt(s), decisionPrompt(s, opts, notes, now, friends), timeLeft(), 1000);
       ({ idx, thought, note } = readChoice(parseJSON(text), opts.length));
       if (idx < 0) console.log("Brain reply unreadable:", text.slice(0, 300));
       brain = model;

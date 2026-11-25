@@ -107,7 +107,7 @@ export default async (req: Request) => {
       reply = "*tilts head and chirps* (Pino has no brain connected yet.)";
     } else {
       try {
-        const { text: out } = await ask(identityPrompt(s), talkPrompt(s, mine, text, now, known), 20_000, 600);
+        const { text: out } = await ask(identityPrompt(s), talkPrompt(s, mine, text, now, known), 20_000, 900);
         const parsed = parseJSON(out);
         reply = clean(parsed?.reply ?? out, 600);
         mood = typeof parsed?.mood === "string" ? parsed.mood : mood;

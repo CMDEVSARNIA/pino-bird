@@ -158,8 +158,18 @@ export function parseJSON(text: string): any {
   const cleaned = text.replace(/^```(?:json)?|```$/gm, "").trim();
   try { return JSON.parse(cleaned); } catch { /* fall through */ }
   const m = cleaned.match(/\{[\s\S]*\}/);
-  if (m) { try { return JSON.parse(m[0]); } catch { /* ignore */ } }
-  return null;
+  if (m) {
+    try { return JSON.parse(m[0]); } catch { /* fall through */ }
+    // raw line breaks inside strings are a common slip: escape them and retry
+    try { return JSON.parse(m[0].replace(/\r?\n/g, "\\n")); } catch { /* fall through */ }
+  }
+  // last resort: pull the fields out one by one, even from a reply that was cut short
+  const out: Record<string, string> = {};
+  for (const key of ["thought", "choice", "note", "reply", "mood", "remember", "their_name", "title", "lesson"]) {
+    const f = cleaned.match(new RegExp(`"${key}"\\s*:\\s*(?:"((?:[^"\\\\]|\\\\.)*)"?|(\\d+))`));
+    if (f) out[key] = (f[1] ?? f[2] ?? "").replace(/\\n/g, " ").replace(/\\"/g, '"').trim();
+  }
+  return Object.keys(out).length ? out : null;
 }
 
 // ---------------------------------------------------------------------------
