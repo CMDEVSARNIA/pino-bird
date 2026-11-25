@@ -37,9 +37,12 @@
   .ov { position: absolute; left: 0; top: 0; pointer-events: none; will-change: transform; }
   .label { font-size: 11px; font-weight: 800; color: #fff; background: rgba(43,42,39,.45); padding: 2px 7px; border-radius: 999px;
     transform: translate(-50%, -50%); white-space: nowrap; letter-spacing: .3px; }
-  .bubble { transform: translate(-50%, -100%); max-width: 210px; min-width: 60px; background: #fff; color: var(--ink);
-    border-radius: 14px; padding: 7px 10px; font-size: 13px; line-height: 1.35; box-shadow: 0 2px 10px rgba(0,0,0,.15);
-    transition: opacity .3s; text-align: center; }
+  .bubble { transform: translate(-50%, -100%); max-width: 170px; background: #fff; color: var(--ink);
+    border-radius: 12px; padding: 5px 9px; font-size: 12px; line-height: 1.3; box-shadow: 0 2px 10px rgba(0,0,0,.15);
+    transition: opacity .3s; text-align: center; pointer-events: auto; cursor: pointer; }
+  .bubble .txt { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+  .bubble.mini { padding: 3px 7px; font-size: 15px; border-radius: 999px; }
+  .bubble.mini .txt { display: none; }
   .bubble::after { content: ""; position: absolute; left: 50%; bottom: -6px; width: 12px; height: 12px; background: #fff;
     transform: translateX(-50%) rotate(45deg); border-radius: 2px; }
   .bubble.thought { font-style: italic; color: #4a463f; background: rgba(255,255,255,.92); }
@@ -100,6 +103,13 @@
   h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); margin: 6px 0; }
   .you { color: var(--muted); }
   .pino { margin-top: 3px; padding-left: 10px; border-left: 3px solid var(--accent); }
+  .badge { background: var(--accent); color: #fff; border-radius: 999px; font-size: 11px; padding: 1px 6px; margin-left: 4px; }
+  .badge[hidden] { display: none; }
+  .noteform { display: grid; gap: 8px; margin-bottom: 8px; }
+  .noteform textarea { width: 100%; min-height: 70px; border-radius: 12px; border: 1px solid var(--line); padding: 10px; font: inherit; font-size: 16px; resize: vertical; background: #fff; }
+  .noteform .send { justify-self: end; background: var(--accent); color: #fff; border: 0; border-radius: 999px; padding: 10px 18px; font: inherit; font-weight: 800; font-size: 15px; cursor: pointer; }
+  .noteform .send:disabled { opacity: .5; }
+  .formmsg { font-size: 13px; color: var(--muted); min-height: 1em; }
 </style>
 </head>
 <body>
@@ -142,12 +152,21 @@
     <button class="tab" role="tab" data-tab="diary">Diary</button>
     <button class="tab" role="tab" data-tab="journal">Journal</button>
     <button class="tab" role="tab" data-tab="drawings">Drawings</button>
+    <button class="tab" role="tab" data-tab="notes">Notes<span class="badge" id="unread" hidden></span></button>
     <button class="tab" role="tab" data-tab="mind">Mind</button>
   </div>
   <div class="card panel" id="p-chat"><ul class="list" id="chat"></ul></div>
   <div class="card panel" id="p-diary" hidden><ul class="list" id="diary"></ul></div>
   <div class="card panel" id="p-journal" hidden><ul class="list" id="journal"></ul></div>
   <div class="card panel" id="p-drawings" hidden><ul class="list" id="drawings"></ul></div>
+  <div class="card panel" id="p-notes" hidden>
+    <form class="noteform" id="noteForm">
+      <textarea id="noteText" maxlength="300" placeholder="Leave Pino a note… he'll find it and write back in his own time."></textarea>
+      <div class="formmsg" id="formmsg"></div>
+      <button class="send" type="submit">Leave note</button>
+    </form>
+    <ul class="list" id="convos"></ul>
+  </div>
   <div class="card panel" id="p-mind" hidden>
     <h3>Who I am (written by me)</h3>
     <p class="personality" id="personality"></p>
@@ -611,12 +630,24 @@ function list(target, items, render, emptyText) {
 const ago = (ms) => { if (!ms) return ""; const m = Math.round((Date.now() - ms) / 60000); return m < 1 ? "just now" : m === 1 ? "1 minute ago" : m < 60 ? `${m} minutes ago` : `${Math.round(m / 60)} h ago`; };
 const short = (s, n = 110) => (s.length > n ? s.slice(0, n - 1) + "…" : s);
 
-function showBubble(kind, text) {
+// Tap the bubble to shrink it to a little icon; tap again to read it.
+let bubbleMini = false;
+try { bubbleMini = localStorage.getItem("pinoBubbleMini") === "1"; } catch {}
+function showBubble(kind, text, icon = "💭") {
   if (!world) return;
-  const b = world.bubble; b.className = `ov bubble ${kind}`; b.hidden = !text;
-  if (kind === "thinking") { b.className = "ov bubble speech"; b.innerHTML = '<span class="dots"><span>●</span><span>●</span><span>●</span></span>'; }
-  else b.textContent = text;
+  const b = world.bubble; b.hidden = !text && kind !== "thinking";
+  b.className = `ov bubble ${kind === "thinking" ? "speech" : kind}${bubbleMini && kind === "thought" ? " mini" : ""}`;
+  b.replaceChildren();
+  if (kind === "thinking") { b.innerHTML = '<span class="dots"><span>●</span><span>●</span><span>●</span></span>'; return; }
+  if (bubbleMini && kind === "thought") { b.append(el("span", null, icon)); b.title = "Tap to read his thought"; }
+  b.append(el("span", "txt", kind === "thought" ? `${icon} ${text}` : text));
 }
+if (world) world.bubble.addEventListener("click", () => {
+  if (world.bubble.classList.contains("speech")) { speaking = 0; latest && render(latest); return; }
+  bubbleMini = !bubbleMini;
+  try { localStorage.setItem("pinoBubbleMini", bubbleMini ? "1" : "0"); } catch {}
+  latest && render(latest);
+});
 
 function renderChat() {
   const s = latest; if (!s) return;
@@ -645,14 +676,15 @@ function render(s) {
     world.setActivity(s.place, s.doing, first);
     if (Date.now() > speaking) {
       const b = BADGES.find(([re]) => re.test(s.doing));
-      showBubble("thought", s.thought ? `${b ? b[1] + " " : ""}${short(s.thought)}` : "");
+      showBubble("thought", s.thought ? short(s.thought) : "", b ? b[1] : "💭");
     }
   }
   first = false;
 
   $("doing").textContent = `${s.doing.charAt(0).toUpperCase() + s.doing.slice(1)} · ${s.places[s.place] || s.place}`;
   $("thought").textContent = s.thought ? `“${s.thought}”` : "";
-  $("heartbeat").textContent = s.last_tick_at ? `Last moment ${ago(s.last_tick_at)} · he decides something new about every 5 minutes` : "His first moment happens within 5 minutes.";
+  const pace = s.pace === 1 ? "every minute (he's new here!)" : "about every 5 minutes";
+  $("heartbeat").textContent = s.last_tick_at ? `Last moment ${ago(s.last_tick_at)} · he decides something new ${pace}` : "His first moment happens within a minute.";
 
   const needs = $("needs"); needs.replaceChildren();
   for (const [k, label] of [["food", "Food"], ["energy", "Energy"], ["joy", "Joy"]]) {
@@ -668,6 +700,10 @@ function render(s) {
   }, "Nothing yet. His life is just beginning.");
   list("journal", s.journal, (j) => { const li = el("li"); li.append(el("span", "meta", j.t), document.createTextNode(j.text)); return li; }, "He hasn't written anything yet.");
   list("drawings", s.drawings, (d) => { const li = el("li"); li.append(el("span", "meta", `🎨 ${d.t}`), document.createTextNode(d.text)); return li; }, "No drawings yet.");
+  list("convos", s.conversations || [], (c) => {
+    const li = el("li"); li.append(el("span", "meta", c.t), el("div", "you", `You: ${c.visitor}`), el("div", "pino", `${s.name}: ${c.reply}`)); return li;
+  }, s.unread ? "Your note is waiting in his mailbox. He'll answer when he gets to it." : "No notes yet. Leave him one!");
+  $("unread").hidden = !s.unread; $("unread").textContent = s.unread;
   $("personality").textContent = s.personality;
   list("insights", s.insights, (i) => { const li = el("li"); li.append(el("span", "meta", i.t), document.createTextNode(i.text)); return li; }, "He reflects about once an hour.");
 }
@@ -721,6 +757,16 @@ $("talkForm").addEventListener("submit", async (e) => {
   } else {
     speaking = 0; latest && render(latest); toast(j.error || "Pino didn't hear you. Try again.");
   }
+});
+// notes
+$("noteForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const text = $("noteText").value.trim(); if (!text) return;
+  const btn = e.target.querySelector("button"); btn.disabled = true;
+  const j = await post("/api/message", { text });
+  $("formmsg").textContent = j.ok ? "Delivered! He'll read it and write back in his own time." : (j.error || "Couldn't send.");
+  if (j.ok) { $("noteText").value = ""; refresh(); }
+  btn.disabled = false;
 });
 // tabs
 document.querySelectorAll(".tab").forEach((t) => t.addEventListener("click", () => {

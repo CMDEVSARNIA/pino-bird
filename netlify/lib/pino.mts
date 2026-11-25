@@ -3,7 +3,12 @@
 export const NAME = "Pino";
 export const SPECIES = "kiwi bird";
 export const TZ = "America/Toronto"; // day and night follow real Toronto time
-export const REFLECT_EVERY = 12;     // with a 5-minute tick: reflects about once an hour
+export const REFLECT_EVERY = 12;     // reflects every 12 decisions
+export const FAST_HOURS = 3;         // for his first 3 hours he thinks every minute, then every 5
+
+export function paceMinutes(s: { born: number }, now: number) {
+  return now - s.born < FAST_HOURS * 3_600_000 ? 1 : 5;
+}
 
 export type Need = "food" | "energy" | "joy";
 export const NEEDS: Need[] = ["food", "energy", "joy"];
@@ -243,7 +248,7 @@ export function instinct(s: State, opts: Option[], now: number): { idx: number; 
 // ---------------------------------------------------------------------------
 export function applyChoice(
   s: State, opt: Option, thought: string, note: string, now: number, brain: string,
-  answeredNote?: Note,
+  answeredNote?: Note, minutes = 5,
 ) {
   const here = s.place;
   const t = clockStr(s, now);
@@ -286,11 +291,12 @@ export function applyChoice(
 
   for (const [k, v] of Object.entries(deltas)) s.needs[k as Need] = clamp(s.needs[k as Need] + (v ?? 0));
 
-  // the passage of time (one tick is about 5 real minutes)
+  // the passage of time: needs drain by real minutes passed, not by decisions made
   const night = isNight(now);
+  const scale = Math.min(2, Math.max(0.2, minutes / 5));
   const decay: Record<Need, number> = { food: -1, energy: night ? -1.5 : -1, joy: -1 };
   if (action.startsWith("sleep")) decay.energy = 0;
-  for (const n of NEEDS) s.needs[n] = clamp(s.needs[n] + decay[n]);
+  for (const n of NEEDS) s.needs[n] = clamp(s.needs[n] + decay[n] * scale);
 
   s.memories.push({ t, place: here, action, thought, note, deltas, first, bored, brain });
   s.memories = s.memories.slice(-400);
@@ -381,7 +387,7 @@ export function publicView(s: State, unread: number, now: number, chats: { at: n
     personality: s.personality, insights: s.insights.slice(-20),
     memories: s.memories.slice(-40), journal: s.journal.slice(-30),
     drawings: s.drawings.slice(-30), conversations: s.conversations.slice(-30),
-    unread, tick: s.tick, last_error: s.last_error, last_tick_at: s.last_tick_at,
+    unread, tick: s.tick, last_error: s.last_error, last_tick_at: s.last_tick_at, pace: paceMinutes(s, now),
     places: Object.fromEntries(Object.entries(PLACES).map(([k, p]) => [k, p.label])),
   };
 }

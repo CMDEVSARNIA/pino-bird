@@ -1,7 +1,7 @@
 import type { Config } from "@netlify/functions";
 import {
   applyChoice, applyReflection, buildOptions, decisionPrompt, identityPrompt, instinct,
-  parseJSON, readChoice, reflectionPrompt, REFLECT_EVERY, applyVisits,
+  parseJSON, readChoice, reflectionPrompt, REFLECT_EVERY, applyVisits, paceMinutes,
 } from "../lib/pino.mts";
 import { ask, hasBrain, NoBrain } from "../lib/brain.mts";
 import { deleteKeys, deleteNote, listEvents, listNotes, loadState, saveState } from "../lib/store.mts";
@@ -11,6 +11,12 @@ import { deleteKeys, deleteNote, listEvents, listNotes, loadState, saveState } f
 export default async () => {
   const now = Date.now();
   const s = await loadState();
+
+  // The scheduler wakes us every minute; Pino only acts at his own pace
+  // (every minute for his first few hours, then every 5 minutes).
+  const pace = paceMinutes(s, now);
+  if (s.last_tick_at && now - s.last_tick_at < pace * 60_000 - 20_000) return;
+  const minutes = s.last_tick_at ? Math.min(30, (now - s.last_tick_at) / 60_000) : pace;
   s.last_tick_at = now;
 
   // Fold in what visitors did since last time (pets, treats, chats)
@@ -59,7 +65,7 @@ export default async () => {
 
     const opt = opts[idx];
     const answered = opt.type === "reply" ? notes[0] : undefined;
-    const action = applyChoice(s, opt, thought || "...", note, now, brain, answered);
+    const action = applyChoice(s, opt, thought || "...", note, now, brain, answered, minutes);
     await persist();
     if (answered) await deleteNote(answered.key);
     console.log(`Pino @ ${s.place}: ${action} - ${thought}`);
@@ -70,7 +76,7 @@ export default async () => {
   }
 };
 
-// Every 5 minutes (cron runs in UTC; an interval doesn't care about time zones)
+// Wake every minute (cron runs in UTC; an interval doesn't care about time zones)
 export const config: Config = {
-  schedule: "*/5 * * * *",
+  schedule: "* * * * *",
 };
