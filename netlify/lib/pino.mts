@@ -17,10 +17,9 @@ export const REFLECT_EVERY = 12;     // reflects every 12 decisions
 export const FAST_HOURS = 3;         // for his first 3 hours he thinks about twice a minute, then every 5 minutes
 
 // Minutes between his decisions right now
-export const BOOST_UNTIL = Date.parse("2026-11-26T02:00:00Z"); // a burst of once-a-minute thinking until 9:00 pm Toronto, Nov 25
-export function paceMinutes(s: { born: number }, now: number) {
+export function paceMinutes(s: { born: number; boostUntil?: number }, now: number) {
   if (now - s.born < FAST_HOURS * 3_600_000) return 0.5;
-  return now < BOOST_UNTIL ? 1 : 5;
+  return now < (s.boostUntil ?? 0) ? 1 : 5; // the owner can switch on fast thinking from his phone
 }
 
 export type Need = "food" | "energy" | "joy";
@@ -124,6 +123,7 @@ export type State = {
   museumLog?: { t: string; id: string; name: string; reaction: string }[];
   teddy?: { holding: boolean; place: string };   // his penguin teddy: in his wing, or left somewhere in town
   tv?: TV;                                       // the TV in his house
+  boostUntil?: number;                           // fast (once-a-minute) thinking until this time, set by the owner
   garden?: Garden;                               // his garden beds, seed packets and harvest
   lettersSent?: Record<string, number>;          // person id -> when he last wrote to them
   outbox?: { to: string; name: string; text: string; t: string; at: number }[]; // letters waiting to be delivered

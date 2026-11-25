@@ -103,6 +103,13 @@ export async function claimedGiftIds() {
   return (await listKeys("gifts")).map((k) => k.slice("gifts/".length));
 }
 
+// ---- fast thinking: the owner can make Pino think once a minute for a while (read by every heartbeat)
+export async function getBoost() {
+  const b = await store().get("boost", { type: "json" }) as { until?: number } | null;
+  return b ? Number(b.until ?? 0) : Date.parse("2026-11-26T02:00:00Z"); // until the switch is first used: tonight's boost, to 9 pm
+}
+export async function setBoost(until: number) { await store().setJSON("boost", { until }); }
+
 // ---- people Pino has met (keyed by a random id the visitor's browser keeps)
 const safeId = (id: string) => /^[a-z0-9-]{8,64}$/i.test(id) ? id : null;
 export async function getPerson(id: string): Promise<Person | null> {

@@ -4,7 +4,7 @@ import { ask, hasBrain } from "../lib/brain.mts";
 import { GIFTS, GIFT_BY_ID, QUICK_TREAT_PRICE, repeatable } from "../lib/gifts.mts";
 import {
   addChat, addEvent, addNote, claimGift, claimedGiftIds, countEvents, countNotes, getPerson, loadState, meet,
-  peopleIndex, recentChats, store, updatePerson, type Who,
+  getBoost, peopleIndex, recentChats, setBoost, store, updatePerson, type Who,
 } from "../lib/store.mts";
 import { EXHIBIT_BY_ID } from "../lib/museum.mts";
 
@@ -40,15 +40,16 @@ export default async (req: Request, context: Context) => {
 
   if (req.method === "GET" && pathname === "/api/state") {
     const meId = url.searchParams.get("who") ?? "";
-    let [s, unread, chats, claimed, people, mePerson] = await Promise.all([loadState(), countNotes(), recentChats(14), claimedGiftIds(), peopleIndex(),
-      /^[a-z0-9-]{8,64}$/i.test(meId) ? getPerson(meId) : Promise.resolve(null)]);
+    let [s, unread, chats, claimed, people, mePerson, boost] = await Promise.all([loadState(), countNotes(), recentChats(14), claimedGiftIds(), peopleIndex(),
+      /^[a-z0-9-]{8,64}$/i.test(meId) ? getPerson(meId) : Promise.resolve(null), getBoost()]);
+    s.boostUntil = boost;
     mePerson = await grantSeeds(mePerson, people, now);
     const gone = new Set([...claimed, ...(s.gifts?.received ?? [])].filter((id) => !GIFT_BY_ID[id] || !repeatable(GIFT_BY_ID[id])));
     return json({
       ...publicView(s, unread, now, chats.map(({ at, you, pino, name, react }) => ({ at, you, pino, name, react }))),
       version: context?.deploy?.id ?? "",
       giftsAvailable: GIFTS.filter((g) => !gone.has(g.id)).map(({ id, kind, name, emoji, desc, price }) => ({ id, kind, name, emoji, desc, price })),
-      me: { letters: (mePerson?.letters ?? []).slice(-20), name: mePerson?.name ?? null, seeds: seedsOf(mePerson), earned: mePerson?.earned ?? null, rules: EARN, treatPrice: QUICK_TREAT_PRICE },
+      me: { owner: OWNERS.has(meId), boostUntil: OWNERS.has(meId) ? boost : undefined, letters: (mePerson?.letters ?? []).slice(-20), name: mePerson?.name ?? null, seeds: seedsOf(mePerson), earned: mePerson?.earned ?? null, rules: EARN, treatPrice: QUICK_TREAT_PRICE },
       friends: Object.values(people).filter((p) => p.visits > 0).sort((a, b) => b.lastSeen - a.lastSeen).slice(0, 30)
         .map(({ name, visits, note, lastSeen }) => ({ name, visits, note, lastSeen })),
     });
@@ -57,6 +58,15 @@ export default async (req: Request, context: Context) => {
   if (req.method !== "POST") return new Response("Not found", { status: 404 });
   const b = await body(req);
   const who = whoFrom(b);
+
+  if (pathname === "/api/boost") {
+    if (!who || !OWNERS.has(who.id)) return json({ ok: false, error: "Only Pino's owner can do that." }, 403);
+    const hours = Math.max(0, Math.min(12, Number(b.hours) || 0));
+    const until = hours ? now + hours * 3_600_000 : 0;
+    await setBoost(until);
+    console.log(hours ? `Fast thinking on for ${hours} h` : "Fast thinking off");
+    return json({ ok: true, until });
+  }
 
   if (pathname === "/api/letter-read") {
     if (!who) return json({ ok: false }, 400);
@@ -188,7 +198,7 @@ export default async (req: Request, context: Context) => {
 };
 
 export const config: Config = {
-  path: ["/api/state", "/api/message", "/api/pet", "/api/treat", "/api/give", "/api/talk", "/api/watch", "/api/museum-image", "/api/letter-read"],
+  path: ["/api/state", "/api/message", "/api/pet", "/api/treat", "/api/give", "/api/talk", "/api/watch", "/api/museum-image", "/api/letter-read", "/api/boost"],
   method: ["GET", "POST"],
 };
 
@@ -224,6 +234,9 @@ async function museumImage(id: string) {
     return new Response("Picture unavailable", { status: 502, headers: { "Cache-Control": "no-store" } });
   }
 }
+
+// Pino's owner (Christian's visitor id): only he gets the fast-thinking switch
+const OWNERS = new Set(["20976603-f2a4-4711-bb72-d332f9c8929c"]);
 
 // One-off top-ups the owner asked for. Each is paid once, ever, to the visitor with that
 // name who has visited most (so a newcomer can't claim it by typing the same name).

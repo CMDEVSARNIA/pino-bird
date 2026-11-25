@@ -7,7 +7,7 @@ import {
 import { ask, hasBrain, NoBrain } from "../lib/brain.mts";
 import { fetchWeather, needsRefresh, wet } from "../lib/weather.mts";
 import { grow, newGarden } from "../lib/garden.mts";
-import { acquireLock, deleteKeys, deleteNote, listEvents, listNotes, loadState, peopleIndex, releaseLock, saveState, updatePerson } from "../lib/store.mts";
+import { acquireLock, deleteKeys, deleteNote, getBoost, listEvents, listNotes, loadState, peopleIndex, releaseLock, saveState, updatePerson } from "../lib/store.mts";
 
 // Pino's heartbeat. Netlify wakes this every minute (its shortest schedule).
 // While Pino is new (his first few hours) he lives two moments per wake-up,
@@ -35,6 +35,7 @@ async function live() {
   if (!(await acquireLock(40_000))) { console.log("Another heartbeat is already running; skipping."); return; }
   try {
     const s = await loadState();
+    s.boostUntil = await getBoost();
     const pace = paceMinutes(s, start), fast = pace < 1;
     const since = s.last_tick_at ? start - s.last_tick_at : Infinity;
     if (fast ? since < 15_000 : since < pace * 60_000 - 20_000) return;
