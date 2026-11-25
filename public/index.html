@@ -86,7 +86,7 @@
     background: rgba(43,42,39,.88); color: #fff; padding: 7px 12px; border-radius: 12px; text-align: center;
     opacity: 0; transition: opacity .3s; pointer-events: none; }
   .toast.show { opacity: 1; }
-  .nowplaying { position: absolute; left: 10px; bottom: 62px; max-width: 75%; font-size: 12px; background: rgba(43,42,39,.78); color: #fff;
+  .nowplaying { position: absolute; right: 10px; top: 10px; max-width: 58%; font-size: 12px; background: rgba(43,42,39,.78); color: #fff;
     padding: 6px 10px; border-radius: 999px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none; }
   .nowplaying[hidden] { display: none; }
   .controls { position: absolute; right: 10px; bottom: 10px; display: flex; gap: 8px; }
@@ -330,7 +330,7 @@ function buildWorld() {
   controls.minDistance = 5; controls.maxDistance = 38;
   controls.maxPolarAngle = 1.38; controls.minPolarAngle = 0.25;
   controls.enablePan = false;
-  controls.target.set(0, 0.5, 1.0);
+  controls.target.set(0, 0.5, 1.6);
 
   // lights
   const hemi = new THREE.HemisphereLight(0xffffff, 0x6f9a55, 1.15);
@@ -362,7 +362,7 @@ function buildWorld() {
   }
   // scattered little trees and flowers
   const pineMat = M(0x4f9a52), trunkMat = M(0x7b5636);
-  [[-10, -9], [-12, -2], [11, -9], [12, 1], [-11, 8], [9, 10], [0, -11], [-7, 12], [13, 6]].forEach(([x, z], i) => {
+  [[-10, -9], [-12, -2], [11, -9], [12, 1], [-11, 8], [9, 10], [0, -11], [-9, 9], [13, 6]].forEach(([x, z], i) => {
     const t = new THREE.Group(); t.position.set(x, 0, z); t.scale.setScalar(0.8 + (i % 3) * 0.2);
     add(box(0.3, 0.8, 0.3, trunkMat), t).position.y = 0.4;
     add(new THREE.Mesh(new THREE.ConeGeometry(1, 2, 6), pineMat), t).position.y = 1.7;
@@ -388,7 +388,7 @@ function buildWorld() {
   add(new THREE.Mesh(new THREE.CylinderGeometry(1.3, 1.3, 0.03, 24), sand), scene, { cast: false, receive: true }).position.set(0, 0.016, 0.6);
 
   // ---- HOUSE
-  const house = new THREE.Group(); house.position.set(-5, 0, -5.2); scene.add(house);
+  const house = new THREE.Group(); house.position.set(-4.6, 0, -5.2); scene.add(house);
   add(box(3.2, 2, 2.6, M(0xf2c9a0)), house).position.y = 1;
   const roof = add(new THREE.Mesh(new THREE.ConeGeometry(2.6, 1.7, 4), M(0xc8643b)), house);
   roof.position.y = 2.85; roof.rotation.y = Math.PI / 4; roof.scale.set(1.0, 1, 0.82);
@@ -400,7 +400,7 @@ function buildWorld() {
   add(box(0.05, 0.6, 0.1, M(0xf2c9a0)), house).position.set(0.95, 1.25, 1.35);
 
   // ---- LIBRARY
-  const lib = new THREE.Group(); lib.position.set(5, 0, -5.4); scene.add(lib);
+  const lib = new THREE.Group(); lib.position.set(4.4, 0, -5.4); scene.add(lib);
   add(box(4.8, 0.25, 3.3, M(0xcfc6b5)), lib, { receive: true }).position.y = 0.12;
   add(box(4.4, 2.4, 2.8, M(0xe8e1d3)), lib).position.y = 1.45;
   const tri = new THREE.Shape(); tri.moveTo(-2.6, 0); tri.lineTo(2.6, 0); tri.lineTo(0, 1.1); tri.lineTo(-2.6, 0);
@@ -413,7 +413,7 @@ function buildWorld() {
   add(new THREE.Mesh(new THREE.PlaneGeometry(2.2, 0.42), new THREE.MeshBasicMaterial({ map: textTexture("LIBRARY", "#5b4a3a", "#f6efe2", 512, 96) })), lib).position.set(0, 2.38, 1.43);
 
   // ---- VENDING MACHINE
-  const vm = new THREE.Group(); vm.position.set(0, 0, -5.3); scene.add(vm);
+  const vm = new THREE.Group(); vm.position.set(-1.5, 0, -5.3); scene.add(vm);
   add(box(1.2, 2.1, 0.85, M(0xd24b4b)), vm).position.y = 1.05;
   const screenTex = snacksTexture();
   const screenMat = new THREE.MeshStandardMaterial({ map: screenTex, emissive: 0xffffff, emissiveMap: screenTex, emissiveIntensity: 0.25, roughness: 0.4 });
@@ -425,58 +425,91 @@ function buildWorld() {
 
   // ---- PARK
   const park = new THREE.Group(); scene.add(park);
-  const tree = new THREE.Group(); tree.position.set(-7.2, 0, 2.4); park.add(tree);
+  const tree = new THREE.Group(); tree.position.set(-5.8, 0, 1.6); park.add(tree);
   add(new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.35, 2, 7), trunkMat), tree).position.y = 1;
   const leafMat = M(0x5fae5a);
   [[0, 2.6, 0, 1.4], [-0.9, 2.2, 0.3, 1], [0.9, 2.2, -0.2, 1.05], [0.1, 3.3, 0.1, 0.9]].forEach(([x, y, z, r]) => add(new THREE.Mesh(new THREE.IcosahedronGeometry(r, 0), leafMat), tree).position.set(x, y, z));
   [[0.6, 2.4, 1.1], [-0.7, 2.9, 0.8], [1.2, 2.0, 0.5]].forEach(([x, y, z]) => add(new THREE.Mesh(new THREE.IcosahedronGeometry(0.12, 0), M(0xe0473b)), tree).position.set(x, y, z));
-  const pile = new THREE.Group(); pile.position.set(-6.0, 0, 4.4); park.add(pile);
+  const pile = new THREE.Group(); pile.position.set(-5.0, 0, 2.9); park.add(pile);
   const leafCols = [0xe08a3c, 0xd2602f, 0xf0b44a];
   for (let i = 0; i < 22; i++) {
     const l = add(new THREE.Mesh(new THREE.IcosahedronGeometry(0.16, 0), M(leafCols[i % 3])), pile, { cast: false });
     const a = Math.random() * 6.28, r = Math.random() * 0.6;
     l.position.set(Math.cos(a) * r, 0.08 + Math.random() * 0.25 * (1 - r), Math.sin(a) * r); l.scale.y = 0.4;
   }
-  const POND = V(-2.8, 0, 8.6);
-  const bench = new THREE.Group(); bench.position.set(-3.6, 0, 5.9); bench.rotation.y = 0.15; park.add(bench);
+  const POND = V(-3.9, 0, 6.2);
+  const bench = new THREE.Group(); bench.position.set(-1.6, 0, 5.4); bench.rotation.y = -1.35; park.add(bench);
   const wood = M(0xc58b4d);
   add(box(1.8, 0.1, 0.5, wood), bench).position.set(0, 0.5, 0);
   add(box(1.8, 0.4, 0.08, wood), bench).position.set(0, 0.85, -0.25);
   for (const x of [-0.75, 0.75]) add(box(0.1, 0.5, 0.45, M(0x6b5a4a)), bench).position.set(x, 0.25, 0);
   const pond = add(new THREE.Mesh(new THREE.CircleGeometry(1.7, 28).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0x6fbbe0, roughness: 0.15, metalness: 0.1 })), park, { cast: false, receive: false });
-  pond.position.set(POND.x, 0.05, POND.z);
-  add(new THREE.Mesh(new THREE.TorusGeometry(1.75, 0.12, 5, 28).rotateX(Math.PI / 2), M(0xa8a39a)), park, { cast: false }).position.set(POND.x, 0.04, POND.z);
+  pond.position.set(POND.x, 0.05, POND.z); pond.scale.setScalar(0.82);
+  add(new THREE.Mesh(new THREE.TorusGeometry(1.44, 0.11, 5, 28).rotateX(Math.PI / 2), M(0xa8a39a)), park, { cast: false }).position.set(POND.x, 0.04, POND.z);
   const duck = new THREE.Group(); park.add(duck);
   add(new THREE.Mesh(new THREE.IcosahedronGeometry(0.22, 1), M(0xffffff)), duck).scale.set(1, 0.7, 1.4);
   add(new THREE.Mesh(new THREE.IcosahedronGeometry(0.13, 1), M(0xffffff)), duck).position.set(0, 0.22, 0.22);
   add(new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.14, 5).rotateX(Math.PI / 2), M(0xf2a23c)), duck).position.set(0, 0.2, 0.38);
 
   // spots where Pino stands at each place, what he faces, and extra spots for some activities
-  const SPOTS = { house: V(-5, 0, -2.4), library: V(5, 0, -2.5), vending: V(0, 0, -3.85), park: V(-4.3, 0, 4.9), gallery: V(3.69, 0, 4.01) };
-  const LOOK = { house: V(-5, 0, -4), library: V(5, 0, -4), vending: V(0, 0, -5.3), park: POND, gallery: V(4.2, 0, 2.6) };
+  const SPOTS = { house: V(-4.6, 0, -2.4), library: V(4.4, 0, -2.5), vending: V(-1.5, 0, -3.85), park: V(-3.0, 0, 3.2), gallery: V(3.96, 0, 3.73) };
+  const LOOK = { house: V(-4.6, 0, -4), library: V(4.4, 0, -4), vending: V(-1.5, 0, -5.3), park: POND, gallery: V(4.4, 0, 2.3) };
   // [activity, where he goes, what he faces, building he disappears into]
-  const HOUSE_DOOR = V(-5, 0, -3.75), LIB_DOOR = V(5, 0, -3.65);
+  const HOUSE_DOOR = V(-4.6, 0, -3.75), LIB_DOOR = V(4.4, 0, -3.65);
+  const NOOK_SEAT = V(1.2, 0.36, -4.75);
   const ACT = [
+    [/reading nook/, NOOK_SEAT, V(1.2, 0, 2)],              // must come before the library entry ("read")
     [/^sleep|tidy|window|blanket/, HOUSE_DOOR, V(-5, 0, -6), "house"],
-    [/read|journal|draw|paint/, LIB_DOOR, V(5, 0, -6), "library"],
-    [/telescope/, V(-2.9, 0, -2.85), V(-2.9, 0, -4.6)],
-    [/toy train/, V(-4.9, 0, 7.2), V(-6.4, 0, 7.4)],
-    [/birdbath/, V(-0.9, 0, 5.75), V(-0.9, 0, 6.6)],
-    [/kite/, V(-1.4, 0, 6.2), V(-3, 0, 2)],
-    [/swing/, V(1.15, 0, 7.6), V(1.15, 0, 12)],
-    [/gramophone|next song/, V(-4.55, 0, 5.55), V(-5.1, 0, 6.3)],
-    [/dance/, V(-3.9, 0, 5.2), V(-3.9, 0, 12)],
-    [/leaf/, V(-5.3, 0, 4.7), V(-6.0, 0, 4.4)],
-    [/ducks/, V(-2.4, 0, 6.5), POND],
-    [/bench|sit and think/, V(-3.6, 0.52, 5.9), POND],
+    [/read|journal|draw|paint/, LIB_DOOR, V(4.4, 0, -6), "library"],
+    [/telescope/, V(-2.7, 0, -1.85), V(-2.7, 0, -3.6)],
+    [/toy train/, V(2.2, 0, 6.1), V(0.9, 0, 6.5)],
+    [/birdbath/, V(1.9, 0, 3.7), V(1.9, 0, 4.5)],
+    [/kite/, V(0, 0, 4.4), V(-3, 0, 2)],
+    [/swing/, V(3.95, 0, 6.9), V(3.95, 0, 12)],
+    [/gramophone|next song/, V(-5.0, 0, 4.7), V(-5.9, 0, 4.3)],
+    [/dance/, V(-4.5, 0, 3.9), V(-4.5, 0, 12)],
+    [/leaf/, V(-4.3, 0, 3.4), V(-5.0, 0, 2.9)],
+    [/ducks/, V(-2.5, 0, 5.0), POND],
+    [/bench|sit and think/, V(-1.6, 0.52, 5.4), POND],
   ];
-  const INSIDE_ANCHOR = { house: V(-5, 2.4, -3.7), library: V(5, 2.9, -3.6) };
-  const CHIMNEY = V(-4.1, 4.0, -5.5);
+  const INSIDE_ANCHOR = { house: V(-4.6, 2.4, -3.7), library: V(4.4, 2.9, -3.6) };
+  const CHIMNEY = V(-3.7, 4.0, -5.5);
   for (const k of Object.keys(SPOTS)) strip(JUNCTION, SPOTS[k]);
-  strip(SPOTS.house, V(-5, 0, -3.9), 0.9); strip(SPOTS.library, V(5, 0, -3.8), 0.9);
+  strip(SPOTS.house, V(-4.6, 0, -3.9), 0.9); strip(SPOTS.library, V(4.4, 0, -3.8), 0.9);
+
+  // ---- the cozy reading nook: a glass-fronted bay on the side of the library
+  const nook = new THREE.Group(); nook.position.set(1.2, 0, -4.75); scene.add(nook);
+  const woodMat = M(0x9a6a43), creamMat = M(0xf1e6d2);
+  add(box(1.6, 0.12, 1.5, M(0xb07a4f)), nook, { receive: true }).position.y = 0.06;           // floor
+  add(box(1.6, 2.0, 0.1, creamMat), nook).position.set(0, 1.0, -0.72);                     // back wall
+  add(box(0.1, 2.0, 1.5, creamMat), nook).position.set(-0.78, 1.0, 0);                     // side wall
+  const roofN = add(box(1.9, 0.12, 1.75, M(0xb8643f)), nook); roofN.position.set(0, 2.08, 0.05); roofN.rotation.x = 0.12;
+  for (const x of [-0.78, 0.78]) add(box(0.08, 2.0, 0.08, woodMat), nook).position.set(x, 1.0, 0.72);
+  add(new THREE.Mesh(new THREE.PlaneGeometry(1.5, 1.6), new THREE.MeshStandardMaterial({ color: 0xcfe9f2, transparent: true, opacity: 0.18, roughness: 0.1 })), nook, { cast: false }).position.set(0, 1.05, 0.74);
+  add(box(1.0, 0.04, 0.7, M(0xc0504a)), nook, { cast: false }).position.set(0, 0.13, 0.1);  // rug
+  // armchair
+  const chair = new THREE.Group(); chair.position.set(0, 0.12, 0); nook.add(chair);
+  const red = M(0xb5453a);
+  add(box(0.72, 0.22, 0.6, red), chair).position.y = 0.16;
+  add(box(0.72, 0.55, 0.14, red), chair).position.set(0, 0.42, -0.26);
+  for (const x of [-0.33, 0.33]) add(box(0.1, 0.3, 0.6, red), chair).position.set(x, 0.32, 0);
+  add(box(0.5, 0.04, 0.35, M(0xe8c77a)), chair).position.set(0.05, 0.29, 0.12);            // blanket over the seat
+  // floor lamp with a warm shade
+  const shadeMat = new THREE.MeshStandardMaterial({ color: 0xf4d28a, emissive: 0xffb84d, emissiveIntensity: 0.6, roughness: 0.8 });
+  add(new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.04, 1.3, 6), M(0x3a2a20)), nook).position.set(0.55, 0.77, -0.4);
+  add(new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.2, 0.22, 10, 1, true), shadeMat), nook).position.set(0.55, 1.45, -0.4);
+  // little fireplace with flickering glow
+  add(box(0.5, 0.6, 0.25, M(0x8a8178)), nook).position.set(-0.5, 0.42, -0.58);
+  const fireMat = new THREE.MeshStandardMaterial({ color: 0xff7a2a, emissive: 0xff5a10, emissiveIntensity: 1.4 });
+  const fire = add(new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.22, 6), fireMat), nook, { cast: false }); fire.position.set(-0.5, 0.31, -0.48);
+  const fireLight = new THREE.PointLight(0xff9a4a, 1.2, 3.5, 1.6); fireLight.position.set(-0.4, 0.6, -0.2); nook.add(fireLight);
+  const lampLight = new THREE.PointLight(0xffd38a, 0.6, 3, 1.6); lampLight.position.set(0.5, 1.3, -0.2); nook.add(lampLight);
+  // tiny bookshelf
+  add(box(0.08, 1.1, 0.5, woodMat), nook).position.set(-0.7, 1.3, 0.2);
+  [0xc0392b, 0x2980b9, 0x27ae60, 0xf1c40f, 0x8e44ad].forEach((c, i) => add(box(0.12, 0.2, 0.07, M(c)), nook, { cast: false }).position.set(-0.64, 1.0 + (i > 2 ? 0.4 : 0), 0.05 + (i % 3) * 0.11));
 
   // ---- Pino's art gallery: six frames that show the drawings he chose to hang
-  const gal = new THREE.Group(); gal.position.set(4.2, 0, 2.6); gal.rotation.y = -0.35; scene.add(gal);
+  const gal = new THREE.Group(); gal.position.set(4.4, 0, 2.3); gal.rotation.y = -0.3; scene.add(gal);
   add(box(3.1, 0.14, 2.0, M(0xd9d2c3)), gal, { receive: true }).position.y = 0.07;
   add(box(2.9, 2.3, 0.18, M(0xf4efe4)), gal).position.set(0, 1.29, -0.82);
   add(box(3.3, 0.16, 1.1, M(0x7a9e8a)), gal).position.set(0, 2.55, -0.4);   // short roof, so the art stays in view
@@ -508,7 +541,7 @@ function buildWorld() {
   }
 
   // ---- the gramophone in the park
-  const gram = new THREE.Group(); gram.position.set(-5.1, 0, 6.3); gram.rotation.y = 0.6; scene.add(gram);
+  const gram = new THREE.Group(); gram.position.set(-5.9, 0, 4.3); gram.rotation.y = 0.9; scene.add(gram);
   add(box(0.7, 0.35, 0.6, M(0x8b5a3c)), gram).position.y = 0.45;
   for (const [x, z] of [[-0.28, -0.22], [0.28, -0.22], [-0.28, 0.22], [0.28, 0.22]]) add(box(0.06, 0.28, 0.06, M(0x5a3a24)), gram).position.set(x, 0.14, z);
   const platter = add(new THREE.Mesh(new THREE.CylinderGeometry(0.26, 0.26, 0.03, 20), M(0x1d1a16)), gram); platter.position.y = 0.64;
@@ -520,7 +553,7 @@ function buildWorld() {
   let musicOn = false;
 
   // ---- swing set in the park (two swings that really swing)
-  const swingSet = new THREE.Group(); swingSet.position.set(1.6, 0, 7.0); scene.add(swingSet);
+  const swingSet = new THREE.Group(); swingSet.position.set(4.4, 0, 6.3); scene.add(swingSet);
   const frameMat = M(0x3f7fbf), ropeMat = M(0x8a7a66), seatMat = M(0xd2604b);
   for (const x of [-1.2, 1.2]) for (const z of [-0.55, 0.55]) {
     const leg = add(new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 2.5, 6), frameMat), swingSet);
@@ -537,19 +570,19 @@ function buildWorld() {
 
   // ---- gifts that appear in the town once someone gives them
   const props = {};
-  const tele = new THREE.Group(); tele.position.set(-2.9, 0, -3.6); scene.add(tele);
+  const tele = new THREE.Group(); tele.position.set(-2.7, 0, -2.6); scene.add(tele);
   for (const a of [0, 2.1, 4.2]) {
     const leg = add(new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 1.15, 5), M(0x6b5a4a)), tele);
     leg.position.set(Math.cos(a) * 0.2, 0.55, Math.sin(a) * 0.2); leg.rotation.set(Math.sin(a) * 0.35, 0, -Math.cos(a) * 0.35);
   }
   const tube = add(new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.13, 1.0, 10), M(0x2f5d8a)), tele); tube.position.set(0, 1.2, -0.1); tube.rotation.x = -0.9;
   props["thing-telescope"] = tele;
-  const trainSet = new THREE.Group(); trainSet.position.set(-6.4, 0, 7.4); scene.add(trainSet);
+  const trainSet = new THREE.Group(); trainSet.position.set(0.9, 0, 6.5); trainSet.scale.setScalar(0.85); scene.add(trainSet);
   add(new THREE.Mesh(new THREE.TorusGeometry(1.1, 0.06, 4, 40).rotateX(Math.PI / 2), M(0x7a6a5a)), trainSet, { cast: false }).position.y = 0.04;
   const cars = [0xc0392b, 0x2980b9, 0xf1c40f].map((c, i) => add(box(0.32, 0.22, 0.2, M(c)), trainSet));
   const chimneyPuff = add(new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.05, 0.14, 6), M(0x333333)), cars[0]); chimneyPuff.position.set(0.08, 0.17, 0);
   props["thing-train"] = trainSet;
-  const bath = new THREE.Group(); bath.position.set(-0.9, 0, 6.6); scene.add(bath);
+  const bath = new THREE.Group(); bath.position.set(1.9, 0, 4.5); scene.add(bath);
   add(new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.18, 0.7, 8), M(0xb9b3a8)), bath).position.y = 0.35;
   add(new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.35, 0.18, 14), M(0xc9c3b8)), bath).position.y = 0.78;
   add(new THREE.Mesh(new THREE.CircleGeometry(0.47, 16).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0x7cc4e4, roughness: 0.1 })), bath, { cast: false }).position.y = 0.875;
@@ -570,14 +603,14 @@ function buildWorld() {
   scene.add(stars);
   const moon = new THREE.Mesh(new THREE.SphereGeometry(2.5, 16, 16), new THREE.MeshBasicMaterial({ color: 0xf4f1dc, fog: false, transparent: true, opacity: 0 }));
   moon.position.set(-30, 32, -45); scene.add(moon);
-  const houseLight = new THREE.PointLight(0xffc861, 0, 7, 1.5); houseLight.position.set(-5, 1.3, -3.4); scene.add(houseLight);
+  const houseLight = new THREE.PointLight(0xffc861, 0, 7, 1.5); houseLight.position.set(-4.6, 1.3, -3.4); scene.add(houseLight);
 
   // ================================================================ PINO
   const pino = makeKiwi(M); pino.group.scale.setScalar(1.45); scene.add(pino.group);
   pino.group.position.copy(SPOTS.house);
 
   // ---------------------------------------------------------------- overlays
-  const labels = [["home", V(-5, 4.2, -5.2)], ["library", V(5, 4.1, -5.4)], ["snacks", V(0, 2.75, -5.3)], ["park", V(-7.2, 4.1, 2.4)], ["gallery", V(4.2, 3.0, 2.6)]].map(([t, p]) => {
+  const labels = [["home", V(-4.6, 4.2, -5.2)], ["library", V(4.4, 4.1, -5.4)], ["snacks", V(-1.5, 2.75, -5.3)], ["park", V(-5.8, 4.1, 1.6)], ["gallery", V(4.4, 3.0, 2.3)]].map(([t, p]) => {
     const d = el("div", "ov label", t); stage.append(d); return { d, p };
   });
   const bubble = el("div", "ov bubble thought"); bubble.hidden = true; stage.append(bubble);
@@ -625,7 +658,7 @@ function buildWorld() {
   function resize() {
     const w = stage.clientWidth, h = stage.clientHeight;
     renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix();
-    const dist = w / h < 0.9 ? 30 : w / h < 1.3 ? 25 : 20;
+    const dist = w / h < 0.9 ? 26.5 : w / h < 1.3 ? 23 : 19;
     if (!resize.done) { camera.position.set(0, dist * 0.62, dist * 0.78); resize.done = true; }
   }
   new ResizeObserver(resize).observe(stage); resize();
@@ -652,7 +685,7 @@ function buildWorld() {
 
     // between decisions, potter about near where he is so he always feels alive
     if (!state.path.length && t > state.nextWander) {
-      const still = state.sleeping || state.indoor || state.base.y > 0.05 || /swing|dance|gramophone|next song/.test(state.doing);
+      const still = state.sleeping || state.indoor || state.base.y > 0.05 || /swing|dance|gramophone|next song|reading nook/.test(state.doing);
       if (!still) {
         if (state.wandering) { state.path = [state.base.clone()]; state.wandering = false; }
         else {
@@ -761,8 +794,13 @@ function buildWorld() {
       pino.legs[0].rotation.x = Math.sin(t * 12) * 0.5; pino.legs[1].rotation.x = -Math.sin(t * 12) * 0.5;
     }
 
+    // the nook's fire flickers; the lamp glows brighter at night
+    fire.scale.y = 1 + Math.sin(t * 13) * 0.15 + Math.sin(t * 7.3) * 0.1;
+    fireLight.intensity = (1.0 + Math.sin(t * 11) * 0.25) * (1 + state.nightF * 1.5);
+    lampLight.intensity = 0.5 + state.nightF * 1.8; shadeMat.emissiveIntensity = 0.5 + state.nightF * 1.2;
+
     // duck paddling
-    const da = t * 0.35; duck.position.set(POND.x + Math.cos(da) * 1.0, 0.1 + Math.sin(t * 3) * 0.015, POND.z + Math.sin(da) * 1.0); duck.rotation.y = -da;
+    const da = t * 0.35; duck.position.set(POND.x + Math.cos(da) * 0.8, 0.1 + Math.sin(t * 3) * 0.015, POND.z + Math.sin(da) * 0.8); duck.rotation.y = -da;
 
     // day / night
     state.nightF += ((state.night ? 1 : 0) - state.nightF) * Math.min(1, dt * 0.8);
@@ -875,7 +913,7 @@ function snacksTexture() {
 }
 
 // ================================================================ UI + DATA
-const BADGES = [[/sleep|nap/, "💤"], [/read/, "📖"], [/journal/, "✏️"], [/draw/, "🎨"], [/seed bar/, "🍫"], [/crisps/, "🥨"], [/juice/, "🧃"],
+const BADGES = [[/reading nook/, "🛋️"], [/sleep|nap/, "💤"], [/read/, "📖"], [/journal/, "✏️"], [/draw/, "🎨"], [/seed bar/, "🍫"], [/crisps/, "🥨"], [/juice/, "🧃"],
   [/leaf/, "🍂"], [/ducks/, "🦆"], [/bench|sit/, "💭"], [/window/, "🪟"], [/tidy/, "🧹"], [/talked/, "💬"], [/petted/, "❤️"], [/treat/, "🍪"], [/reflect/, "🌙"], [/walked/, "👣"], [/swing/, "🎠"], [/telescope/, "🔭"], [/toy train/, "🚂"], [/birdbath/, "💦"], [/kite/, "🪁"], [/given/, "🎁"], [/gramophone|next song/, "🎶"], [/dance/, "💃"], [/hung my drawing|art on the walls|hang/, "🖼️"]];
 let latest = null, first = true, speaking = 0, followOn = false;
 
@@ -1093,27 +1131,40 @@ if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").cat
   const ios = /iphone|ipad|ipod/i.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   const iosOther = ios && /crios|fxios|edgios/i.test(ua); // Chrome/Firefox/Edge on iPhone
   let deferred = null;
+  // Snapchat, Instagram, TikTok, Facebook etc. open links in their own browser, which can't install apps
+  const inApp = /FBAN|FBAV|Instagram|Snapchat|TikTok|musical_ly|Line\/|Twitter|LinkedInApp|; wv\)/i.test(ua);
+  const android = /android/i.test(ua);
 
   function explain() {
-    if (deferred) { how.textContent = "Get Pino as an app on your home screen, one tap away."; go.hidden = false; }
+    if (inApp && android) {
+      how.textContent = "You're in an app's built-in browser, which can't install apps. Open Pino in Chrome, then tap Install.";
+      go.textContent = "Open in Chrome"; go.hidden = false;
+      go.onclick = () => { location.href = `intent://${location.host}${location.pathname}#Intent;scheme=https;package=com.android.chrome;end`; };
+    } else if (inApp && ios) {
+      how.textContent = "You're in an app's built-in browser. Tap ⋯ or the share icon and choose “Open in Safari”, then use Share → Add to Home Screen.";
+      go.hidden = true;
+    } else if (deferred) { how.textContent = "Get Pino as an app on your home screen, one tap away."; go.textContent = "Install"; go.hidden = false; }
     else if (ios) {
       how.textContent = iosOther
         ? "Tap the Share button (top right or bottom of your browser), then “Add to Home Screen”."
         : "Tap the Share button (the square with an arrow at the bottom of Safari), scroll down, then tap “Add to Home Screen”.";
       go.hidden = true;
     } else {
-      how.textContent = "Open your browser menu (⋮ or ⋯) and choose “Install app” or “Add to Home screen”.";
+      how.textContent = android
+        ? "In Chrome, tap ⋮ (top right) → “Add to Home screen” → “Install”. If you don't see it, make sure you're in Chrome itself, not another app."
+        : "Open your browser menu (⋮ or ⋯) and choose “Install app” or “Add to Home screen”.";
       go.hidden = true;
     }
     tip.hidden = false;
   }
   btn.hidden = false;                       // the Install button is always there on landing
   btn.onclick = async () => {
-    if (deferred) { deferred.prompt(); await deferred.userChoice; deferred = null; tip.hidden = true; return; }
+    if (deferred && !inApp) { deferred.prompt(); await deferred.userChoice; deferred = null; tip.hidden = true; return; }
     explain();
   };
   $("installClose").onclick = () => { tip.hidden = true; try { localStorage.setItem("pinoInstallDismissed", "1"); } catch {} };
   go.onclick = async () => { if (!deferred) return; deferred.prompt(); await deferred.userChoice; deferred = null; tip.hidden = true; };
+  if (inApp) setTimeout(explain, 1500); // always explain in in-app browsers, even if dismissed before
   window.addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); deferred = e; if (!tip.hidden) explain(); });
   window.addEventListener("appinstalled", () => { tip.hidden = true; btn.hidden = true; });
   if (!dismissed) setTimeout(explain, 1500); // greet new visitors with the how-to right away

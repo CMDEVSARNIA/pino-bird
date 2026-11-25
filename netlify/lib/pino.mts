@@ -39,9 +39,10 @@ export const PLACES: Record<string, Place> = {
   },
   library: {
     label: "library",
-    desc: "the town library, quiet and warm, full of old books and a big wooden drawing table",
+    desc: "the town library, quiet and warm, full of old books, a big wooden drawing table, and a cozy reading nook with an armchair, a lamp and a little crackling fireplace",
     activities: {
       "write in my journal": { joy: 6, energy: -2, kind: "journal" },
+      "curl up in the cozy reading nook": { energy: 7, joy: 7 },
       "draw a picture": { joy: 10, energy: -5, kind: "drawing" },
     },
   },
@@ -251,7 +252,7 @@ export function townDescription(s: State) {
   const playing = s.music?.on ? `it's playing "${SONG_BY_ID[s.music.song]?.title}" right now` : "it's switched off right now";
   return [
     `- Your little house: your bed, a rug and a window over the path${extras("house").length ? `; plus ${extras("house").join(", ")}` : ""}.`,
-    `- The library: ${books} books on your shelf, your journal and a big drawing table${extras("library").length ? `; plus ${extras("library").join(", ")}` : ""}.`,
+    `- The library: ${books} books on your shelf, your journal, a big drawing table, and a warm cozy reading nook (armchair, lamp, little fireplace)${extras("library").length ? `; plus ${extras("library").join(", ")}` : ""}.`,
     `- The vending machine: ${snacks.join(", ")} (no coins needed).`,
     `- Your art gallery: ${(s.galleryWall ?? []).length ? `${s.galleryWall.length} of your drawings hang on the walls (${s.galleryWall.map((d) => `"${d.title ?? "untitled"}"`).join(", ")})` : `empty frames waiting for your drawings`}. You can hang any drawing you've finished.`,
     `- The park: a big tree, a leaf pile, a bench, a swing set, a pond with ducks, and your gramophone - a wind-up record player with ${records} records (${playing})${extras("park").length ? `; plus ${extras("park").join(", ")}` : ""}.`,
