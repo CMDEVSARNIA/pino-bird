@@ -1,11 +1,11 @@
-import type { Config } from "@netlify/functions";
+import type { Config, Context } from "@netlify/functions";
 import {
   applyChoice, applyReflection, buildOptions, decisionPrompt, identityPrompt, instinct,
   parseJSON, readChoice, reflectionPrompt, REFLECT_EVERY, applyVisits, paceMinutes, type State,
   drawingPrompt, sanitizeSvg,
 } from "../lib/pino.mts";
 import { ask, hasBrain, NoBrain } from "../lib/brain.mts";
-import { deleteKeys, deleteNote, listEvents, listNotes, loadState, saveState } from "../lib/store.mts";
+import { acquireLock, deleteKeys, deleteNote, listEvents, listNotes, loadState, releaseLock, saveState } from "../lib/store.mts";
 
 // Pino's heartbeat. Netlify wakes this every minute (its shortest schedule).
 // While Pino is new (his first few hours) he lives two moments per wake-up,
@@ -15,19 +15,38 @@ const SECOND_MOMENT_AT = 22_000;
 const HARD_STOP = 28_500;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-export default async () => {
-  const start = Date.now();
-  const s = await loadState();
-  const fast = paceMinutes(s, start) < 1;
-  if (!fast && s.last_tick_at && start - s.last_tick_at < 5 * 60_000 - 20_000) return;
-
-  await moment(s, start);
-  if (fast) {
-    const wait = start + SECOND_MOMENT_AT - Date.now();
-    if (wait > 0) await sleep(wait);
-    if (Date.now() - start < SECOND_MOMENT_AT + 2_000) await moment(s, start);
+// Netlify's scheduler stops waiting after ~15s and retries, so we answer it
+// straight away and let Pino think in the background (waitUntil). A lock makes
+// sure only one copy of his mind ever runs at once.
+export default async (_req: Request, context: Context) => {
+  const work = live();
+  if (typeof context?.waitUntil === "function") {
+    context.waitUntil(work);
+    return new Response(null, { status: 204 });
   }
+  await work;
+  return new Response(null, { status: 204 });
 };
+
+async function live() {
+  const start = Date.now();
+  if (!(await acquireLock(40_000))) { console.log("Another heartbeat is already running; skipping."); return; }
+  try {
+    const s = await loadState();
+    const fast = paceMinutes(s, start) < 1;
+    const since = s.last_tick_at ? start - s.last_tick_at : Infinity;
+    if (fast ? since < 15_000 : since < 5 * 60_000 - 20_000) return;
+
+    await moment(s, start);
+    if (fast) {
+      const wait = start + SECOND_MOMENT_AT - Date.now();
+      if (wait > 0) await sleep(wait);
+      if (Date.now() - start < SECOND_MOMENT_AT + 2_000) await moment(s, start);
+    }
+  } finally {
+    await releaseLock();
+  }
+}
 
 // One moment of Pino's life: notice visitors, then reflect or decide what to do.
 async function moment(s: State, start: number) {

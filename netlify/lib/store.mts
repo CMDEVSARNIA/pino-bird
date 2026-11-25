@@ -75,3 +75,20 @@ export async function recentChats(n = 12) {
   if (keys.length > 200) await deleteKeys(keys.slice(0, keys.length - 200));
   return readMany<Chat>(keys.slice(-n));
 }
+
+// ---- heartbeat lock: only one copy of Pino's mind may run at a time
+export async function acquireLock(staleMs: number): Promise<boolean> {
+  const s = store();
+  const now = Date.now();
+  const r = await s.setJSON("lock", { at: now }, { onlyIfNew: true });
+  if (r.modified) return true;
+  const cur = (await s.get("lock", { type: "json" })) as { at: number } | null;
+  if (!cur || now - cur.at > staleMs) {
+    await s.setJSON("lock", { at: now });
+    return true;
+  }
+  return false;
+}
+export async function releaseLock() {
+  await store().delete("lock");
+}
