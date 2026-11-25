@@ -112,6 +112,10 @@ export async function getPerson(id: string): Promise<Person | null> {
 export async function savePerson(p: Person) {
   const k = safeId(p.id); if (!k) return;
   await store().setJSON(`people/${k}`, p);
+  await indexPerson(p);
+}
+async function indexPerson(p: Person) {
+  const k = safeId(p.id); if (!k) return;
   // small index so the heartbeat can think about friends without reading every record
   const idx = ((await store().get("people-index", { type: "json" })) as Record<string, { name: string; lastSeen: number; note: string; visits: number }> | null) ?? {};
   idx[k] = { name: p.name, lastSeen: p.lastSeen, note: p.facts.at(-1) ?? (p.gave.length ? `gave me ${p.gave.at(-1)}` : ""), visits: p.visits };
@@ -121,14 +125,25 @@ export async function peopleIndex() {
   return ((await store().get("people-index", { type: "json" })) as Record<string, { name: string; lastSeen: number; note: string; visits: number }> | null) ?? {};
 }
 // Touch (or create) a person whenever they do something
+// Changes are applied with a conditional write (only if nobody else saved this person in between),
+// retrying on a clash, so two things happening at once - say a treat and the once-a-minute
+// "still watching" ping - can't overwrite each other's seeds.
 export async function meet(who: Who | null, change: (p: Person) => void) {
-  if (!who || !safeId(who.id)) return null;
-  const now = Date.now();
-  const p: Person = (await getPerson(who.id)) ?? { id: who.id, name: "", firstMet: now, lastSeen: 0, visits: 0, chats: 0, facts: [], gave: [], pets: 0, seeds: START_SEEDS };
-  if (who.name && who.name !== p.name) p.name = who.name;
-  if (now - p.lastSeen > 30 * 60_000) p.visits += 1; // a new visit after 30 quiet minutes
-  p.lastSeen = now;
-  change(p);
-  await savePerson(p);
-  return p;
+  const k = who ? safeId(who.id) : null;
+  if (!who || !k) return null;
+  const key = `people/${k}`;
+  for (let attempt = 0; ; attempt++) {
+    const now = Date.now();
+    const cur = await store().getWithMetadata(key, { type: "json" });
+    const p: Person = (cur?.data as Person | undefined) ?? { id: who.id, name: "", firstMet: now, lastSeen: 0, visits: 0, chats: 0, facts: [], gave: [], pets: 0, seeds: START_SEEDS };
+    if (who.name && who.name !== p.name) p.name = who.name;
+    if (now - p.lastSeen > 30 * 60_000) p.visits += 1; // a new visit after 30 quiet minutes
+    p.lastSeen = now;
+    change(p);
+    const last = attempt >= 5;
+    const r = last ? await store().setJSON(key, p)
+      : cur?.etag ? await store().setJSON(key, p, { onlyIfMatch: cur.etag }) : await store().setJSON(key, p, { onlyIfNew: true });
+    if (last || r.modified) { await indexPerson(p); return p; }
+    await new Promise((res) => setTimeout(res, 60 + Math.random() * 120));
+  }
 }

@@ -1841,7 +1841,8 @@ function renderChat() {
 
 function render(s) {
   latest = s;
-  if (s.me) setSeeds(s.me.seeds);
+  // a poll that left before your last treat/gift/chat came back could carry the old balance: ignore it
+  if (s.me && (s._asked ?? 0) > seedsChangedAt) setSeeds(s.me.seeds, 0, true);
   if (s.me && s.me.name && !me.name) { me.name = s.me.name; try { localStorage.setItem("pinoName", me.name); } catch {} renderMe(); }
   checkVersion(s.version);
   $("name").textContent = `${s.name}'s Town`; document.title = `${s.name}'s Town`;
@@ -2144,12 +2145,14 @@ $("soundBtn").addEventListener("click", () => {
 });
 
 // ---- seeds 🌱: the spectator currency
-let mySeeds = 0, earnedTimer;
-function setSeeds(n, got = 0) {
-  const changed = n !== mySeeds; mySeeds = n;
+let mySeeds = 0, earnedTimer, seedsChangedAt = 0, seedsKnown = false;
+function setSeeds(n, got = 0, fromPoll = false) {
+  const spent = !fromPoll && seedsKnown && n < mySeeds ? mySeeds - n : 0;
+  if (!fromPoll) seedsChangedAt = Date.now();
+  const changed = n !== mySeeds; mySeeds = n; seedsKnown = true;
   $("seedCount").textContent = n;
-  if (got > 0) {
-    const e = $("earned"); e.textContent = `+${got} 🌱`; e.classList.add("show");
+  if (got > 0 || spent > 0) {
+    const e = $("earned"); e.textContent = got > 0 ? `+${got} 🌱` : `−${spent} 🌱`; e.classList.add("show");
     clearTimeout(earnedTimer); earnedTimer = setTimeout(() => e.classList.remove("show"), 2200);
   }
   try { localStorage.setItem("pinoSeeds", String(n)); } catch {}
@@ -2217,9 +2220,11 @@ function renderBooks(s) {
 
 async function refresh() {
   try {
+    const asked = Date.now();
     const r = await fetch(`/api/state?who=${encodeURIComponent(me.id)}`, { cache: "no-store" });
     if (!r.ok) throw new Error(r.status);
-    render(await r.json());
+    const j = await r.json(); j._asked = asked;
+    render(j);
   } catch { $("banner").hidden = false; $("banner").textContent = "Can't reach Pino's town right now. Retrying…"; }
 }
 

@@ -102,6 +102,7 @@ export default async (req: Request, context: Context) => {
       if (pathname === "/api/pet") { p.pets += 1; got = earn(p, "pet", now); }
       else { p.seeds = seedsOf(p) - QUICK_TREAT_PRICE; }
     });
+    if (pathname === "/api/treat") console.log(`Quick treat from ${p?.name || "a visitor"}: now ${seedsOf(p)} seeds`);
     await addEvent({ type: pathname === "/api/pet" ? "pet" : "treat", at: now, who: who ?? undefined });
     return json({ ok: true, reaction, got, seeds: seedsOf(p) });
   }
