@@ -4,8 +4,9 @@ import { ask, hasBrain } from "../lib/brain.mts";
 import { GIFTS, GIFT_BY_ID, QUICK_TREAT_PRICE } from "../lib/gifts.mts";
 import {
   addChat, addEvent, addNote, claimGift, claimedGiftIds, countEvents, countNotes, getPerson, loadState, meet,
-  peopleIndex, recentChats, type Who,
+  peopleIndex, recentChats, store, type Who,
 } from "../lib/store.mts";
+import { EXHIBIT_BY_ID } from "../lib/museum.mts";
 
 // GET  /api/state   -> what the viewer page shows
 // POST /api/talk    -> talk to him, instant reply      {"text", "who": {"id","name"}}
@@ -14,6 +15,7 @@ import {
 // POST /api/give    -> give him a one-of-a-kind gift   {"id", "who"}
 // POST /api/message -> leave a note he answers later   {"text", "who"}
 // POST /api/watch   -> "I'm still watching" ping, earns seeds (1/min, capped daily)
+// GET  /api/museum-image?id=starry -> picture of a museum painting (public domain, via Wikipedia; cached)
 // Seeds 🌱 are earned by watching, chatting and petting, and spent on gifts and treats.
 
 const json = (data: unknown, status = 200) =>
@@ -33,6 +35,8 @@ export default async (req: Request, context: Context) => {
   const url = new URL(req.url);
   const { pathname } = url;
   const now = Date.now();
+
+  if (req.method === "GET" && pathname === "/api/museum-image") return museumImage(url.searchParams.get("id") ?? "");
 
   if (req.method === "GET" && pathname === "/api/state") {
     const meId = url.searchParams.get("who") ?? "";
@@ -177,3 +181,36 @@ export const config: Config = {
   path: ["/api/state", "/api/message", "/api/pet", "/api/treat", "/api/give", "/api/talk", "/api/watch"],
   method: ["GET", "POST"],
 };
+
+// Museum paintings are all public domain. We fetch each one once from Wikipedia's
+// page summary (its lead image), keep a copy in Blobs, and serve it from here so
+// the 3D view can use it as a texture.
+const UA = "PinoTown/1.0 (https://pino-bird.netlify.app; an AI kiwi's museum)";
+async function museumImage(id: string) {
+  const ex = EXHIBIT_BY_ID[id];
+  if (!ex?.wiki) return new Response("No such painting", { status: 404 });
+  const key = `museum-img/${id}`;
+  const headers = (type: string) => ({ "Content-Type": type, "Cache-Control": "public, max-age=604800, immutable" });
+  const cached = await store().getWithMetadata(key, { type: "arrayBuffer" });
+  if (cached?.data) return new Response(cached.data, { headers: headers(String(cached.metadata?.type ?? "image/jpeg")) });
+  try {
+    const sum = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(ex.wiki)}`, {
+      headers: { "User-Agent": UA, Accept: "application/json" }, signal: AbortSignal.timeout(6000),
+    }).then((r) => r.json());
+    const thumb: string | undefined = sum?.thumbnail?.source;
+    if (!thumb) throw new Error("no picture on the page");
+    let img: Response | null = null;
+    for (const src of [thumb.replace(/\/\d+px-/, "/500px-"), thumb]) {
+      const r = await fetch(src, { headers: { "User-Agent": UA }, signal: AbortSignal.timeout(8000) });
+      if (r.ok && (r.headers.get("content-type") ?? "").startsWith("image/")) { img = r; break; }
+    }
+    if (!img) throw new Error("picture download failed");
+    const type = img.headers.get("content-type") ?? "image/jpeg";
+    const data = await img.arrayBuffer();
+    await store().set(key, data, { metadata: { type, src: thumb } });
+    return new Response(data, { headers: headers(type) });
+  } catch (e) {
+    console.log(`Museum picture ${id} failed:`, (e as Error).message);
+    return new Response("Picture unavailable", { status: 502, headers: { "Cache-Control": "no-store" } });
+  }
+}

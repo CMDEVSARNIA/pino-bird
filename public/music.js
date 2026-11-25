@@ -190,7 +190,7 @@ export function pinoChirp(ctx, out, happy = false) {
 
 export class Ambience {
   constructor(ctx) {
-    this.ctx = ctx; this.night = false; this.timer = null;
+    this.ctx = ctx; this.night = false; this.timer = null; this.weather = null; this.season = "autumn";
     this.out = ctx.createGain(); this.out.gain.value = 0.9; this.out.connect(ctx.destination);
   }
   start() {
@@ -204,24 +204,52 @@ export class Ambience {
     lfo.connect(lfoAmt).connect(this.windGain.gain);
     this.wind.connect(bp).connect(this.windGain).connect(this.out);
     this.wind.start(); lfo.start(); this.lfo = lfo;
+    // rain on the town: filtered noise that fades in when it's raining in Sarnia
+    this.rain = ctx.createBufferSource(); this.rain.buffer = noiseBuffer(ctx, 4); this.rain.loop = true;
+    const hp = ctx.createBiquadFilter(); hp.type = "highpass"; hp.frequency.value = 900;
+    const lp = ctx.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 6000;
+    this.rainGain = ctx.createGain(); this.rainGain.gain.value = 0;
+    this.rain.connect(hp).connect(lp).connect(this.rainGain).connect(this.out); this.rain.start();
+    this.applyWeather();
     this.timer = setInterval(() => this.tick(), 450);
   }
   stop() {
     clearInterval(this.timer); this.timer = null;
-    try { this.wind?.stop(); this.lfo?.stop(); } catch {}
+    try { this.wind?.stop(); this.lfo?.stop(); this.rain?.stop(); } catch {}
   }
   setNight(n) {
     this.night = n;
-    if (this.windGain) this.windGain.gain.setTargetAtTime(n ? 0.02 : 0.035, this.ctx.currentTime, 2);
+    this.applyWeather();
+  }
+  setWeather(w, season) {
+    this.weather = w || null; this.season = season || this.season;
+    this.applyWeather();
+  }
+  applyWeather() {
+    if (!this.windGain) return;
+    const w = this.weather, now = this.ctx.currentTime;
+    const windy = Math.min(2.5, 1 + Math.max(0, (w?.wind ?? 10) - 12) / 15);
+    this.windGain.gain.setTargetAtTime((this.night ? 0.02 : 0.035) * windy, now, 2);
+    const rain = !w ? 0 : w.kind === "storm" ? 0.09 : w.kind === "rain" ? (/heavy|pouring/.test(w.desc) ? 0.08 : 0.05) : w.kind === "drizzle" ? 0.022 : 0;
+    this.rainGain?.gain.setTargetAtTime(rain, now, 2);
+  }
+  thunder() {
+    const ctx = this.ctx, t = ctx.currentTime + 0.4 + Math.random() * 1.5;
+    const src = ctx.createBufferSource(); src.buffer = noiseBuffer(ctx, 3);
+    const lp = ctx.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 160;
+    const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.5, t + 0.15); g.gain.exponentialRampToValueAtTime(0.0001, t + 2.8);
+    src.connect(lp).connect(g).connect(this.out); src.start(t); src.stop(t + 3);
   }
   tick() {
     const ctx = this.ctx, t = ctx.currentTime + 0.05, r = Math.random();
+    const w = this.weather, wet = w && /rain|storm/.test(w.kind), cold = this.season === "winter" || (w && w.temp <= 0);
     if (!this.night) {
-      if (r < 0.1) this.birdsong(t);
-      else if (r < 0.112) this.quack(t);
+      // fewer birds sing in the rain or the cold; the ducks leave when the pond freezes
+      if (r < (wet ? 0.02 : cold ? 0.04 : 0.1)) this.birdsong(t);
+      else if (r > 0.988 && !(w && w.temp <= -4)) this.quack(t);
     } else {
-      if (r < 0.55) this.cricket(t);
-      else if (r < 0.565) this.owl(t);
+      if (r < (cold || wet ? 0 : 0.55)) this.cricket(t); // crickets only sing on warm, dry nights
+      else if (r > 0.985) this.owl(t);
     }
   }
   birdsong(t) {

@@ -89,6 +89,30 @@
   .nowplaying { position: absolute; right: 10px; top: 10px; max-width: 58%; font-size: 12px; background: rgba(43,42,39,.78); color: #fff;
     padding: 6px 10px; border-radius: 999px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none; }
   .nowplaying[hidden] { display: none; }
+  .wx { position: absolute; right: 10px; top: 10px; font-size: 12px; font-weight: 700; background: rgba(255,255,255,.85); color: var(--ink);
+        padding: 5px 10px; border-radius: 999px; box-shadow: 0 1px 4px rgba(0,0,0,.08); pointer-events: none; }
+  .wx[hidden] { display: none; }
+  .wx:not([hidden]) ~ .nowplaying { top: 42px; }
+  .museumbar { position: absolute; left: 10px; top: 10px; right: 10px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 12px; color: #fff; }
+  .museumbar[hidden] { display: none; }
+  .museumbar button { border: 0; border-radius: 999px; padding: 8px 14px; font: inherit; font-weight: 700; font-size: 13px; background: #fff; color: var(--ink); box-shadow: 0 1px 5px rgba(0,0,0,.15); cursor: pointer; }
+  .museumbar span { background: rgba(43,42,39,.72); padding: 5px 10px; border-radius: 999px; }
+  .stage.inmuseum .hud, .stage.inmuseum .wx, .stage.inmuseum .nowplaying { display: none; }
+  .plaque { position: absolute; left: 10px; right: 10px; bottom: 62px; background: rgba(255,252,245,.96); border-radius: 14px; padding: 12px 14px 10px; font-size: 13px; line-height: 1.45;
+            box-shadow: 0 4px 16px rgba(0,0,0,.18); max-height: 55%; overflow: auto; }
+  .plaque[hidden] { display: none; }
+  .plaque b { font-size: 15px; display: block; }
+  .plaque small { color: var(--muted); display: block; margin-bottom: 6px; }
+  .plaque .pino { margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--line); font-style: italic; }
+  .plaque .x { position: absolute; right: 8px; top: 6px; border: 0; background: none; font-size: 18px; cursor: pointer; color: var(--muted); }
+  .muted { color: var(--muted); font-size: 13px; margin: 2px 0 10px; }
+  .exhibits { display: grid; gap: 8px; }
+  .exhibit { border: 1px solid var(--line); border-radius: 12px; padding: 9px 11px; background: #fff; font-size: 13px; line-height: 1.4; }
+  .exhibit.unseen { opacity: .62; }
+  .exhibit b { display: block; }
+  .exhibit .meta { color: var(--muted); font-size: 12px; }
+  .exhibit q { display: block; margin-top: 5px; font-style: italic; }
+  .exhibit .hallname { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin-top: 6px; }
   .controls { position: absolute; right: 10px; bottom: 10px; display: flex; gap: 8px; }
   .fab { border: 0; background: rgba(255,255,255,.95); color: var(--ink); border-radius: 999px; padding: 9px 13px;
     font: inherit; font-size: 14px; font-weight: 700; box-shadow: 0 2px 8px rgba(0,0,0,.15); cursor: pointer; }
@@ -243,12 +267,16 @@
 
   <div class="stage" id="stage">
     <div class="hud" id="needs" aria-label="How Pino feels"></div>
+    <div class="wx" id="wx" hidden></div>
     <div class="nowplaying" id="nowPlaying" hidden></div>
+    <div class="museumbar" id="museumBar" hidden><button type="button" id="museumBack">⬅ Back to town</button><span>🏛️ Tap an exhibit to read about it</span></div>
+    <div class="plaque" id="plaque" hidden></div>
     <div class="hint" id="hint" hidden>Tap Pino to pet him · drag to look around</div>
     <div class="toast" id="toast"></div>
     <div class="controls">
       <button class="fab" id="soundBtn" type="button" aria-pressed="false" title="Sound: birds, music and Pino">🔇</button>
       <button class="fab" id="treatBtn" type="button" title="Give Pino a quick treat">🍪 🌱2</button>
+      <button class="fab" id="museumBtn" type="button" title="Go inside the museum">🏛️</button>
       <button class="fab" id="followBtn" type="button" aria-pressed="false">🎥 Follow</button>
     </div>
   </div>
@@ -313,7 +341,7 @@
   </div>
 
   <div class="card panel" id="p-art" hidden>
-    <div class="subs"><button class="sub" data-sub="art-drawings" aria-selected="true">Drawings</button><button class="sub" data-sub="art-books">Books</button><button class="sub" data-sub="art-journal">Journal</button></div>
+    <div class="subs"><button class="sub" data-sub="art-drawings" aria-selected="true">Drawings</button><button class="sub" data-sub="art-books">Books</button><button class="sub" data-sub="art-journal">Journal</button><button class="sub" data-sub="art-museum">Museum</button></div>
     <section data-sub="art-drawings"><div class="gallery" id="drawings"></div></section>
     <section data-sub="art-books" hidden>
       <div id="shelf"></div>
@@ -321,6 +349,10 @@
       <ul class="list" id="reading"></ul>
     </section>
     <section data-sub="art-journal" hidden><ul class="list" id="journal"></ul></section>
+    <section data-sub="art-museum" hidden>
+      <p class="muted" id="museumCount"></p>
+      <div class="exhibits" id="exhibitList"></div>
+    </section>
   </div>
 
   <div class="card panel" id="p-give" hidden>
@@ -408,7 +440,7 @@ function buildWorld() {
   const glowMats = [windowMat];
 
   // ---- ground
-  add(new THREE.Mesh(new THREE.CircleGeometry(24, 48).rotateX(-Math.PI / 2), M(0x9bd27a, { flatShading: false })), scene, { cast: false, receive: true });
+  const ground = add(new THREE.Mesh(new THREE.CircleGeometry(24, 48).rotateX(-Math.PI / 2), M(0x9bd27a, { flatShading: false })), scene, { cast: false, receive: true });
   const hillMat = M(0x86c266);
   for (let i = 0; i < 16; i++) {
     const a = (i / 16) * Math.PI * 2, r = 17 + (i % 3);
@@ -417,18 +449,18 @@ function buildWorld() {
   }
   // scattered little trees and flowers
   const pineMat = M(0x4f9a52), trunkMat = M(0x7b5636);
-  [[-10, -9], [-12, -2], [11, -9], [12, 1], [-11, 8], [9, 10], [0, -11], [-9, 9], [13, 6]].forEach(([x, z], i) => {
+  [[-10, -9], [-12, -2], [11, -9], [12, 1], [-11, 8], [9, 10], [-4.2, -12.5], [-9, 9], [13, 6]].forEach(([x, z], i) => {
     const t = new THREE.Group(); t.position.set(x, 0, z); t.scale.setScalar(0.8 + (i % 3) * 0.2);
     add(box(0.3, 0.8, 0.3, trunkMat), t).position.y = 0.4;
     add(new THREE.Mesh(new THREE.ConeGeometry(1, 2, 6), pineMat), t).position.y = 1.7;
     add(new THREE.Mesh(new THREE.ConeGeometry(0.75, 1.5, 6), pineMat), t).position.y = 2.5;
     scene.add(t);
   });
-  const flowerCols = [0xffffff, 0xf7d046, 0xe76f9a, 0xa983e6];
+  const flowerCols = [0xffffff, 0xf7d046, 0xe76f9a, 0xa983e6], flowers = [];
   for (let i = 0; i < 40; i++) {
     const a = Math.random() * Math.PI * 2, r = 7 + Math.random() * 9;
     const f = add(new THREE.Mesh(new THREE.IcosahedronGeometry(0.08, 0), M(flowerCols[i % 4])), scene, { cast: false });
-    f.position.set(Math.cos(a) * r, 0.08, Math.sin(a) * r);
+    f.position.set(Math.cos(a) * r, 0.08, Math.sin(a) * r); flowers.push(f);
   }
 
   // ---- paths
@@ -483,8 +515,14 @@ function buildWorld() {
   const tree = new THREE.Group(); tree.position.set(-5.8, 0, 1.6); park.add(tree);
   add(new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.35, 2, 7), trunkMat), tree).position.y = 1;
   const leafMat = M(0x5fae5a);
-  [[0, 2.6, 0, 1.4], [-0.9, 2.2, 0.3, 1], [0.9, 2.2, -0.2, 1.05], [0.1, 3.3, 0.1, 0.9]].forEach(([x, y, z, r]) => add(new THREE.Mesh(new THREE.IcosahedronGeometry(r, 0), leafMat), tree).position.set(x, y, z));
-  [[0.6, 2.4, 1.1], [-0.7, 2.9, 0.8], [1.2, 2.0, 0.5]].forEach(([x, y, z]) => add(new THREE.Mesh(new THREE.IcosahedronGeometry(0.12, 0), M(0xe0473b)), tree).position.set(x, y, z));
+  const treeLeaves = [];
+  [[0, 2.6, 0, 1.4], [-0.9, 2.2, 0.3, 1], [0.9, 2.2, -0.2, 1.05], [0.1, 3.3, 0.1, 0.9]].forEach(([x, y, z, r]) => { const m = add(new THREE.Mesh(new THREE.IcosahedronGeometry(r, 0), leafMat), tree); m.position.set(x, y, z); treeLeaves.push(m); });
+  [[0.6, 2.4, 1.1], [-0.7, 2.9, 0.8], [1.2, 2.0, 0.5]].forEach(([x, y, z]) => { const m = add(new THREE.Mesh(new THREE.IcosahedronGeometry(0.12, 0), M(0xe0473b)), tree); m.position.set(x, y, z); treeLeaves.push(m); });
+  // bare winter branches (shown when the leaves are gone)
+  const branches = new THREE.Group(); tree.add(branches); branches.visible = false;
+  [[0.5, 2.3, 0.2, 0.6], [-0.5, 2.4, -0.1, -0.7], [0.1, 2.7, 0.4, 0.15], [0.2, 2.5, -0.5, -0.2]].forEach(([x, y, z, rz]) => {
+    const b = add(new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.09, 1.3, 5), trunkMat), branches); b.position.set(x, y, z); b.rotation.set(z * 0.8, 0, rz);
+  });
   const pile = new THREE.Group(); pile.position.set(-5.0, 0, 2.9); park.add(pile);
   const leafCols = [0xe08a3c, 0xd2602f, 0xf0b44a];
   for (let i = 0; i < 22; i++) {
@@ -506,13 +544,318 @@ function buildWorld() {
   add(new THREE.Mesh(new THREE.IcosahedronGeometry(0.13, 1), M(0xffffff)), duck).position.set(0, 0.22, 0.22);
   add(new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.14, 5).rotateX(Math.PI / 2), M(0xf2a23c)), duck).position.set(0, 0.2, 0.38);
 
+  // ---- MUSEUM (outside): a domed hall at the back of town
+  const MUS = V(0.55, 0, -9.6);
+  const mus = new THREE.Group(); mus.position.copy(MUS); scene.add(mus);
+  const stone = M(0xeadfc6), sandstone = M(0xd8c7a3), marble = M(0xf6f0e2);
+  add(box(5.8, 0.3, 4.0, sandstone), mus, { receive: true }).position.y = 0.15;
+  add(box(2.6, 0.15, 0.7, sandstone), mus, { receive: true }).position.set(0, 0.075, 2.25);
+  add(box(5.0, 2.8, 3.2, stone), mus).position.y = 1.7;
+  for (let i = 0; i < 6; i++) add(new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.17, 2.8, 8), marble), mus).position.set(-2.15 + i * 0.86, 1.7, 1.78);
+  add(box(5.5, 0.32, 3.8, sandstone), mus).position.set(0, 3.26, 0.1);
+  const mtri = new THREE.Shape(); mtri.moveTo(-2.75, 0); mtri.lineTo(2.75, 0); mtri.lineTo(0, 0.95); mtri.lineTo(-2.75, 0);
+  add(new THREE.Mesh(new THREE.ExtrudeGeometry(mtri, { depth: 0.6, bevelEnabled: false }), sandstone), mus).position.set(0, 3.42, 1.4);
+  add(new THREE.Mesh(new THREE.CylinderGeometry(1.35, 1.45, 0.5, 20), stone), mus).position.set(0, 3.65, -0.5);
+  add(new THREE.Mesh(new THREE.SphereGeometry(1.3, 20, 10, 0, Math.PI * 2, 0, Math.PI / 2), M(0x7fb0a4)), mus).position.set(0, 3.9, -0.5);
+  add(new THREE.Mesh(new THREE.ConeGeometry(0.12, 0.5, 8), M(0xd9a441, { metalness: 0.5, roughness: 0.4 })), mus).position.set(0, 5.4, -0.5);
+  add(box(1.0, 1.75, 0.08, M(0x5b4632)), mus).position.set(0, 1.18, 1.62);
+  for (const x of [-1.65, 1.65]) add(box(0.6, 0.9, 0.08, windowMat), mus).position.set(x, 1.9, 1.62);
+  add(new THREE.Mesh(new THREE.PlaneGeometry(2.4, 0.3), new THREE.MeshBasicMaterial({ map: textTexture("MUSEUM", "#d8c7a3", "#4a3b2a", 512, 64) })), mus).position.set(0, 3.26, 2.01);
+  [["🦖", -0.86], ["🚀", 0.86]].forEach(([e, x]) => {
+    const bn = add(new THREE.Mesh(new THREE.PlaneGeometry(0.42, 1.1), new THREE.MeshStandardMaterial({ color: 0xb8433a, side: THREE.DoubleSide })), mus, { cast: false });
+    bn.position.set(x, 2.25, 1.97);
+    const em = add(new THREE.Mesh(new THREE.PlaneGeometry(0.34, 0.34), new THREE.MeshBasicMaterial({ map: emojiTexture(e), transparent: true })), mus, { cast: false });
+    em.position.set(x, 2.35, 1.98);
+  });
+  const MUSEUM_DOOR = V(0.55, 0, -7.25);
+
+  // ---- MUSEUM (inside): a big hall far from town; the camera visits it, and so does Pino
+  const ROOM = V(0, 0, -80);
+  const room = new THREE.Group(); room.position.copy(ROOM); scene.add(room);
+  const exhibitGroups = {}; // id -> { g, spot, look }
+  const RW = 10, RD = 8, RH = 6;
+  {
+    const tiles = Object.assign(document.createElement("canvas"), { width: 256, height: 256 }), x = tiles.getContext("2d");
+    for (let i = 0; i < 8; i++) for (let j = 0; j < 8; j++) { x.fillStyle = (i + j) % 2 ? "#e9e2d3" : "#d9cfbb"; x.fillRect(i * 32, j * 32, 32, 32); }
+    const tt = new THREE.CanvasTexture(tiles); tt.wrapS = tt.wrapT = THREE.RepeatWrapping; tt.repeat.set(5, 4); tt.colorSpace = THREE.SRGBColorSpace;
+    add(box(RW * 2, 0.2, RD * 2, new THREE.MeshStandardMaterial({ map: tt, roughness: 0.6 })), room, { cast: false, receive: true }).position.y = -0.1;
+    const wallMat = M(0xf1eadc, { flatShading: false }), trim = M(0xb8a888);
+    add(box(RW * 2, RH, 0.3, wallMat), room, { cast: false }).position.set(0, RH / 2, -RD);
+    add(box(RW * 2, RH, 0.3, wallMat), room, { cast: false }).position.set(0, RH / 2, RD);
+    add(box(0.3, RH, RD * 2, wallMat), room, { cast: false }).position.set(-RW, RH / 2, 0);
+    add(box(0.3, RH, RD * 2, wallMat), room, { cast: false }).position.set(RW, RH / 2, 0);
+    add(box(RW * 2, 0.3, RD * 2, M(0xf7f3ea)), room, { cast: false }).position.y = RH;
+    add(new THREE.Mesh(new THREE.PlaneGeometry(8, 5).rotateX(Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xdff1fb })), room).position.y = RH - 0.16; // skylight
+    for (const [w, d, px, pz] of [[RW * 2, 0.4, 0, -RD + 0.2], [RW * 2, 0.4, 0, RD - 0.2], [0.4, RD * 2, -RW + 0.2, 0], [0.4, RD * 2, RW - 0.2, 0]]) add(box(w, 0.25, d, trim), room, { cast: false }).position.set(px, 0.12, pz);
+    const sign = (text, pos, rotY, w = 3) => { const m = add(new THREE.Mesh(new THREE.PlaneGeometry(w, w / 6), new THREE.MeshBasicMaterial({ map: textTexture(text, "#f1eadc", "#6b5a44", 512, 85, 46) })), room, { cast: false }); m.position.copy(pos); m.rotation.y = rotY; };
+    sign("FAMOUS PAINTINGS", V(0, 4.95, -RD + 0.17), 0, 3.6);
+    sign("NATURAL HISTORY", V(-RW + 0.17, 4.95, -1), Math.PI / 2, 3.4);
+    sign("SPACE", V(RW - 0.17, 4.95, 1.5), -Math.PI / 2, 2.2);
+    sign("HISTORY & INVENTIONS", V(0, 4.95, RD - 0.17), Math.PI, 3.8);
+    const bench = new THREE.Group(); bench.position.set(0, 0, 2.2); room.add(bench);
+    add(box(2.2, 0.12, 0.6, M(0x8b5a3c)), bench).position.y = 0.48;
+    for (const x of [-0.9, 0.9]) add(box(0.12, 0.45, 0.5, M(0x5a3a24)), bench).position.set(x, 0.22, 0);
+  }
+  const roomLight = new THREE.PointLight(0xfff0d6, 6, 40, 1.1); roomLight.position.set(0, RH - 0.6, 0); room.add(roomLight);
+  const bone = M(0xeee5cf), metal = (c) => M(c, { metalness: 0.6, roughness: 0.35 });
+  const glassMat = new THREE.MeshStandardMaterial({ color: 0xcfe9f2, transparent: true, opacity: 0.22, roughness: 0.05, depthWrite: false });
+  const plinth = (g, w, h, d) => { add(box(w, h, d, M(0xfbf8f1)), g, { receive: true }).position.y = h / 2; return h; };
+  const boneTube = (pts, r, mat, g) => add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 24, r, 6), mat), g);
+  const limb = (a, b, r, mat, g) => { const d = b.clone().sub(a); const m = add(new THREE.Mesh(new THREE.CylinderGeometry(r, r, d.length(), 6), mat), g); m.position.copy(a).add(b).multiplyScalar(0.5); m.quaternion.setFromUnitVectors(V(0, 1, 0), d.normalize()); return m; };
+
+  const MODELS = {
+    trex(g) {
+      add(box(4.6, 0.2, 1.5, M(0xd9cfbb)), g).position.y = 0.1;
+      boneTube([V(-2.3, 1.0, 0), V(-1.4, 1.6, 0), V(-0.5, 2.0, 0), V(0.5, 2.05, 0), V(1.2, 2.4, 0), V(1.45, 2.75, 0)], 0.08, bone, g);
+      for (let i = 0; i < 7; i++) { const r = add(new THREE.Mesh(new THREE.TorusGeometry(0.42 - Math.abs(i - 3) * 0.04, 0.03, 4, 12, Math.PI), bone), g); r.position.set(-0.35 + i * 0.16, 1.98, 0); r.rotation.set(0, Math.PI / 2, Math.PI); }
+      const skull = add(box(0.85, 0.42, 0.34, bone), g); skull.position.set(1.85, 2.8, 0); skull.rotation.z = -0.15;
+      const jaw = add(box(0.7, 0.12, 0.28, bone), g); jaw.position.set(1.85, 2.48, 0); jaw.rotation.z = -0.3;
+      for (let i = 0; i < 5; i++) add(new THREE.Mesh(new THREE.ConeGeometry(0.025, 0.1, 4).rotateX(Math.PI), M(0xfffbea)), g).position.set(1.6 + i * 0.12, 2.55, 0.12);
+      for (const z of [-0.22, 0.22]) {
+        limb(V(-0.5, 1.95, z), V(-0.25, 1.1, z), 0.1, bone, g); limb(V(-0.25, 1.1, z), V(-0.55, 0.35, z), 0.07, bone, g);
+        limb(V(-0.55, 0.35, z), V(-0.3, 0.22, z), 0.05, bone, g); add(box(0.45, 0.06, 0.18, bone), g).position.set(-0.25, 0.23, z);
+        limb(V(0.95, 2.2, z), V(1.15, 1.85, z), 0.03, bone, g);
+      }
+    },
+    moa(g) {
+      plinth(g, 1.2, 0.2, 1.2);
+      for (const x of [-0.15, 0.15]) { limb(V(x, 1.35, 0), V(x, 0.75, 0.15), 0.06, bone, g); limb(V(x, 0.75, 0.15), V(x, 0.22, 0), 0.045, bone, g); add(box(0.08, 0.04, 0.35, bone), g).position.set(x, 0.23, 0.12); }
+      const cage = add(new THREE.Mesh(new THREE.IcosahedronGeometry(0.55, 1), new THREE.MeshStandardMaterial({ color: 0xeee5cf, wireframe: true })), g); cage.position.set(0, 1.55, 0); cage.scale.set(0.8, 0.75, 1.2);
+      boneTube([V(0, 1.75, 0.5), V(0, 2.4, 0.6), V(0, 3.0, 0.55), V(0, 3.25, 0.7)], 0.05, bone, g);
+      add(new THREE.Mesh(new THREE.IcosahedronGeometry(0.12, 1), bone), g).position.set(0, 3.28, 0.75);
+      limb(V(0, 3.25, 0.82), V(0, 3.18, 1.02), 0.025, bone, g);
+    },
+    meteorite(g) {
+      const h = plinth(g, 1.0, 0.7, 1.0);
+      const geo = new THREE.DodecahedronGeometry(0.5, 1); const p = geo.attributes.position;
+      for (let i = 0; i < p.count; i++) { // same bump for every copy of a corner, so the rock has no cracks
+        const h = Math.sin(p.getX(i) * 12.9898 + p.getY(i) * 78.233 + p.getZ(i) * 37.719) * 43758.5453, k = 0.82 + (h - Math.floor(h)) * 0.3;
+        p.setXYZ(i, p.getX(i) * k, p.getY(i) * k * 0.8, p.getZ(i) * k);
+      }
+      geo.computeVertexNormals();
+      add(new THREE.Mesh(geo, metal(0x4c4a4c)), g).position.y = h + 0.38;
+    },
+    ammonite(g) {
+      const h = plinth(g, 0.8, 0.9, 0.8);
+      const pts = []; for (let i = 0; i <= 60; i++) { const a = i / 60 * Math.PI * 5, r = 0.03 * Math.exp(0.19 * a); pts.push(V(Math.cos(a) * r, h + 0.42 + Math.sin(a) * r, 0)); }
+      boneTube(pts, 0.05, M(0xb89a6a), g);
+    },
+    rosetta(g) {
+      const h = plinth(g, 1.2, 0.55, 0.7);
+      const c = Object.assign(document.createElement("canvas"), { width: 128, height: 192 }), x = c.getContext("2d");
+      x.fillStyle = "#3d3f45"; x.fillRect(0, 0, 128, 192); x.fillStyle = "#8d8f96";
+      for (let r = 0; r < 30; r++) for (let k = 0; k < 18; k++) if (Math.random() < 0.8) x.fillRect(8 + k * 6.4, 8 + r * 6 + (r >= 10 ? 4 : 0) + (r >= 20 ? 4 : 0), r < 10 ? 4 : 3, r < 10 ? 4 : 2);
+      const tx = new THREE.CanvasTexture(c); tx.colorSpace = THREE.SRGBColorSpace;
+      const slab = add(new THREE.Mesh(new THREE.BoxGeometry(0.85, 1.25, 0.22), [M(0x3d3f45), M(0x3d3f45), M(0x3d3f45), M(0x3d3f45), new THREE.MeshStandardMaterial({ map: tx, roughness: 0.9 }), M(0x3d3f45)]), g);
+      slab.position.y = h + 0.62; slab.rotation.z = 0.03;
+    },
+    mummy(g) {
+      add(box(2.2, 0.6, 0.9, M(0x8b6a45)), g).position.y = 0.3;
+      const sarc = add(new THREE.Mesh(new THREE.CapsuleGeometry(0.3, 1.3, 4, 10).rotateZ(Math.PI / 2), M(0xd4a537, { metalness: 0.4, roughness: 0.4 })), g); sarc.position.y = 0.85; sarc.scale.z = 0.8;
+      for (let i = 0; i < 5; i++) add(new THREE.Mesh(new THREE.TorusGeometry(0.3, 0.025, 4, 12).rotateY(Math.PI / 2), M(0x2c4f8a)), g).position.set(-0.45 + i * 0.22, 0.85, 0);
+      add(box(0.3, 0.05, 0.3, M(0xe8c08a)), g).position.set(0.78, 1.14, 0);
+      const glass = add(box(2.3, 0.9, 1.0, glassMat), g, { cast: false }); glass.position.y = 1.05;
+    },
+    flyer(g) {
+      const cloth = M(0xe9dcc0), strut = M(0x8b6a45);
+      for (const y of [0, 0.55]) add(box(3.8, 0.03, 0.6, cloth), g).position.y = y;
+      for (let i = 0; i < 7; i++) for (const z of [-0.27, 0.27]) limb(V(-1.8 + i * 0.6, 0, z), V(-1.8 + i * 0.6, 0.55, z), 0.012, strut, g);
+      add(box(1.1, 0.02, 0.35, cloth), g).position.set(0, 0.28, 1.25);
+      limb(V(-0.3, 0.28, 0.35), V(-0.3, 0.28, 1.1), 0.012, strut, g); limb(V(0.3, 0.28, 0.35), V(0.3, 0.28, 1.1), 0.012, strut, g);
+      for (const x of [-0.25, 0.25]) add(box(0.02, 0.6, 0.35, cloth), g).position.set(x, 0.28, -1.3);
+      g.userData.props = [-0.75, 0.75].map((x) => { const pr = add(box(0.06, 0.9, 0.06, strut), g); pr.position.set(x, 0.28, -0.45); return pr; });
+      for (const x of [-1.5, 1.5]) { const w = new THREE.Line(new THREE.BufferGeometry().setFromPoints([V(x, 0.55, 0), V(x, 1.8, 0)]), new THREE.LineBasicMaterial({ color: 0x777777 })); g.add(w); }
+      add(box(0.25, 0.2, 0.25, M(0x555555)), g).position.set(0.15, 0.1, -0.05);
+    },
+    telephone(g) {
+      const h = plinth(g, 0.8, 0.95, 0.8);
+      add(box(0.34, 0.28, 0.26, M(0x8b5a3c)), g).position.y = h + 0.14;
+      const cone = add(new THREE.Mesh(new THREE.ConeGeometry(0.11, 0.24, 12, 1, true).rotateX(-Math.PI / 2), metal(0x9a8460)), g); cone.position.set(0, h + 0.18, 0.23);
+      add(new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.32, 6), metal(0x9a8460)), g).position.set(0.12, h + 0.42, 0);
+      add(new THREE.Mesh(new THREE.SphereGeometry(0.34, 16, 10, 0, Math.PI * 2, 0, Math.PI / 2), glassMat), g, { cast: false }).position.y = h;
+    },
+    moonrock(g) {
+      const h = plinth(g, 0.8, 0.95, 0.8);
+      const r = add(new THREE.Mesh(new THREE.DodecahedronGeometry(0.15, 0), M(0x8e8e8a)), g); r.position.y = h + 0.12; r.scale.set(1.2, 0.8, 1);
+      add(new THREE.Mesh(new THREE.SphereGeometry(0.32, 16, 10, 0, Math.PI * 2, 0, Math.PI / 2), glassMat), g, { cast: false }).position.y = h;
+    },
+    saturn(g) {
+      const white = M(0xf2f2ee), black = M(0x2a2a2a);
+      add(box(1.2, 0.15, 1.2, M(0x9a9a9a)), g).position.y = 0.07;
+      let y = 0.15;
+      for (const [r, hgt, col] of [[0.38, 0.5, black], [0.38, 1.6, white], [0.38, 0.15, black], [0.36, 1.2, white], [0.3, 0.12, black], [0.28, 0.75, white], [0.26, 0.4, M(0xbcbcbc)]]) {
+        add(new THREE.Mesh(new THREE.CylinderGeometry(r, r, hgt, 16), col), g).position.y = y + hgt / 2; y += hgt;
+      }
+      add(new THREE.Mesh(new THREE.ConeGeometry(0.26, 0.45, 16), white), g).position.y = y + 0.22;
+      add(new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.5, 6), M(0xd04a3a)), g).position.y = y + 0.65;
+      for (let i = 0; i < 4; i++) { const f = add(box(0.06, 0.5, 0.35, black), g); const a = i * Math.PI / 2 + Math.PI / 4; f.position.set(Math.cos(a) * 0.42, 0.42, Math.sin(a) * 0.42); f.rotation.y = -a; }
+    },
+    planets(g) {
+      add(new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.6, 0.3, 16), M(0x6b4a2e)), g).position.y = 0.15;
+      add(new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 1.3, 6), metal(0xc9a24a)), g).position.y = 0.95;
+      const sunM = add(new THREE.Mesh(new THREE.IcosahedronGeometry(0.3, 2), new THREE.MeshStandardMaterial({ color: 0xffc542, emissive: 0xffa500, emissiveIntensity: 0.8 })), g); sunM.position.y = 1.65;
+      const cols = [0xb0a090, 0xe8c47a, 0x4a90d9, 0xc8553d, 0xd9a066, 0xe3c98d, 0x9fd6e0, 0x4f6fd9];
+      g.userData.arms = cols.map((c, i) => {
+        const arm = new THREE.Group(); arm.position.y = 1.65; arm.rotation.y = i * 0.8; g.add(arm);
+        const r = 0.5 + i * 0.22, size = [0.05, 0.07, 0.075, 0.06, 0.16, 0.13, 0.1, 0.1][i];
+        limb(V(0, -0.02 - i * 0.025, 0), V(r, -0.02 - i * 0.025, 0), 0.008, metal(0xc9a24a), arm);
+        const p = add(new THREE.Mesh(new THREE.IcosahedronGeometry(size, 1), M(c)), arm); p.position.set(r, -0.02 - i * 0.025, 0);
+        if (i === 5) add(new THREE.Mesh(new THREE.TorusGeometry(size * 1.7, 0.012, 3, 24).rotateX(Math.PI / 2.4), M(0xe3c98d)), p);
+        return arm;
+      });
+    },
+    suit(g) {
+      plinth(g, 1.0, 0.25, 1.0);
+      const w = M(0xf4f4f0, { flatShading: false });
+      add(new THREE.Mesh(new THREE.CapsuleGeometry(0.32, 0.5, 4, 10), w), g).position.y = 1.45;
+      add(box(0.55, 0.65, 0.28, M(0xdedede)), g).position.set(0, 1.5, -0.33);
+      for (const x of [-0.17, 0.17]) { add(new THREE.Mesh(new THREE.CapsuleGeometry(0.12, 0.5, 4, 8), w), g).position.set(x, 0.72, 0); add(box(0.2, 0.14, 0.32, M(0xdedede)), g).position.set(x, 0.33, 0.04); }
+      for (const x of [-0.42, 0.42]) { const a = add(new THREE.Mesh(new THREE.CapsuleGeometry(0.1, 0.45, 4, 8), w), g); a.position.set(x, 1.45, 0); a.rotation.z = x > 0 ? 0.25 : -0.25; }
+      add(new THREE.Mesh(new THREE.SphereGeometry(0.27, 16, 12), new THREE.MeshStandardMaterial({ color: 0xf4f4f0, transparent: true, opacity: 0.5 })), g).position.y = 2.15;
+      add(new THREE.Mesh(new THREE.SphereGeometry(0.25, 16, 12, -Math.PI / 2.4, Math.PI / 1.2, Math.PI / 4, Math.PI / 2.2), metal(0xd9a441)), g).position.set(0, 2.15, 0.02);
+      add(new THREE.Mesh(new THREE.PlaneGeometry(0.16, 0.1), new THREE.MeshBasicMaterial({ map: textTexture("NASA", "#ffffff", "#1d3f8a", 64, 40, 20) })), g).position.set(0.12, 1.7, 0.31);
+    },
+    canadarm(g) {
+      const w = M(0xf4f4f0), j = M(0x9a9a9a);
+      add(box(0.3, 0.7, 0.5, M(0x8a8a8a)), g).position.set(0, 3.0, 0);
+      const pts = [V(0.15, 3.0, 0), V(1.4, 3.6, 0.4), V(2.6, 2.7, 0.9), V(3.0, 2.2, 1.0)];
+      for (let i = 0; i < pts.length - 1; i++) { limb(pts[i], pts[i + 1], 0.09, w, g); add(new THREE.Mesh(new THREE.SphereGeometry(0.13, 10, 8), j), g).position.copy(pts[i + 1]); }
+      add(new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.25, 10), j), g).position.set(3.0, 2.05, 1.0);
+      add(new THREE.Mesh(new THREE.PlaneGeometry(0.6, 0.12), new THREE.MeshBasicMaterial({ map: textTexture("CANADA", "#f4f4f0", "#c0392b", 128, 26, 20) })), g).position.set(0.9, 3.33, 0.33);
+    },
+  };
+  // [exhibit, where it stands in the hall, rotation, where Pino stands to look at it]
+  const LAYOUT = {
+    starry: [V(-6, 2.7, -RD + 0.2), 0, V(-6, 0, -5.6)], wave: [V(-2, 2.7, -RD + 0.2), 0, V(-2, 0, -5.6)],
+    mona: [V(2, 2.7, -RD + 0.2), 0, V(2, 0, -5.6)], pearl: [V(6, 2.7, -RD + 0.2), 0, V(6, 0, -5.6)],
+    sunflowers: [V(-RW + 0.2, 2.7, 4.2), Math.PI / 2, V(-7.8, 0, 4.6)], lilies: [V(RW - 0.2, 2.7, 5.4), -Math.PI / 2, V(7.6, 0, 5.6)],
+    trex: [V(-6.4, 0, -2.4), 0.35, V(-3.6, 0, -0.6)], moa: [V(-7.6, 0, 1.4), 0, V(-6.3, 0, 2.6)],
+    meteorite: [V(-4.2, 0, 2.2), 0, V(-3.4, 0, 3.2)], ammonite: [V(-4.6, 0, 5.4), 0, V(-3.6, 0, 6.2)],
+    rosetta: [V(-1.4, 0, -3.3), 0, V(-1.4, 0, -2.0)], mummy: [V(1.6, 0, -3.3), 0, V(1.6, 0, -2.2)],
+    flyer: [V(0, 4.0, 0.2), 0.3, V(0.6, 0, 0.9)], telephone: [V(-1.2, 0, 5.4), 0, V(-1.2, 0, 4.4)],
+    moonrock: [V(4.0, 0, 2.6), 0, V(3.4, 0, 3.6)], saturn: [V(7.8, 0, -5.2), 0, V(6.6, 0, -3.9)],
+    planets: [V(5.4, 0, -1.4), 0, V(4.4, 0, 0.0)], suit: [V(7.6, 0, 1.6), -0.6, V(6.6, 0, 2.6)],
+    canadarm: [V(RW - 0.3, 0, -1.0), -Math.PI / 2, V(7.0, 0, -0.3)],
+  };
+  const PAINT_W = 2.3, PAINT_H = 2.0;
+  function buildExhibits(list) {
+    for (const ex of list) {
+      const L = LAYOUT[ex.id]; if (!L) continue;
+      const g = new THREE.Group(); g.position.copy(L[0]); g.rotation.y = L[1]; g.userData.exhibit = ex.id; room.add(g);
+      if (ex.hall === "paintings") {
+        const frame = add(box(PAINT_W + 0.24, PAINT_H + 0.24, 0.08, M(0xb08a3a, { metalness: 0.4, roughness: 0.5 })), g, { cast: false });
+        const pic = add(new THREE.Mesh(new THREE.PlaneGeometry(PAINT_W, PAINT_H), new THREE.MeshStandardMaterial({ color: 0xe9e2d3 })), g, { cast: false }); pic.position.z = 0.05;
+        const img = new Image(); img.crossOrigin = "anonymous";
+        img.onload = () => {
+          const a = img.naturalWidth / img.naturalHeight, w = a >= PAINT_W / PAINT_H ? PAINT_W : PAINT_H * a, h = w / a;
+          pic.scale.set(w / PAINT_W, h / PAINT_H, 1); frame.scale.set((w + 0.24) / (PAINT_W + 0.24), (h + 0.24) / (PAINT_H + 0.24), 1);
+          const tex = new THREE.Texture(img); tex.colorSpace = THREE.SRGBColorSpace; tex.needsUpdate = true;
+          pic.material = new THREE.MeshStandardMaterial({ map: tex, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: 0.35, roughness: 0.85 });
+        };
+        img.src = `/api/museum-image?id=${ex.id}`;
+      } else MODELS[ex.id]?.(g);
+      // a little plaque on a stand
+      if (ex.hall !== "paintings" && ex.id !== "flyer" && ex.id !== "canadarm") {
+        const toPino = L[2].clone().sub(L[0]); toPino.y = 0; toPino.applyAxisAngle(V(0, 1, 0), -L[1]).setLength(ex.id === "trex" ? 1.6 : 0.8);
+        const stand = new THREE.Group(); stand.position.set(toPino.x, 0, toPino.z); stand.rotation.y = Math.atan2(toPino.x, toPino.z); g.add(stand);
+        add(new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.05, 0.6, 6), M(0x6b4a2e)), stand).position.y = 0.3;
+        const pl = add(box(0.42, 0.26, 0.04, M(0x6b4a2e)), stand, { cast: false }); pl.position.y = 0.66; pl.rotation.x = -0.6;
+        const face = add(new THREE.Mesh(new THREE.PlaneGeometry(0.38, 0.22), new THREE.MeshBasicMaterial({ color: 0xefe6cf })), pl, { cast: false }); face.position.z = 0.025;
+      }
+      exhibitGroups[ex.id] = { g, spot: L[2].clone().add(ROOM), look: L[0].clone().setY(0).add(ROOM) };
+    }
+  }
+
+  // ---- WEATHER & SEASONS: the real weather in Sarnia, and the real season
+  const SKY = { clear: 0xbfe3f5, partly: 0xc6dceb, cloudy: 0xb3bec8, fog: 0xc9cfd4, drizzle: 0xa6b2bd, rain: 0x98a5b1, snow: 0xc9d2da, storm: 0x6e7986 };
+  const LIGHT = { clear: 1, partly: 0.92, cloudy: 0.72, fog: 0.68, drizzle: 0.66, rain: 0.6, snow: 0.78, storm: 0.45 };
+  const GRASS = { spring: 0x9bd27a, summer: 0x8cc865, autumn: 0xb4c26c, winter: 0xa3b090 };
+  const LEAVES = { spring: 0x7cc46a, summer: 0x4f9a40, autumn: 0xdb8a3a, winter: 0x5fae5a };
+  const wx = { kind: "clear", season: "autumn", snowy: false, frozen: false, light: 1, flash: 0, wind: 0, amount: 0, sky: new THREE.Color(SKY.clear) };
+  // rain: short falling streaks
+  const RAIN_N = 900, rainPos = new Float32Array(RAIN_N * 6);
+  for (let i = 0; i < RAIN_N; i++) { const x = (Math.random() - 0.5) * 30, y = Math.random() * 16, z = (Math.random() - 0.5) * 30; rainPos.set([x, y, z, x, y + 0.4, z], i * 6); }
+  const rainGeo = new THREE.BufferGeometry(); rainGeo.setAttribute("position", new THREE.BufferAttribute(rainPos, 3));
+  const rain = new THREE.LineSegments(rainGeo, new THREE.LineBasicMaterial({ color: 0xd4e3f0, transparent: true, opacity: 0.55 }));
+  rain.visible = false; rain.frustumCulled = false; scene.add(rain);
+  // snow: drifting flakes
+  const SNOW_N = 1100, snowPos = new Float32Array(SNOW_N * 3);
+  for (let i = 0; i < SNOW_N; i++) snowPos.set([(Math.random() - 0.5) * 30, Math.random() * 16, (Math.random() - 0.5) * 30], i * 3);
+  const snowGeo = new THREE.BufferGeometry(); snowGeo.setAttribute("position", new THREE.BufferAttribute(snowPos, 3));
+  const flakeC = Object.assign(document.createElement("canvas"), { width: 32, height: 32 }), fx = flakeC.getContext("2d");
+  const grad = fx.createRadialGradient(16, 16, 0, 16, 16, 16); grad.addColorStop(0, "rgba(255,255,255,1)"); grad.addColorStop(1, "rgba(255,255,255,0)");
+  fx.fillStyle = grad; fx.fillRect(0, 0, 32, 32);
+  const snow = new THREE.Points(snowGeo, new THREE.PointsMaterial({ size: 0.16, map: new THREE.CanvasTexture(flakeC), transparent: true, depthWrite: false }));
+  snow.visible = false; snow.frustumCulled = false; scene.add(snow);
+  // puddles and a little snow-kiwi he can build
+  const puddles = new THREE.Group(); scene.add(puddles); puddles.visible = false;
+  [[-1.2, 2.6, 0.5], [-2.2, 1.2, 0.35], [1.6, 2.2, 0.4], [-0.6, -1.6, 0.3], [2.6, -1.2, 0.35]].forEach(([x, z, r]) => {
+    const pd = add(new THREE.Mesh(new THREE.CircleGeometry(r, 16).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0x8fa9bc, roughness: 0.05, metalness: 0.2 })), puddles, { cast: false });
+    pd.position.set(x, 0.04, z); pd.scale.set(1.3, 1, 0.8);
+  });
+  const snowKiwi = new THREE.Group(); snowKiwi.position.set(-2.2, 0, 1.5); scene.add(snowKiwi); snowKiwi.visible = false;
+  const snowMat = M(0xf7fbfd);
+  add(new THREE.Mesh(new THREE.IcosahedronGeometry(0.42, 1), snowMat), snowKiwi).position.y = 0.38;
+  add(new THREE.Mesh(new THREE.IcosahedronGeometry(0.22, 1), snowMat), snowKiwi).position.set(0, 0.78, 0.25);
+  limb(V(0, 0.75, 0.42), V(0, 0.5, 0.78), 0.025, M(0x8b5a3c), snowKiwi);
+  for (const x of [-0.08, 0.08]) add(new THREE.Mesh(new THREE.SphereGeometry(0.03, 6, 6), M(0x222222)), snowKiwi).position.set(x, 0.84, 0.43);
+  const groundCol = new THREE.Color(GRASS.autumn), hillCol = new THREE.Color(0x86c266), leafCol = new THREE.Color(LEAVES.autumn);
+  const pondMat = pond.material, pondWater = new THREE.Color(0x6fbbe0), pondIce = new THREE.Color(0xdbeef6);
+  function setWeather(w, seasonName, frozen, builtSnowKiwi) {
+    wx.kind = w?.kind || "clear"; wx.season = seasonName || "autumn"; wx.frozen = !!frozen; wx.wind = w?.wind || 0;
+    wx.snowy = !!w && (w.snow >= 1 || (w.kind === "snow" && w.temp <= 1));
+    wx.light = LIGHT[wx.kind] ?? 1;
+    const heavy = /heavy|pouring|showers/.test(w?.desc || ""), light = /light|drizzle|grains/.test(w?.desc || "");
+    wx.amount = heavy ? 1 : light ? 0.45 : 0.75;
+    wx.sky.setHex(SKY[wx.kind] ?? SKY.clear);
+    const fogNear = { fog: 6, snow: 22, rain: 22, storm: 16, drizzle: 26 }[wx.kind] ?? 30;
+    wx.fogNear = fogNear; wx.fogFar = wx.kind === "fog" ? 26 : fogNear * 2.2 + 8;
+    rain.visible = /rain|drizzle|storm/.test(wx.kind); snow.visible = wx.kind === "snow";
+    rainGeo.setDrawRange(0, Math.round(RAIN_N * (wx.kind === "drizzle" ? 0.35 : wx.amount)) * 2);
+    snowGeo.setDrawRange(0, Math.round(SNOW_N * wx.amount));
+    // the season colours the town; snow covers it
+    groundCol.setHex(wx.snowy ? 0xeef3f6 : GRASS[wx.season]); hillCol.setHex(wx.snowy ? 0xe3eaee : wx.season === "autumn" ? 0x9db866 : wx.season === "winter" ? 0x93a487 : 0x86c266);
+    ground.material.color.copy(groundCol); hillMat.color.copy(hillCol);
+    leafCol.setHex(LEAVES[wx.season]); leafMat.color.copy(leafCol);
+    const bare = wx.season === "winter";
+    treeLeaves.forEach((m) => (m.visible = !bare)); branches.visible = bare;
+    pile.visible = wx.season === "autumn" && !wx.snowy;
+    flowers.forEach((f) => (f.visible = (wx.season === "spring" || wx.season === "summer") && !wx.snowy));
+    puddles.visible = /rain|drizzle|storm/.test(wx.kind) && !wx.snowy;
+    snowKiwi.visible = wx.snowy && !!builtSnowKiwi;
+    pondMat.color.copy(wx.frozen ? pondIce : pondWater); pondMat.roughness = wx.frozen ? 0.45 : 0.15;
+    duck.visible = !wx.frozen;
+  }
+  function weatherTick(dt, t) {
+    if (rain.visible) {
+      const p = rainGeo.attributes.position.array, n = rainGeo.drawRange.count / 2, drift = Math.min(0.25, wx.wind / 150);
+      for (let i = 0; i < n; i++) {
+        const k = i * 6; let y = p[k + 1] - 15 * dt;
+        if (y < 0) { y += 16; p[k] = (Math.random() - 0.5) * 30; p[k + 2] = (Math.random() - 0.5) * 30; }
+        p[k + 1] = y; p[k + 3] = p[k] + drift; p[k + 4] = y + 0.4; p[k + 5] = p[k + 2];
+      }
+      rainGeo.attributes.position.needsUpdate = true;
+    }
+    if (snow.visible) {
+      const p = snowGeo.attributes.position.array, n = snowGeo.drawRange.count, push = wx.wind / 60;
+      for (let i = 0; i < n; i++) {
+        const k = i * 3; p[k + 1] -= (0.8 + (i % 5) * 0.12) * dt; p[k] += (Math.sin(t * 0.7 + i) * 0.25 + push) * dt;
+        if (p[k + 1] < 0) { p[k + 1] = 16; p[k] = (Math.random() - 0.5) * 30; p[k + 2] = (Math.random() - 0.5) * 30; }
+        if (p[k] > 15) p[k] -= 30;
+      }
+      snowGeo.attributes.position.needsUpdate = true;
+    }
+    if (wx.kind === "storm" && Math.random() < dt * 0.07) { wx.flash = 1; window.dispatchEvent(new CustomEvent("pino:thunder")); }
+    wx.flash = Math.max(0, wx.flash - dt * 4);
+  }
+
   // spots where Pino stands at each place, what he faces, and extra spots for some activities
-  const SPOTS = { house: V(-4.6, 0, -2.4), library: V(4.4, 0, -2.5), vending: V(-1.5, 0, -3.85), park: V(-3.0, 0, 3.2), gallery: V(3.96, 0, 3.73) };
-  const LOOK = { house: V(-4.6, 0, -4), library: V(4.4, 0, -4), vending: V(-1.5, 0, -5.3), park: POND, gallery: V(4.4, 0, 2.3) };
+  const SPOTS = { house: V(-4.6, 0, -2.4), library: V(4.4, 0, -2.5), vending: V(-1.5, 0, -3.85), park: V(-3.0, 0, 3.2), gallery: V(3.96, 0, 3.73), museum: V(0.55, 0, -6.4) };
+  const LOOK = { house: V(-4.6, 0, -4), library: V(4.4, 0, -4), vending: V(-1.5, 0, -5.3), park: POND, gallery: V(4.4, 0, 2.3), museum: MUS };
   // [activity, where he goes, what he faces, building he disappears into]
   const HOUSE_DOOR = V(-4.6, 0, -3.75), LIB_DOOR = V(4.4, 0, -3.65);
   const ACT = [
-    [/^sleep|tidy|window|blanket/, HOUSE_DOOR, V(-5, 0, -6), "house"],
+    [/^sleep|tidy|window|blanket|rain on the roof/, HOUSE_DOOR, V(-5, 0, -6), "house"],
     [/read|journal|draw|paint|studied|study|nook/, LIB_DOOR, V(4.4, 0, -6), "library"],
     [/telescope/, V(-2.7, 0, -1.85), V(-2.7, 0, -3.6)],
     [/toy train/, V(2.2, 0, 6.1), V(0.9, 0, 6.5)],
@@ -523,12 +866,18 @@ function buildWorld() {
     [/dance/, V(-4.5, 0, 3.9), V(-4.5, 0, 12)],
     [/leaf/, V(-4.3, 0, 3.4), V(-5.0, 0, 2.9)],
     [/ducks/, V(-2.5, 0, 5.0), POND],
+    [/snow-kiwi|flop down in the soft snow|snowflakes/, V(-2.3, 0, 2.3), V(-2.2, 0, 1.5)],
+    [/frozen pond/, V(-3.9, 0.04, 6.2), V(-3.9, 0, 9)],
+    [/puddles/, V(-1.0, 0, 2.7), V(-1.2, 0, 2.6)],
+    [/shelter under/, V(-5.2, 0, 2.2), V(-3, 0, 3.5)],
+    [/spring flowers/, V(-1.6, 0, 1.4), V(-1.6, 0, 0)],
+    [/paddle my feet/, V(-2.7, 0, 5.6), POND],
     [/bench|sit and think/, V(-1.6, 0.52, 5.4), POND],
   ];
-  const INSIDE_ANCHOR = { house: V(-4.6, 2.4, -3.7), library: V(4.4, 2.9, -3.6) };
+  const INSIDE_ANCHOR = { house: V(-4.6, 2.4, -3.7), library: V(4.4, 2.9, -3.6), museum: V(0.55, 4.3, -7.4) };
   const CHIMNEY = V(-3.7, 4.0, -5.5);
   for (const k of Object.keys(SPOTS)) strip(JUNCTION, SPOTS[k]);
-  strip(SPOTS.house, V(-4.6, 0, -3.9), 0.9); strip(SPOTS.library, V(4.4, 0, -3.8), 0.9);
+  strip(SPOTS.house, V(-4.6, 0, -3.9), 0.9); strip(SPOTS.library, V(4.4, 0, -3.8), 0.9); strip(SPOTS.museum, MUSEUM_DOOR, 1.2);
 
   // ---- Pino's art gallery: six frames that show the drawings he chose to hang
   const gal = new THREE.Group(); gal.position.set(4.4, 0, 2.3); gal.rotation.y = -0.3; scene.add(gal);
@@ -632,7 +981,7 @@ function buildWorld() {
   pino.group.position.copy(SPOTS.house);
 
   // ---------------------------------------------------------------- overlays
-  const labels = [["home", V(-4.6, 4.2, -5.2)], ["library", V(4.4, 4.1, -5.4)], ["snacks", V(-1.5, 2.75, -5.3)], ["park", V(-5.8, 4.1, 1.6)], ["gallery", V(4.4, 3.0, 2.3)]].map(([t, p]) => {
+  const labels = [["home", V(-4.6, 4.2, -5.2)], ["library", V(4.4, 4.1, -5.4)], ["snacks", V(-1.5, 2.75, -5.3)], ["park", V(-5.8, 4.1, 1.6)], ["gallery", V(4.4, 3.0, 2.3)], ["museum", V(0.55, 6.0, -9.6)]].map(([t, p]) => {
     const d = el("div", "ov label", t); stage.append(d); return { d, p };
   });
   const bubble = el("div", "ov bubble thought"); bubble.hidden = true; stage.append(bubble);
@@ -659,9 +1008,27 @@ function buildWorld() {
   // ---------------------------------------------------------------- movement
   const owned = new Set();
   const state = { path: [], look: null, doing: "", place: "house", hop: 0, happy: 0, sleeping: false, follow: false, nightF: 0, night: false,
-    base: SPOTS.house.clone(), nextWander: 4, wandering: false, indoor: null, vis: 1 };
+    base: SPOTS.house.clone(), nextWander: 4, wandering: false, indoor: null, vis: 1, inRoom: false };
+  const exhibitByName = {};
+  function roomSpot(doing) {
+    const id = exhibitByName[doing.replace(/^see the exhibit: /, "")];
+    const ex = id && exhibitGroups[id];
+    return ex ? { pos: ex.spot, look: ex.look, id } : { pos: ROOM.clone().add(V(0, 0, 3.0)), look: ROOM.clone().add(V(0, 0, -8)), id: null };
+  }
   function setActivity(place, doing, instant) {
-    const act = ACT.find(([re]) => re.test(doing));
+    const toRoom = place === "museum";
+    if (state.inRoom && !toRoom) { pino.group.position.copy(MUSEUM_DOOR); state.inRoom = false; state.place = "museum"; }
+    if (toRoom && state.inRoom) {
+      // already inside: stroll over to the next exhibit
+      if (state.doing !== doing) {
+        const spot = roomSpot(doing);
+        state.path = spot.pos.distanceTo(pino.group.position) > 0.05 ? [spot.pos.clone().setY(0)] : [];
+        state.look = spot.look; state.base = spot.pos.clone(); state.doing = doing; state.wandering = false;
+        state.sleeping = /^sleep|nap/.test(doing);
+      }
+      return;
+    }
+    const act = toRoom ? [null, MUSEUM_DOOR, MUS, "museum"] : ACT.find(([re]) => re.test(doing));
     const target = act ? act[1] : SPOTS[place];
     const look = act ? act[2] : LOOK[place];
     const same = target.distanceTo(pino.group.position) < 0.05;
@@ -675,6 +1042,26 @@ function buildWorld() {
     state.indoor = act?.[3] || null;
     if (instant && state.indoor) state.vis = 0;
     state.sleeping = /^sleep|nap/.test(doing);
+  }
+
+  // two places the camera can be: the town, or inside the museum hall
+  const view = { mode: "town", saved: null }; let followLeftAt = 0;
+  function enterMuseum() {
+    if (view.mode === "museum") return;
+    view.saved = { pos: camera.position.clone(), target: controls.target.clone(), min: controls.minDistance, max: controls.maxDistance, minP: controls.minPolarAngle, maxP: controls.maxPolarAngle };
+    view.mode = "museum";
+    const at = ROOM.clone().add(V(0, 1.6, -1.5));
+    if (state.inRoom) at.lerp(pino.group.position.clone().setY(1.4), 0.5);
+    controls.target.copy(at); camera.position.copy(at).add(V(0, 3.0, 6.4));
+    camera.fov = 62; camera.updateProjectionMatrix();
+    Object.assign(controls, { minDistance: 2.5, maxDistance: 7.2, minPolarAngle: 0.95, maxPolarAngle: 1.52 });
+    window.dispatchEvent(new CustomEvent("pino:view", { detail: "museum" }));
+  }
+  function exitMuseum() {
+    if (view.mode !== "museum") return;
+    view.mode = "town"; const v = view.saved; camera.fov = 45; camera.updateProjectionMatrix();
+    if (v) { camera.position.copy(v.pos); controls.target.copy(v.target); Object.assign(controls, { minDistance: v.min, maxDistance: v.max, minPolarAngle: v.minP, maxPolarAngle: v.maxP }); }
+    window.dispatchEvent(new CustomEvent("pino:view", { detail: "town" }));
   }
 
   function resize() {
@@ -693,6 +1080,12 @@ function buildWorld() {
     const r = renderer.domElement.getBoundingClientRect();
     ray.setFromCamera(new THREE.Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1), camera);
     if (pino.group.visible && ray.intersectObject(pino.group, true).length) onPet(false);
+    else if (view.mode === "museum") {
+      const hit = ray.intersectObject(room, true)[0];
+      let o = hit?.object; while (o && !o.userData.exhibit) o = o.parent;
+      if (o) window.dispatchEvent(new CustomEvent("pino:exhibit", { detail: o.userData.exhibit }));
+    }
+    else if (ray.intersectObject(mus, true).length) enterMuseum();
     else if (state.indoor && !state.path.length && ray.intersectObject(state.indoor === "house" ? house : lib, true).length) {
       window.dispatchEvent(new CustomEvent("pino:knock", { detail: state.indoor }));
     }
@@ -719,6 +1112,16 @@ function buildWorld() {
       state.nextWander = t + (state.wandering ? 3 + Math.random() * 4 : 6 + Math.random() * 8);
     }
 
+    // stepping through the museum door: he reappears inside the museum hall
+    if (state.indoor === "museum" && !state.path.length && !state.inRoom && state.place === "museum") {
+      const spot = roomSpot(state.doing);
+      g.position.copy(spot.pos).setY(0); state.inRoom = true; state.look = spot.look; state.base = spot.pos.clone().setY(0); state.vis = 1;
+      if (state.follow && view.mode !== "museum") enterMuseum();
+    }
+    if (!state.inRoom && view.mode === "museum" && state.follow && !followLeftAt) followLeftAt = t;
+    if (followLeftAt && (state.inRoom || !state.follow)) followLeftAt = 0;
+    if (followLeftAt && t - followLeftAt > 1.2) { followLeftAt = 0; exitMuseum(); }
+
     // walking
     let walking = false;
     if (state.path.length) {
@@ -740,7 +1143,7 @@ function buildWorld() {
     if (!(/dance/.test(state.doing) && !state.path.length)) g.rotation.y += dA * Math.min(1, dt * 6);
 
     // going inside: shrink away at the door, pop back out when leaving
-    const inside = !!state.indoor && !state.path.length;
+    const inside = !!state.indoor && !state.path.length && !state.inRoom;
     state.vis += ((inside ? 0 : 1) - state.vis) * Math.min(1, dt * (inside ? 3 : 6));
     g.visible = state.vis > 0.03; g.scale.setScalar(1.45 * Math.max(0.03, state.vis));
 
@@ -759,6 +1162,8 @@ function buildWorld() {
     else if (!walking && /seed bar|crisps|juice|treat/.test(d)) headX = Math.max(0, Math.sin(t * 7)) * 0.7;
     else if (!walking && /read|journal|draw/.test(d)) headX = 0.35 + Math.sin(t * 1.3) * 0.06;
     else if (!walking && /tidy/.test(d)) headY = Math.sin(t * 4) * 0.6;
+    else if (!walking && state.inRoom && /T\. rex|Saturn|Wright|Canadarm|moa/.test(d)) { headX = -0.4; headY = Math.sin(t * 0.5) * 0.25; }
+    else if (!walking && /snowflakes/.test(d)) { headX = -0.5; headY = Math.sin(t * 1.5) * 0.4; }
     else if (!walking) headY = Math.sin(t * 0.6) * 0.45 + Math.sin(t * 1.7) * 0.1;
     if (treat && treat.eaten > 0) headX = Math.max(0, Math.sin(t * 9)) * 0.8;
     pino.head.rotation.x += (headX - pino.head.rotation.x) * Math.min(1, dt * 8);
@@ -816,23 +1221,44 @@ function buildWorld() {
       pino.legs[0].rotation.x = Math.sin(t * 12) * 0.5; pino.legs[1].rotation.x = -Math.sin(t * 12) * 0.5;
     }
 
+    // the museum: the Wright Flyer's propellers turn and the planets go round
+    if (view.mode === "museum" || state.inRoom) {
+      exhibitGroups.flyer?.g.userData.props?.forEach((pr) => (pr.rotation.z += dt * 6));
+      exhibitGroups.planets?.g.userData.arms?.forEach((a, i) => (a.rotation.y += dt * (0.6 / (1 + i * 0.6))));
+    }
+    // weather in town; sliding about on the frozen pond, splashing in puddles
+    weatherTick(dt, t);
+    if (!walking && /frozen pond/.test(d)) { g.position.x = POND.x + Math.sin(t * 0.9) * 0.7; g.position.z = POND.z + Math.sin(t * 1.8) * 0.35; g.rotation.y = Math.cos(t * 0.9) > 0 ? Math.PI / 2 : -Math.PI / 2; }
+    if (!walking && /puddles/.test(d) && Math.random() < dt * 1.2) state.hop = 0.6;
+
     // duck paddling
     const da = t * 0.35; duck.position.set(POND.x + Math.cos(da) * 0.8, 0.1 + Math.sin(t * 3) * 0.015, POND.z + Math.sin(da) * 0.8); duck.rotation.y = -da;
 
     // day / night
     state.nightF += ((state.night ? 1 : 0) - state.nightF) * Math.min(1, dt * 0.8);
     const f = state.nightF;
-    scene.background.lerpColors(DAY, NIGHT, f); scene.fog.color.copy(scene.background);
-    hemi.intensity = 1.15 - f * 0.85; sun.intensity = 1.8 - f * 1.45; sun.color.setRGB(1 - f * 0.45, 0.95 - f * 0.3, 0.86 + f * 0.1);
+    const inMuseum = view.mode === "museum", wl = inMuseum ? 1 : wx.light;
+    scene.background.lerpColors(inMuseum ? DAY : wx.sky, NIGHT, f); scene.fog.color.copy(scene.background);
+    scene.fog.near = inMuseum ? 200 : (wx.fogNear ?? 30); scene.fog.far = inMuseum ? 400 : (wx.fogFar ?? 60);
+    hemi.intensity = (1.15 - f * 0.85) * wl + wx.flash * 1.5; sun.intensity = (1.8 - f * 1.45) * (inMuseum ? 1 : wl * wl); sun.color.setRGB(1 - f * 0.45, 0.95 - f * 0.3, 0.86 + f * 0.1);
+    roomLight.intensity = 5 + f * 18;
     windowMat.emissiveIntensity = f * 1.6; screenMat.emissiveIntensity = 0.25 + f * 1.2;
     vmLight.intensity = f * 5; houseLight.intensity = f * 4; stars.material.opacity = f; moon.material.opacity = f;
 
     // camera follow
-    if (state.follow) {
+    if (state.follow && (view.mode === "museum") === state.inRoom) {
       tmp.copy(g.position).add(V(0, 0.5, 0)).sub(controls.target).multiplyScalar(Math.min(1, dt * 3));
       controls.target.add(tmp); camera.position.add(tmp);
     }
     controls.update();
+    if (view.mode === "museum") {
+      // stay inside the hall's walls
+      camera.position.x = Math.min(ROOM.x + RW - 0.5, Math.max(ROOM.x - RW + 0.5, camera.position.x));
+      camera.position.z = Math.min(ROOM.z + RD - 0.5, Math.max(ROOM.z - RD + 0.5, camera.position.z));
+      camera.position.y = Math.min(RH - 0.35, Math.max(0.4, camera.position.y));
+      controls.target.x = Math.min(ROOM.x + RW - 1.5, Math.max(ROOM.x - RW + 1.5, controls.target.x));
+      controls.target.z = Math.min(ROOM.z + RD - 1.5, Math.max(ROOM.z - RD + 1.5, controls.target.z));
+    }
     renderer.render(scene, camera);
 
     // overlays follow 3D positions
@@ -848,10 +1274,13 @@ function buildWorld() {
         div.style.transform = `translate(${x}px, ${y}px) translate(-50%, -100%)`;
       } else div.style.transform = `translate(${x}px, ${y}px) translate(-50%, -50%)`;
     };
-    labels.forEach(({ d, p }) => place(d, p));
+    if (view.mode === "museum") labels.forEach(({ d }) => (d.style.visibility = "hidden"));
+    else labels.forEach(({ d, p }) => place(d, p));
     if (inside) headPos.copy(INSIDE_ANCHOR[state.indoor]);
+    else if (state.inRoom && view.mode !== "museum") headPos.copy(INSIDE_ANCHOR.museum);
     else { pino.head.getWorldPosition(headPos); headPos.y += 0.75; }
-    place(bubble, headPos);
+    if (view.mode === "museum" && !state.inRoom) bubble.style.visibility = "hidden";
+    else place(bubble, headPos);
   });
 
   function onPet(silent) {
@@ -869,6 +1298,13 @@ function buildWorld() {
     isInside: () => !!state.indoor && !state.path.length,
     setMusic: (on) => (musicOn = on),
     setGallery,
+    setWeather,
+    enterMuseum, exitMuseum, viewMode: () => view.mode, inRoom: () => state.inRoom,
+    loadMuseum: (list) => {
+      list.forEach((e) => (exhibitByName[e.name] = e.id));
+      buildExhibits(list);
+      if (state.inRoom) { const sp = roomSpot(state.doing); pino.group.position.copy(sp.pos).setY(0); state.look = sp.look; state.base = sp.pos.clone().setY(0); }
+    },
     setOwned: (ids) => { owned.clear(); ids.forEach((i) => owned.add(i)); for (const [id, p] of Object.entries(props)) p.visible = owned.has(id); },
     bubble,
   };
@@ -931,7 +1367,8 @@ function snacksTexture() {
 
 // ================================================================ UI + DATA
 const BADGES = [[/reading nook/, "🛋️"], [/sleep|nap/, "💤"], [/drawing manual/, "🖌️"], [/read/, "📖"], [/journal/, "✏️"], [/draw/, "🎨"], [/seed bar/, "🍫"], [/crisps/, "🥨"], [/juice/, "🧃"],
-  [/leaf/, "🍂"], [/ducks/, "🦆"], [/bench|sit/, "💭"], [/window/, "🪟"], [/tidy/, "🧹"], [/talked/, "💬"], [/petted/, "❤️"], [/treat/, "🍪"], [/reflect/, "🌙"], [/walked/, "👣"], [/swing/, "🎠"], [/telescope/, "🔭"], [/toy train/, "🚂"], [/birdbath/, "💦"], [/kite/, "🪁"], [/given/, "🎁"], [/gramophone|next song/, "🎶"], [/dance/, "💃"], [/hung my drawing|art on the walls|hang/, "🖼️"]];
+  [/leaf/, "🍂"], [/ducks/, "🦆"], [/bench|sit/, "💭"], [/window/, "🪟"], [/tidy/, "🧹"], [/talked/, "💬"], [/petted/, "❤️"], [/treat/, "🍪"], [/reflect/, "🌙"], [/walked/, "👣"], [/swing/, "🎠"], [/telescope/, "🔭"], [/toy train/, "🚂"], [/birdbath/, "💦"], [/kite/, "🪁"], [/given/, "🎁"], [/gramophone|next song/, "🎶"], [/dance/, "💃"], [/hung my drawing|art on the walls|hang/, "🖼️"],
+  [/exhibit|museum/, "🏛️"], [/snow-kiwi|soft snow/, "☃️"], [/snowflakes|snow fall/, "❄️"], [/frozen pond/, "⛸️"], [/puddles|rain on the roof/, "🌧️"], [/shelter/, "🌳"], [/spring flowers/, "🌷"], [/paddle/, "💦"]];
 let latest = null, first = true, speaking = 0, followOn = false;
 
 // ---- who you are: a random id this browser keeps, plus the name you tell Pino
@@ -1071,6 +1508,8 @@ function render(s) {
   renderGallery(s.drawings || []);
   renderBooks(s);
   if (world) { world.setOwned(s.owned || []); world.setGallery(s.galleryWall || []); }
+  renderWeather(s);
+  renderMuseum(s);
   syncMusic(s.music || { on: false });
   renderGive(s);
   list("friends", s.friends || [], (f) => {
@@ -1213,6 +1652,71 @@ if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").cat
   if (!dismissed) setTimeout(explain, 1500); // greet new visitors with the how-to right away
 })();
 
+// ---- weather & seasons: the real weather in Sarnia
+const WX_EMOJI = { clear: "☀️", partly: "⛅", cloudy: "☁️", fog: "🌫️", drizzle: "🌦️", rain: "🌧️", snow: "🌨️", storm: "⛈️" };
+let wxSig = "";
+function renderWeather(s) {
+  const w = s.weather, box = $("wx");
+  const label = s.season ? s.season.label.charAt(0).toUpperCase() + s.season.label.slice(1) : "";
+  if (w) {
+    const icon = w.kind === "clear" && (s.night || !w.day) ? "🌙" : WX_EMOJI[w.kind] || "🌤️";
+    box.hidden = false; box.textContent = `${icon} ${w.temp}° · ${label}`;
+  } else { box.hidden = !label; box.textContent = label; }
+  const snowKiwi = (s.memories || []).some((m) => /snow-kiwi/.test(m.action));
+  const sig = JSON.stringify([w?.kind, w?.temp, w?.snow, w?.wind, w?.desc, s.season?.name, s.pond?.frozen, snowKiwi]);
+  if (sig === wxSig) return; wxSig = sig;
+  if (world) world.setWeather(w, s.season?.name, s.pond?.frozen, snowKiwi);
+  ambience?.setWeather(w, s.season?.name);
+}
+
+// ---- the museum: real treasures, true plaques, and what Pino thought of them
+let MUSEUM = [];
+fetch("/museum.json").then((r) => r.json()).then((list) => {
+  MUSEUM = list; if (world) world.loadMuseum(list); if (latest) renderMuseum(latest);
+}).catch(() => {});
+const HALL_NAMES = { paintings: "Famous paintings", "natural history": "Natural history", history: "History & inventions", space: "Space" };
+let museumSig = "";
+function pinoSaid(s, id) { return [...(s?.museumLog || [])].reverse().find((m) => m.id === id); }
+function renderMuseum(s) {
+  if (!MUSEUM.length) return;
+  const sig = (s.museumLog || []).length + "#" + (s.museumLog || []).at(-1)?.t;
+  if (sig === museumSig) return; museumSig = sig;
+  const seen = new Set((s.museumLog || []).map((m) => m.id));
+  $("museumCount").textContent = `Pino has seen ${seen.size} of the museum's ${MUSEUM.length} exhibits. Tap 🏛️ on the town view to go inside yourself.`;
+  const box = $("exhibitList"); box.replaceChildren();
+  let hall = "";
+  for (const ex of MUSEUM) {
+    if (ex.hall !== hall) { hall = ex.hall; box.append(el("div", "hallname", HALL_NAMES[hall] || hall)); }
+    const said = pinoSaid(s, ex.id);
+    const card = el("div", "exhibit" + (said ? "" : " unseen"));
+    card.append(el("b", null, ex.name), el("span", "meta", ex.by));
+    card.append(el("q", null, said ? `Pino: “${said.reaction}”` : "Pino hasn't seen this one yet."));
+    box.append(card);
+  }
+}
+function showPlaque(id) {
+  const ex = MUSEUM.find((e) => e.id === id); if (!ex) return;
+  const p = $("plaque"); p.replaceChildren();
+  const x = el("button", "x", "×"); x.type = "button"; x.onclick = () => (p.hidden = true);
+  p.append(x, el("b", null, ex.name), el("small", null, ex.by), document.createTextNode(ex.fact));
+  const said = pinoSaid(latest, ex.id);
+  if (said) p.append(el("div", "pino", `Pino thought: “${said.reaction}”`));
+  else if (latest?.exhibit === ex.id) p.append(el("div", "pino", "Pino is looking at this right now!"));
+  p.hidden = false;
+}
+window.addEventListener("pino:exhibit", (e) => showPlaque(e.detail));
+window.addEventListener("pino:view", (e) => {
+  const inside = e.detail === "museum";
+  $("stage").classList.toggle("inmuseum", inside);
+  $("museumBar").hidden = !inside; $("plaque").hidden = true;
+  $("museumBtn").textContent = inside ? "🏘️" : "🏛️"; $("museumBtn").title = inside ? "Back to town" : "Go inside the museum";
+  if (inside && followOn && world && !world.inRoom()) { followOn = false; $("followBtn").setAttribute("aria-pressed", false); world.setFollow(false); }
+  if (inside) toast(world && world.inRoom() ? "You're in the museum with Pino. Tap an exhibit to read its plaque." : "Welcome to the museum! Pino isn't here right now. Tap an exhibit to read its plaque.");
+});
+$("museumBtn").addEventListener("click", () => { if (!world) return; world.viewMode() === "museum" ? world.exitMuseum() : world.enterMuseum(); });
+$("museumBack").addEventListener("click", () => world && world.exitMuseum());
+window.addEventListener("pino:thunder", () => ambience?.thunder());
+
 // ---- the gramophone: everyone hears the same song at the same moment (after tapping 🔇 to allow sound)
 const gramophone = new Gramophone();
 let soundOn = false, ambience = null;
@@ -1230,7 +1734,7 @@ $("soundBtn").addEventListener("click", () => {
   if (soundOn) {
     gramophone.enable();
     ambience ??= new Ambience(gramophone.ctx);
-    ambience.setNight(!!latest?.night); ambience.start();
+    ambience.setNight(!!latest?.night); ambience.setWeather(latest?.weather, latest?.season?.name); ambience.start();
     if (latest?.music?.on) gramophone.play(latest.music.song, latest.music.since);
     toast("Sound on: the breeze, the birds, Pino's whistle and his gramophone.");
     chirp(false);

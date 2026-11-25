@@ -5,6 +5,7 @@ import {
   drawingPrompt, sanitizeSvg, artSkill, mustSleep,
 } from "../lib/pino.mts";
 import { ask, hasBrain, NoBrain } from "../lib/brain.mts";
+import { fetchWeather, needsRefresh } from "../lib/weather.mts";
 import { acquireLock, deleteKeys, deleteNote, listEvents, listNotes, loadState, peopleIndex, releaseLock, saveState } from "../lib/store.mts";
 
 // Pino's heartbeat. Netlify wakes this every minute (its shortest schedule).
@@ -58,6 +59,12 @@ async function moment(s: State, start: number) {
   // Fold in what visitors did since last time (pets, treats, chats)
   const visits = await listEvents();
   applyVisits(s, visits, now);
+  // the real weather in Sarnia, checked every 15 minutes
+  if (needsRefresh(s.weather, now)) {
+    const w = await fetchWeather(now);
+    if (w) s.weather = w;
+    else if (s.weather) s.weather.at = now - 10 * 60_000; // try again in about 5 minutes
+  }
   const persist = async () => {
     await saveState(s);
     if (visits.length) await deleteKeys(visits.map((v) => v.key));

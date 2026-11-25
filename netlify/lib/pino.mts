@@ -4,6 +4,8 @@ import { BOOKS } from "./library.mts";
 import { GIFT_BY_ID } from "./gifts.mts";
 import { SONG_BY_ID, nextSong, randomSong, silence, songsOwned, type Music } from "./music.mts";
 import { recall } from "./memory.mts";
+import { frozenPond, outdoorFeeling, season, snowy, weatherDrain, weatherLine, wet, type Weather } from "./weather.mts";
+import { EXHIBITS, EXHIBIT_BY_ID, exhibitAction, exhibitFromAction } from "./museum.mts";
 
 export const NAME = "Pino";
 export const SPECIES = "kiwi bird";
@@ -72,7 +74,14 @@ export const PLACES: Record<string, Place> = {
       "sit on the bench": { joy: 3, energy: 5 },
     },
   },
+  museum: {
+    label: "museum",
+    desc: "the grand town museum with a dome and stone columns, full of real treasures from around the world: famous paintings, a T. rex skeleton, ancient wonders like the Rosetta Stone, and things from space. Every exhibit has a plaque that tells its true story",
+    activities: {}, // its exhibits (see museum.mts)
+  },
 };
+// places that are outdoors (weather reaches him there)
+export const OUTDOORS = new Set(["park", "gallery", "vending"]);
 
 // ---------------------------------------------------------------------------
 // State
@@ -100,6 +109,9 @@ export type State = {
   gifts: { received: string[]; log: { t: string; id: string; name: string; emoji: string; from: string }[] };
   music: Music;                                  // the gramophone in the park
   galleryWall: (Drawing & { hungAt: string })[]; // drawings he chose to hang in his art gallery
+  weather?: Weather;                             // the real weather in Sarnia, checked every 15 minutes
+  lastSaw?: string | null;                       // museum exhibit he just looked at (he reacts next moment)
+  museumLog?: { t: string; id: string; name: string; reaction: string }[];
   wants: Want[];                                 // what he wants right now, in his own words
   pastWants: Want[];                             // wishes he's let go of or moved on from
   conversations: { t: string; visitor: string; reply: string }[];
@@ -190,6 +202,28 @@ export function parseJSON(text: string): any {
 // What he can do at a place: the town's basics plus anything visitors have given him
 export function activitiesAt(s: State, place: string): Record<string, Effects> {
   const acts: Record<string, Effects> = { ...PLACES[place].activities };
+  if (place === "museum") for (const e of EXHIBITS) acts[exhibitAction(e)] = { joy: 7, energy: -1 };
+  const w = s.weather, sea = season(Date.now()).name;
+  if (place === "park") {
+    // the seasons and the real weather change what there is to do
+    if (sea !== "autumn") delete acts["play in the leaf pile"];
+    if (sea === "spring") acts["smell the spring flowers"] = { joy: 7, energy: 1 };
+    if (sea === "summer" && (w?.temp ?? 20) >= 18) acts["paddle my feet in the pond"] = { joy: 10, energy: 2 };
+    if (snowy(w)) {
+      acts["build a little snow-kiwi"] = { joy: 13, energy: -6, food: -3 };
+      acts["flop down in the soft snow"] = { joy: 10, energy: -4, food: -2 };
+    }
+    if (w?.kind === "snow") acts["catch snowflakes on my beak"] = { joy: 9, energy: -2 };
+    if (frozenPond(w)) { delete acts["watch the ducks"]; acts["slide on the frozen pond"] = { joy: 14, energy: -5, food: -3 }; }
+    if (wet(w)) {
+      acts["splash in the puddles"] = { joy: 11, energy: -4, food: -2 };
+      acts["shelter under the big tree"] = { energy: 2, joy: 2 };
+    }
+  }
+  if (place === "house") {
+    if (wet(w)) acts["listen to the rain on the roof"] = { energy: 6, joy: 5 };
+    if (w?.kind === "snow") acts["watch the snow fall from the window"] = { joy: 7, energy: 2 };
+  }
   if (place === "park") {
     if (!s.music?.on) acts["turn on the gramophone"] = { joy: 6 };
     else {
@@ -224,8 +258,16 @@ function hangOptions(s: State): Option[] {
 
 export function buildOptions(s: State, notes: Note[]): Option[] {
   const here = s.place;
-  const opts: Option[] = Object.keys(activitiesAt(s, here)).map((a) => ({
-    type: "do", name: a, label: `${a} (here at the ${PLACES[here].label})`,
+  let acts = Object.keys(activitiesAt(s, here));
+  if (here === "museum") {
+    // a few exhibits at a time, ones he hasn't seen first
+    const seen = (a: string) => s.tried[a] ?? 0;
+    acts = acts.sort(() => Math.random() - 0.5).sort((a, b) => Math.min(1, seen(a)) - Math.min(1, seen(b))).slice(0, 4);
+  }
+  const opts: Option[] = acts.map((a) => ({
+    type: "do", name: a, label: here === "museum"
+      ? `${a} (${EXHIBIT_BY_ID[exhibitFromAction(a)?.id ?? ""]?.by ?? "here at the museum"}${s.tried[a] ? ", you've seen it before" : ", you haven't seen it yet"})`
+      : `${a} (here at the ${PLACES[here].label})`,
   }));
   for (const [k, p] of Object.entries(PLACES)) {
     if (k !== here) opts.push({ type: "go", name: k, label: `walk to the ${p.label}` });
@@ -255,7 +297,9 @@ export function townDescription(s: State) {
     `- The library: ${books} books on your shelf, your journal, a big drawing table, and - tucked inside at the back - your warm, cozy reading nook (squashy armchair, lamp, little crackling fireplace)${extras("library").length ? `; plus ${extras("library").join(", ")}` : ""}.`,
     `- The vending machine: ${snacks.join(", ")} (no coins needed).`,
     `- Your art gallery: ${(s.galleryWall ?? []).length ? `${s.galleryWall.length} of your drawings hang on the walls (${s.galleryWall.map((d) => `"${d.title ?? "untitled"}"`).join(", ")})` : `empty frames waiting for your drawings`}. You can hang any drawing you've finished.`,
-    `- The park: a big tree, a leaf pile, a bench, a swing set, a pond with ducks, and your gramophone - a wind-up record player with ${records} records (${playing})${extras("park").length ? `; plus ${extras("park").join(", ")}` : ""}.`,
+    `- The museum: a grand domed building full of real treasures - famous paintings (like The Starry Night and the Mona Lisa), a T. rex skeleton, a giant moa skeleton, the Rosetta Stone, an Egyptian mummy, the Wright brothers' airplane, a moon rock, a Saturn V rocket and more. You've looked at ${new Set((s.museumLog ?? []).map((m) => m.id)).size} of its ${EXHIBITS.length} exhibits.`,
+    `- The weather in town right now: ${weatherLine(s.weather, Date.now())}`,
+    `- The park: a big tree, ${season(Date.now()).name === "autumn" ? "a leaf pile, " : ""}a bench, a swing set, a pond${frozenPond(s.weather) ? " (frozen over - the ducks have gone)" : " with ducks"}, and your gramophone - a wind-up record player with ${records} records (${playing})${extras("park").length ? `; plus ${extras("park").join(", ")}` : ""}.`,
   ].join("\n");
 }
 
@@ -296,6 +340,12 @@ export function decisionPrompt(s: State, opts: Option[], notes: Note[], now: num
     if (recent.filter((x) => x === top).length >= 3) bored = `\nYou've done "${top}" a lot lately and it's starting to feel boring.\n`;
   }
   const note = notes.length ? `\nSomeone visited and left you a note: "${notes[0].text}"\n` : "";
+  const outside = OUTDOORS.has(s.place) ? outdoorFeeling(s.weather) : "";
+  const weather = `\nWeather: ${weatherLine(s.weather, now)}${outside ? ` ${outside}` : ""}\n`;
+  const ex = s.lastSaw ? EXHIBIT_BY_ID[s.lastSaw] : undefined;
+  const museum = ex
+    ? `\nYou just looked at "${ex.name}" (${ex.by}) in the museum. The plaque says: "${ex.fact}"\nLet your thought be your honest reaction to it - what amazes, puzzles or delights you, in your own words.\n`
+    : "";
   let reading = "";
   if (s.lastRead && BOOKS[s.lastRead.slug]) {
     const b = BOOKS[s.lastRead.slug];
@@ -319,7 +369,7 @@ export function decisionPrompt(s: State, opts: Option[], notes: Note[], now: num
     (openers.length ? ` Your recent thoughts started like ${openers.join(", ")} - start this one a different way.` : "") + "\n";
   return (
     `It is ${weekday}, ${clockStr(s, now)} (${night}). You are at the ${PLACES[s.place].label}: ${PLACES[s.place].desc}.\n\n` +
-    `How you feel right now:\n${feel}\n${bored}${note}${reading}\n` +
+    `How you feel right now:\n${feel}\n${weather}${bored}${note}${reading}${museum}\n` +
     (friends ? `Visitors you know:\n${friends}\n\n` : "") +
     `What happened recently (oldest first):\n${history}\n\n` +
     (remembered ? `Older memories that come to mind:\n${remembered}\n\n` : "") +
@@ -399,6 +449,11 @@ export function applyChoice(
     }
   }
   s.lastRead = null;
+  if (s.lastSaw && EXHIBIT_BY_ID[s.lastSaw]) {
+    const e = EXHIBIT_BY_ID[s.lastSaw];
+    s.museumLog = [...(s.museumLog ?? []), { t, id: e.id, name: e.name, reaction: thought }].slice(-120);
+  }
+  s.lastSaw = null;
 
   if (opt.type === "hang") {
     const d = (s.drawings ?? []).find((x) => x.t === opt.name);
@@ -456,6 +511,8 @@ export function applyChoice(
       action = `${action} - now playing "${song.title}" by ${song.by}`;
     }
 
+    const exhibit = exhibitFromAction(action);
+    if (exhibit) s.lastSaw = exhibit.id;
     if (kind === "journal" && note) s.journal.push({ t, text: note });
     if (kind === "drawing") {
       s.drawings.push({ t, text: note || "a picture I didn't describe" });
@@ -473,6 +530,7 @@ export function applyChoice(
   const scale = Math.min(2, Math.max(0.2, minutes / 5));
   const decay: Record<Need, number> = { food: -1, energy: night ? -1.5 : -1, joy: -1 };
   if (action.startsWith("sleep") || action.includes("nap")) decay.energy = 0;
+  if (OUTDOORS.has(s.place) && !/shelter/.test(action)) decay.energy -= weatherDrain(s.weather); // rough weather tires a small bird
   for (const n of NEEDS) s.needs[n] = clamp(s.needs[n] + decay[n] * scale);
 
   s.memories.push({ t, place: here, action, thought, note, deltas, first, bored, brain });
@@ -651,6 +709,10 @@ export function publicView(s: State, unread: number, now: number, chats: { at: n
     music: s.music?.on ? { ...s.music, title: SONG_BY_ID[s.music.song]?.title, by: SONG_BY_ID[s.music.song]?.by } : { on: false },
     unread, tick: s.tick, last_error: s.last_error, last_tick_at: s.last_tick_at, pace: paceMinutes(s, now),
     places: Object.fromEntries(Object.entries(PLACES).map(([k, p]) => [k, p.label])),
+    weather: s.weather ? { kind: s.weather.kind, desc: s.weather.desc, temp: s.weather.temp, wind: s.weather.wind, snow: s.weather.snow, day: s.weather.day, at: s.weather.at } : null,
+    season: season(now), pond: { frozen: frozenPond(s.weather) },
+    museumLog: (s.museumLog ?? []).slice(-40),
+    exhibit: s.place === "museum" ? exhibitFromAction(s.doing)?.id ?? null : null,
   };
 }
 

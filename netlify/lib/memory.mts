@@ -33,6 +33,7 @@ function items(s: State, skipRecent: number): Item[] {
   }));
   (s.journal ?? []).forEach((j) => out.push({ when: j.t, kind: "my journal", text: j.text, boost: 0.4, recentRank: 50 }));
   (s.readingLog ?? []).forEach((r) => out.push({ when: r.t, kind: "reading", text: `${r.title}, page ${r.page}: ${r.reaction}`, boost: 0.2, recentRank: 50 }));
+  (s.museumLog ?? []).forEach((m) => out.push({ when: m.t, kind: "museum", text: `at the museum, looking at ${m.name}: ${m.reaction}`, boost: 0.2, recentRank: 50 }));
   (s.drawings ?? []).forEach((d) => out.push({ when: d.t, kind: "a drawing I made", text: `${d.title ?? "untitled"} - ${d.text}${d.lesson ? ` (note to self: ${d.lesson})` : ""}`, boost: 0.3, recentRank: 50 }));
   (s.insights ?? []).forEach((n) => out.push({ when: n.t, kind: "something I realised", text: n.text, boost: 0.4, recentRank: 50 }));
   (s.conversations ?? []).forEach((c) => out.push({ when: c.t, kind: "a letter", text: `someone wrote "${c.visitor}" and I wrote back "${c.reply}"`, boost: 0.3, recentRank: 50 }));
