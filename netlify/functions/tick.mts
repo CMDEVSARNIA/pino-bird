@@ -2,7 +2,7 @@ import type { Config, Context } from "@netlify/functions";
 import {
   applyChoice, applyReflection, buildOptions, decisionPrompt, identityPrompt, instinct,
   parseJSON, readChoice, reflectionPrompt, REFLECT_EVERY, applyVisits, paceMinutes, type State,
-  drawingPrompt, sanitizeSvg,
+  drawingPrompt, sanitizeSvg, artSkill,
 } from "../lib/pino.mts";
 import { ask, hasBrain, NoBrain } from "../lib/brain.mts";
 import { acquireLock, deleteKeys, deleteNote, listEvents, listNotes, loadState, releaseLock, saveState } from "../lib/store.mts";
@@ -128,19 +128,28 @@ async function finishDrawing(s: State, ms: number) {
   if (i === null || !s.drawings[i]) { s.pendingDrawing = null; return; }
   const d = s.drawings[i];
   try {
-    const { text } = await ask(identityPrompt(s), drawingPrompt(d), ms, 4000);
+    s.art ??= { drawn: 0, lessons: [] };
+    const { text } = await ask(identityPrompt(s), drawingPrompt(d, s.art), ms, 4000);
     const parsed = parseJSON(text);
     const svg = sanitizeSvg(parsed?.svg ?? text);
     if (svg) {
       d.svg = svg;
+      d.skill = Math.round(artSkill(s.art.drawn) * 100) / 100; // how steady his hand was for this one
+      d.seed = Math.floor(Math.random() * 1000);
       if (typeof parsed?.title === "string" && parsed.title.trim()) d.title = parsed.title.trim().slice(0, 80);
+      if (typeof parsed?.lesson === "string" && parsed.lesson.trim()) {
+        const lesson: string = parsed.lesson.trim().slice(0, 200);
+        d.lesson = lesson;
+        s.art.lessons = [...s.art.lessons, lesson].slice(-12);
+      }
+      s.art.drawn += 1;
       console.log(`Pino finished a drawing: ${d.title ?? d.text}`);
     } else console.log("Pino's drawing came out unreadable; he'll leave it as a sketch idea.");
     s.pendingDrawing = null;
   } catch (e) {
     console.log("Drawing interrupted:", (e as Error).message);
     // try again next moment, but don't get stuck on it forever
-    if (!(e instanceof NoBrain) && (d as { tries?: number }).tries !== 1) (d as { tries?: number }).tries = 1;
+    if (!(e instanceof NoBrain) && d.tries !== 1) d.tries = 1;
     else s.pendingDrawing = null;
   }
 }

@@ -41,7 +41,13 @@
     border-radius: 12px; padding: 5px 9px; font-size: 12px; line-height: 1.3; box-shadow: 0 2px 10px rgba(0,0,0,.15);
     transition: opacity .3s; text-align: center; pointer-events: auto; cursor: pointer; }
   .bubble .txt { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+  .bubble.speech { max-width: 230px; }
+  .bubble.speech .txt { -webkit-line-clamp: 5; }
   .bubble.mini { padding: 3px 7px; font-size: 15px; border-radius: 999px; }
+  .lastreply { margin-top: 8px; background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 10px 12px; font-size: 15px; line-height: 1.45; }
+  .lastreply[hidden] { display: none; }
+  .lastreply .you { font-size: 13px; }
+  .lastreply .pino { margin-top: 4px; }
   .bubble.mini .txt { display: none; }
   .bubble::after { content: ""; position: absolute; left: 50%; bottom: -6px; width: 12px; height: 12px; background: #fff;
     transform: translateX(-50%) rotate(45deg); border-radius: 2px; }
@@ -114,7 +120,7 @@
   .viewer[hidden] { display: none; }
   .viewer figure { margin: 0; max-width: min(92vw, 560px); background: #fff; border-radius: 16px; padding: 12px; }
   .viewer img { width: 100%; aspect-ratio: 1; display: block; background: #fffdf6; border-radius: 10px; }
-  .viewer figcaption { font-size: 14px; line-height: 1.45; margin-top: 10px; }
+  .viewer figcaption { font-size: 14px; line-height: 1.45; margin-top: 10px; white-space: pre-line; }
   .bookrow { display: grid; grid-template-columns: 1fr 80px; gap: 4px 10px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
   .bookrow:last-child { border-bottom: 0; }
   .bookrow small { color: var(--muted); grid-column: 1 / -1; font-size: 12px; }
@@ -157,6 +163,8 @@
     <input id="talkText" maxlength="280" placeholder="Say something to Pino…" enterkeyhint="send">
     <button type="submit" id="talkBtn">Send</button>
   </form>
+
+  <div class="lastreply" id="lastReply" hidden aria-live="polite"></div>
 
   <div class="banner" id="banner" hidden></div>
 
@@ -771,21 +779,39 @@ function render(s) {
 
 // ---- drawings gallery (his own SVG pictures, shown as images so nothing in them can run)
 const svgUrl = (svg) => `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+// Put his SVG on "paper" and give the lines a hand-drawn wobble. Beginners shake more; it steadies with practice.
+function artUrl(d) {
+  const skill = typeof d.skill === "number" ? d.skill : 0;
+  const shake = (6 - skill * 4.5).toFixed(2);            // displacement: ~6px at first, ~1.5px when experienced
+  const seed = d.seed ?? [...d.t].reduce((a, c) => a + c.charCodeAt(0), 0) % 1000;
+  const root = d.svg.match(/<svg[^>]*>/i)[0];
+  const cleanRoot = root.replace(/\s(width|height|x|y)\s*=\s*("[^"]*"|'[^']*')/gi, "");
+  const inner = d.svg.replace(root, cleanRoot.replace(/<svg/i, '<svg x="6" y="6" width="288" height="288"'));
+  const wrapped = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 300">` +
+    `<defs><filter id="hand" x="-5%" y="-5%" width="110%" height="110%">` +
+    `<feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="${seed}" result="n"/>` +
+    `<feDisplacementMap in="SourceGraphic" in2="n" scale="${shake}" xChannelSelector="R" yChannelSelector="G"/></filter>` +
+    `<filter id="grain"><feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="2" seed="7"/>` +
+    `<feColorMatrix values="0 0 0 0 0.55  0 0 0 0 0.5  0 0 0 0 0.42  0 0 0 0.22 0"/></filter></defs>` +
+    `<rect width="300" height="300" fill="#fffdf6"/><g filter="url(#hand)" opacity="0.94">${inner}</g>` +
+    `<rect width="300" height="300" filter="url(#grain)"/></svg>`;
+  return svgUrl(wrapped);
+}
 let gallerySig = "";
 function renderGallery(drawings) {
-  const sig = drawings.map((d) => d.t + (d.svg ? "✓" : "")).join("|");
+  const sig = drawings.map((d) => d.t + (d.svg ? "✓" : "") + (d.skill ?? "")).join("|");
   if (sig === gallerySig) return; gallerySig = sig;
   const g = $("drawings"); g.replaceChildren();
   if (!drawings.length) { g.append(el("div", "empty", "No drawings yet. He draws at the library when he feels like it.")); return; }
   for (const d of drawings.slice().reverse()) {
     const card = el("button", "art"); card.type = "button";
-    if (d.svg) { const img = new Image(); img.alt = d.title || d.text; img.src = svgUrl(d.svg); img.loading = "lazy"; card.append(img); }
+    if (d.svg) { const img = new Image(); img.alt = d.title || d.text; img.src = artUrl(d); img.loading = "lazy"; card.append(img); }
     else card.append(el("div", "sketch", "✏️ still drawing… “" + d.text + "”"));
     card.append(el("b", null, d.title || "Untitled"), el("span", null, d.t));
     card.addEventListener("click", () => {
       if (!d.svg) return;
-      $("viewerImg").src = svgUrl(d.svg); $("viewerImg").alt = d.title || d.text;
-      $("viewerCap").textContent = `${d.title || "Untitled"} · ${d.t} — “${d.text}”`;
+      $("viewerImg").src = artUrl(d); $("viewerImg").alt = d.title || d.text;
+      $("viewerCap").textContent = `${d.title || "Untitled"} · ${d.t} — “${d.text}”` + (d.lesson ? `\nNote to self: ${d.lesson}` : "");
       $("viewer").hidden = false;
     });
     g.append(card);
@@ -851,16 +877,20 @@ $("talkForm").addEventListener("submit", async (e) => {
   const input = $("talkText"), text = input.value.trim(); if (!text) return;
   input.value = ""; $("talkBtn").disabled = true;
   speaking = Date.now() + 60000; showBubble("thinking");
+  const box = $("lastReply"); box.hidden = false;
+  box.replaceChildren(el("div", "you", `You: ${text}`), el("div", "pino", `${latest ? latest.name : "Pino"} is thinking…`));
   const j = await post("/api/talk", { text });
   $("talkBtn").disabled = false;
   if (j.ok) {
     pending.push({ at: Date.now(), you: text, pino: j.reply });
-    speaking = Date.now() + 14000; showBubble("speech", short(j.reply, 180));
+    speaking = Date.now() + 14000; showBubble("speech", j.reply);
+    box.replaceChildren(el("div", "you", `You: ${text}`), el("div", "pino", `${latest ? latest.name : "Pino"}: ${j.reply}`));
     if (world && /happy|excited/.test(j.mood || "")) world.pet();
     renderChat();
     setTimeout(() => { if (Date.now() > speaking && latest) render(latest); }, 14500);
   } else {
     speaking = 0; latest && render(latest); toast(j.error || "Pino didn't hear you. Try again.");
+    box.hidden = true;
   }
 });
 // notes

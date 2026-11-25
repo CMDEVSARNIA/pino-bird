@@ -70,7 +70,7 @@ export type Memory = {
   deltas: Partial<Record<Need, number>>; first: boolean; bored: boolean; brain: string;
 };
 export type Note = { key: string; text: string; at: number };
-export type Drawing = { t: string; text: string; title?: string; svg?: string };
+export type Drawing = { t: string; text: string; title?: string; svg?: string; skill?: number; seed?: number; lesson?: string; tries?: number };
 export type Want = { t: string; want: string; why: string; size?: string };
 export type State = {
   born: number; tick: number; place: string;
@@ -84,6 +84,7 @@ export type State = {
   lastRead: { slug: string; page: number } | null; // what he just read (he reacts next moment)
   readingLog: { t: string; slug: string; title: string; page: number; of: number; reaction: string }[];
   pendingDrawing: number | null;                 // index of a drawing he still has to put on paper
+  art: { drawn: number; lessons: string[] };     // how practised he is, and notes-to-self after each drawing
   wants: Want[];                                 // what he wants right now, in his own words
   pastWants: Want[];                             // wishes he's let go of or moved on from
   conversations: { t: string; visitor: string; reply: string }[];
@@ -98,7 +99,7 @@ export function newState(now: number): State {
     needs: { food: 70, energy: 80, joy: 50 },
     personality: "I'm new here and I don't know what I like yet. I want to find out.",
     insights: [], memories: [], journal: [], drawings: [], conversations: [], tried: {},
-    books: {}, lastRead: null, readingLog: [], pendingDrawing: null, wants: [], pastWants: [],
+    books: {}, lastRead: null, readingLog: [], pendingDrawing: null, wants: [], pastWants: [], art: { drawn: 0, lessons: [] },
     thought: "Where am I? It's cosy here...", doing: "waking up for the first time",
     last_error: "", last_tick_at: 0,
   };
@@ -490,14 +491,31 @@ function bookOptions(s: State): Option[] {
 // ---------------------------------------------------------------------------
 // Drawing: Pino puts his idea on paper himself, as an SVG picture
 // ---------------------------------------------------------------------------
-export function drawingPrompt(d: Drawing) {
+// How practised he is: 0 = brand new, approaching 1 after many drawings
+export const artSkill = (drawn: number) => 1 - Math.exp(-drawn / 18);
+
+function artLevel(drawn: number) {
+  if (drawn < 3) return "You're a complete beginner. Your proportions come out wrong, shapes are lumpy and lopsided, and you can't really do shading yet. That's fine - draw like a beginner honestly would.";
+  if (drawn < 10) return "You're still learning. Things are recognisable now but wobbly and a bit flat; you're starting to try simple shading and texture.";
+  if (drawn < 25) return "You've practised a fair bit. Your shapes are more confident, and you can try light, shadow, texture and some depth - though mistakes still happen.";
+  return "You're an experienced artist with your own developing style. You can handle light, depth, texture and detail, but it's still clearly drawn by hand.";
+}
+
+export function drawingPrompt(d: Drawing, art: { drawn: number; lessons: string[] }) {
+  const lessons = art.lessons.slice(-4).map((l) => `- ${l}`).join("\n");
   return (
     `You decided to draw this: "${d.text}"\n\n` +
     "Now draw it. It's your picture and you have complete freedom: what's in it, the style, the colours, " +
-    "the composition, whether it's neat or scribbly, realistic or strange - all up to you. " +
-    'Draw it as an SVG image with viewBox="0 0 300 300" using shapes, paths and colours (no text needed unless you want it, ' +
-    "no external images or scripts). Give it a title.\n" +
-    'Reply with JSON exactly like this: {"title": "your title", "svg": "<svg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 300 300\'>...</svg>"}'
+    "the composition, realistic or strange - all up to you.\n\n" +
+    "You draw by hand with pencils and crayons on paper, so your marks are never perfect: lines wobble and overshoot, " +
+    "shapes don't quite close, colour goes over the edges and is patchy, you sometimes go over a line twice. " +
+    "So build the picture from hand-drawn strokes - paths with slightly irregular points and varying stroke widths, " +
+    "scribbled fills made of zig-zag strokes, a few sketchy construction lines - rather than perfect geometric shapes.\n\n" +
+    `You've finished ${art.drawn} drawing${art.drawn === 1 ? "" : "s"} so far. ${artLevel(art.drawn)}\n` +
+    (lessons ? `Notes you wrote to yourself after earlier drawings:\n${lessons}\n` : "") +
+    "\nDraw it as an SVG with viewBox=\"0 0 300 300\" (keep it under about 8000 characters; no external images or scripts). " +
+    "Give it a title, and afterwards write one short note to yourself about what to try or improve next time.\n" +
+    'Reply with JSON exactly like this: {"title": "your title", "svg": "<svg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 300 300\'>...</svg>", "lesson": "note to yourself for next time"}'
   );
 }
 
@@ -507,7 +525,7 @@ export function sanitizeSvg(raw: unknown): string | null {
   const m = raw.match(/<svg[\s\S]*<\/svg>/i);
   if (!m) return null;
   let svg = m[0];
-  if (svg.length > 20_000) return null;
+  if (svg.length > 40_000) return null;
   svg = svg
     .replace(/<(script|foreignObject|iframe|image|audio|video|object|embed)[\s\S]*?(<\/\1>|\/>)/gi, "")
     .replace(/\son\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, "")
