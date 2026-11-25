@@ -178,7 +178,7 @@ export default async (req: Request, context: Context) => {
 };
 
 export const config: Config = {
-  path: ["/api/state", "/api/message", "/api/pet", "/api/treat", "/api/give", "/api/talk", "/api/watch"],
+  path: ["/api/state", "/api/message", "/api/pet", "/api/treat", "/api/give", "/api/talk", "/api/watch", "/api/museum-image"],
   method: ["GET", "POST"],
 };
 
