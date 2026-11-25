@@ -159,7 +159,7 @@ async function finishDrawing(s: State, ms: number) {
     const svg = sanitizeSvg(parsed?.svg ?? text);
     if (svg) {
       d.svg = svg;
-      d.skill = Math.round(artSkill(s.art.drawn) * 100) / 100; // how steady his hand was for this one
+      d.skill = Math.round(artSkill(s.art.drawn, s.art.studied ?? 0) * 100) / 100; // how steady his hand was for this one
       d.seed = Math.floor(Math.random() * 1000);
       if (typeof parsed?.title === "string" && parsed.title.trim()) d.title = parsed.title.trim().slice(0, 80);
       if (typeof parsed?.lesson === "string" && parsed.lesson.trim()) {

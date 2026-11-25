@@ -39,10 +39,10 @@ export const PLACES: Record<string, Place> = {
   },
   library: {
     label: "library",
-    desc: "the town library, quiet and warm, full of old books, a big wooden drawing table, and a cozy reading nook with an armchair, a lamp and a little crackling fireplace",
+    desc: "the town library, quiet and warm, full of old books and a big wooden drawing table; tucked inside at the back is your cozy reading nook with a squashy armchair, a lamp and a little crackling fireplace",
     activities: {
       "write in my journal": { joy: 6, energy: -2, kind: "journal" },
-      "curl up in the cozy reading nook": { energy: 7, joy: 7 },
+      "curl up in the cozy reading nook inside the library": { energy: 7, joy: 7 },
       "draw a picture": { joy: 10, energy: -5, kind: "drawing" },
     },
   },
@@ -96,7 +96,7 @@ export type State = {
   lastRead: { slug: string; page: number } | null; // what he just read (he reacts next moment)
   readingLog: { t: string; slug: string; title: string; page: number; of: number; reaction: string }[];
   pendingDrawing: number | null;                 // index of a drawing he still has to put on paper
-  art: { drawn: number; lessons: string[] };     // how practised he is, and notes-to-self after each drawing
+  art: { drawn: number; lessons: string[]; studied?: number }; // practice, notes-to-self, and pages of drawing manuals studied
   gifts: { received: string[]; log: { t: string; id: string; name: string; emoji: string; from: string }[] };
   music: Music;                                  // the gramophone in the park
   galleryWall: (Drawing & { hungAt: string })[]; // drawings he chose to hang in his art gallery
@@ -252,7 +252,7 @@ export function townDescription(s: State) {
   const playing = s.music?.on ? `it's playing "${SONG_BY_ID[s.music.song]?.title}" right now` : "it's switched off right now";
   return [
     `- Your little house: your bed, a rug and a window over the path${extras("house").length ? `; plus ${extras("house").join(", ")}` : ""}.`,
-    `- The library: ${books} books on your shelf, your journal, a big drawing table, and a warm cozy reading nook (armchair, lamp, little fireplace)${extras("library").length ? `; plus ${extras("library").join(", ")}` : ""}.`,
+    `- The library: ${books} books on your shelf, your journal, a big drawing table, and - tucked inside at the back - your warm, cozy reading nook (squashy armchair, lamp, little crackling fireplace)${extras("library").length ? `; plus ${extras("library").join(", ")}` : ""}.`,
     `- The vending machine: ${snacks.join(", ")} (no coins needed).`,
     `- Your art gallery: ${(s.galleryWall ?? []).length ? `${s.galleryWall.length} of your drawings hang on the walls (${s.galleryWall.map((d) => `"${d.title ?? "untitled"}"`).join(", ")})` : `empty frames waiting for your drawings`}. You can hang any drawing you've finished.`,
     `- The park: a big tree, a leaf pile, a bench, a swing set, a pond with ducks, and your gramophone - a wind-up record player with ${records} records (${playing})${extras("park").length ? `; plus ${extras("park").join(", ")}` : ""}.`,
@@ -300,7 +300,9 @@ export function decisionPrompt(s: State, opts: Option[], notes: Note[], now: num
   if (s.lastRead && BOOKS[s.lastRead.slug]) {
     const b = BOOKS[s.lastRead.slug];
     reading = `\nYou just read page ${s.lastRead.page} of ${b.pages.length} of "${b.title}" by ${b.author}:\n"""\n${b.pages[s.lastRead.page - 1]}\n"""\n` +
-      "Let your thought be your honest reaction to what you just read (and you can keep reading if you want).\n";
+      (b.art
+        ? "This is a drawing manual and you're studying it to get better at drawing. Let your thought be the drawing tip or idea you're taking from this page, in your own words, as something you want to try next time you draw (and you can keep studying if you want).\n"
+        : "Let your thought be your honest reaction to what you just read (and you can keep reading if you want).\n");
   }
   const { weekday } = localTime(now);
   const night = isNight(now) ? "night time - it's dark and most creatures are asleep" : "daytime";
@@ -390,6 +392,11 @@ export function applyChoice(
     const b = BOOKS[s.lastRead.slug];
     s.readingLog.push({ t, slug: b.slug, title: b.title, page: s.lastRead.page, of: b.pages.length, reaction: thought });
     s.readingLog = s.readingLog.slice(-200);
+    if (b.art && thought && thought.length > 10) {
+      s.art ??= { drawn: 0, lessons: [] };
+      s.art.studied = (s.art.studied ?? 0) + 1;
+      s.art.lessons = [...s.art.lessons, `From "${b.title}": ${thought.slice(0, 220)}`].slice(-12);
+    }
   }
   s.lastRead = null;
 
@@ -411,7 +418,7 @@ export function applyChoice(
     first = !s.tried[`read ${b.slug}`];
     s.tried[`read ${b.slug}`] = (s.tried[`read ${b.slug}`] ?? 0) + 1;
     deltas = { joy: 6 + (first ? 6 : 0) + (page === b.pages.length ? 10 : 0), energy: -1 };
-    action = `read "${b.title}" (page ${page} of ${b.pages.length})`;
+    action = `${b.art ? "studied the drawing manual" : "read"} "${b.title}" (page ${page} of ${b.pages.length})`;
     note = "";
   } else if (opt.type === "go") {
     s.place = opt.name;
@@ -552,6 +559,7 @@ export function applyVisits(s: State, visits: Visit[], now: number) {
     s.gifts.log = s.gifts.log.slice(-200);
     if (g.kind === "song" && g.song) s.music = { on: true, song: g.song, since: now };
     const what = g.kind === "book" ? `${g.name} for my library shelf`
+      : g.kind === "artbook" ? `${g.name} - a drawing manual to learn from`
       : g.kind === "song" ? `${g.name} - it's playing on my gramophone right now!`
       : g.kind === "snack" ? `${g.name} - now I can "${g.activity}"`
       : g.kind === "thing" ? `${g.name} at the ${PLACES[g.place!]?.label} - now I can "${g.activity}"` : g.name;
@@ -655,14 +663,15 @@ function bookOptions(s: State): Option[] {
   const unread = all.filter((b) => !s.books[b.slug]);
   const finished = all.filter((b) => (s.books[b.slug] ?? 0) >= b.pages.length);
   // keep the list short: books he's in the middle of, plus a few he hasn't opened
-  const shuffled = unread.sort(() => Math.random() - 0.5).slice(0, Math.max(2, 4 - reading.length));
+  const art = all.filter((b) => b.art && !reading.includes(b) && !finished.includes(b));
+  const shuffled = unread.filter((b) => !b.art).sort(() => Math.random() - 0.5).slice(0, Math.max(2, 4 - reading.length));
   const reread = finished.sort(() => Math.random() - 0.5).slice(0, 1);
-  return [...reading.slice(0, 3), ...shuffled, ...reread].map((b) => {
+  return [...reading.slice(0, 3), ...art.slice(0, 2), ...shuffled, ...reread].map((b) => {
     const read = s.books[b.slug] ?? 0;
     const where = read === 0 ? "a book you've never opened"
       : read >= b.pages.length ? "you've finished it; read it again from the start"
       : `continue from page ${read + 1} of ${b.pages.length}`;
-    return { type: "read" as const, name: b.slug, label: `read "${b.title}" by ${b.author} (${where})` };
+    return { type: "read" as const, name: b.slug, label: `${b.art ? "study the drawing manual" : "read"} "${b.title}" by ${b.author} (${where})` };
   });
 }
 
@@ -670,7 +679,8 @@ function bookOptions(s: State): Option[] {
 // Drawing: Pino puts his idea on paper himself, as an SVG picture
 // ---------------------------------------------------------------------------
 // How practised he is: 0 = brand new, approaching 1 after many drawings
-export const artSkill = (drawn: number) => 1 - Math.exp(-drawn / 18);
+export const artSkill = (drawn: number, studied = 0) => 1 - Math.exp(-(drawn + studied * 0.5) / 18);
+export const artExperience = (art: { drawn: number; studied?: number }) => art.drawn + (art.studied ?? 0) * 0.5;
 
 function artLevel(drawn: number) {
   if (drawn < 3) return "You're a complete beginner. Your proportions come out wrong, shapes are lumpy and lopsided, and you can't really do shading yet. That's fine - draw like a beginner honestly would.";
@@ -679,8 +689,8 @@ function artLevel(drawn: number) {
   return "You're an experienced artist with your own developing style. You can handle light, depth, texture and detail, but it's still clearly drawn by hand.";
 }
 
-export function drawingPrompt(d: Drawing, art: { drawn: number; lessons: string[] }) {
-  const lessons = art.lessons.slice(-4).map((l) => `- ${l}`).join("\n");
+export function drawingPrompt(d: Drawing, art: { drawn: number; lessons: string[]; studied?: number }) {
+  const lessons = art.lessons.slice(-5).map((l) => `- ${l}`).join("\n");
   return (
     `You decided to draw this: "${d.text}"\n\n` +
     "Now draw it. It's your picture and you have complete freedom: what's in it, the style, the colours, " +
@@ -689,8 +699,8 @@ export function drawingPrompt(d: Drawing, art: { drawn: number; lessons: string[
     "shapes don't quite close, colour goes over the edges and is patchy, you sometimes go over a line twice. " +
     "So build the picture from hand-drawn strokes - paths with slightly irregular points and varying stroke widths, " +
     "scribbled fills made of zig-zag strokes, a few sketchy construction lines - rather than perfect geometric shapes.\n\n" +
-    `You've finished ${art.drawn} drawing${art.drawn === 1 ? "" : "s"} so far. ${artLevel(art.drawn)}\n` +
-    (lessons ? `Notes you wrote to yourself after earlier drawings:\n${lessons}\n` : "") +
+    `You've finished ${art.drawn} drawing${art.drawn === 1 ? "" : "s"} so far${art.studied ? ` and studied ${art.studied} pages of drawing manuals` : ""}. ${artLevel(artExperience(art))}\n` +
+    (lessons ? `Things you've learned (from your own drawings and from drawing manuals) - try to use them:\n${lessons}\n` : "") +
     "\nDraw it as an SVG with viewBox=\"0 0 300 300\" (keep it under about 8000 characters; no external images or scripts). " +
     "Give it a title, and afterwards write one short note to yourself about what to try or improve next time.\n" +
     'Reply with JSON exactly like this: {"title": "your title", "svg": "<svg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 300 300\'>...</svg>", "lesson": "note to yourself for next time"}'

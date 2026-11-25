@@ -456,11 +456,9 @@ function buildWorld() {
   const LOOK = { house: V(-4.6, 0, -4), library: V(4.4, 0, -4), vending: V(-1.5, 0, -5.3), park: POND, gallery: V(4.4, 0, 2.3) };
   // [activity, where he goes, what he faces, building he disappears into]
   const HOUSE_DOOR = V(-4.6, 0, -3.75), LIB_DOOR = V(4.4, 0, -3.65);
-  const NOOK_SEAT = V(1.2, 0.36, -4.75);
   const ACT = [
-    [/reading nook/, NOOK_SEAT, V(1.2, 0, 2)],              // must come before the library entry ("read")
     [/^sleep|tidy|window|blanket/, HOUSE_DOOR, V(-5, 0, -6), "house"],
-    [/read|journal|draw|paint/, LIB_DOOR, V(4.4, 0, -6), "library"],
+    [/read|journal|draw|paint|studied|study|nook/, LIB_DOOR, V(4.4, 0, -6), "library"],
     [/telescope/, V(-2.7, 0, -1.85), V(-2.7, 0, -3.6)],
     [/toy train/, V(2.2, 0, 6.1), V(0.9, 0, 6.5)],
     [/birdbath/, V(1.9, 0, 3.7), V(1.9, 0, 4.5)],
@@ -476,37 +474,6 @@ function buildWorld() {
   const CHIMNEY = V(-3.7, 4.0, -5.5);
   for (const k of Object.keys(SPOTS)) strip(JUNCTION, SPOTS[k]);
   strip(SPOTS.house, V(-4.6, 0, -3.9), 0.9); strip(SPOTS.library, V(4.4, 0, -3.8), 0.9);
-
-  // ---- the cozy reading nook: a glass-fronted bay on the side of the library
-  const nook = new THREE.Group(); nook.position.set(1.2, 0, -4.75); scene.add(nook);
-  const woodMat = M(0x9a6a43), creamMat = M(0xf1e6d2);
-  add(box(1.6, 0.12, 1.5, M(0xb07a4f)), nook, { receive: true }).position.y = 0.06;           // floor
-  add(box(1.6, 2.0, 0.1, creamMat), nook).position.set(0, 1.0, -0.72);                     // back wall
-  add(box(0.1, 2.0, 1.5, creamMat), nook).position.set(-0.78, 1.0, 0);                     // side wall
-  const roofN = add(box(1.9, 0.12, 1.75, M(0xb8643f)), nook); roofN.position.set(0, 2.08, 0.05); roofN.rotation.x = 0.12;
-  for (const x of [-0.78, 0.78]) add(box(0.08, 2.0, 0.08, woodMat), nook).position.set(x, 1.0, 0.72);
-  add(new THREE.Mesh(new THREE.PlaneGeometry(1.5, 1.6), new THREE.MeshStandardMaterial({ color: 0xcfe9f2, transparent: true, opacity: 0.18, roughness: 0.1 })), nook, { cast: false }).position.set(0, 1.05, 0.74);
-  add(box(1.0, 0.04, 0.7, M(0xc0504a)), nook, { cast: false }).position.set(0, 0.13, 0.1);  // rug
-  // armchair
-  const chair = new THREE.Group(); chair.position.set(0, 0.12, 0); nook.add(chair);
-  const red = M(0xb5453a);
-  add(box(0.72, 0.22, 0.6, red), chair).position.y = 0.16;
-  add(box(0.72, 0.55, 0.14, red), chair).position.set(0, 0.42, -0.26);
-  for (const x of [-0.33, 0.33]) add(box(0.1, 0.3, 0.6, red), chair).position.set(x, 0.32, 0);
-  add(box(0.5, 0.04, 0.35, M(0xe8c77a)), chair).position.set(0.05, 0.29, 0.12);            // blanket over the seat
-  // floor lamp with a warm shade
-  const shadeMat = new THREE.MeshStandardMaterial({ color: 0xf4d28a, emissive: 0xffb84d, emissiveIntensity: 0.6, roughness: 0.8 });
-  add(new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.04, 1.3, 6), M(0x3a2a20)), nook).position.set(0.55, 0.77, -0.4);
-  add(new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.2, 0.22, 10, 1, true), shadeMat), nook).position.set(0.55, 1.45, -0.4);
-  // little fireplace with flickering glow
-  add(box(0.5, 0.6, 0.25, M(0x8a8178)), nook).position.set(-0.5, 0.42, -0.58);
-  const fireMat = new THREE.MeshStandardMaterial({ color: 0xff7a2a, emissive: 0xff5a10, emissiveIntensity: 1.4 });
-  const fire = add(new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.22, 6), fireMat), nook, { cast: false }); fire.position.set(-0.5, 0.31, -0.48);
-  const fireLight = new THREE.PointLight(0xff9a4a, 1.2, 3.5, 1.6); fireLight.position.set(-0.4, 0.6, -0.2); nook.add(fireLight);
-  const lampLight = new THREE.PointLight(0xffd38a, 0.6, 3, 1.6); lampLight.position.set(0.5, 1.3, -0.2); nook.add(lampLight);
-  // tiny bookshelf
-  add(box(0.08, 1.1, 0.5, woodMat), nook).position.set(-0.7, 1.3, 0.2);
-  [0xc0392b, 0x2980b9, 0x27ae60, 0xf1c40f, 0x8e44ad].forEach((c, i) => add(box(0.12, 0.2, 0.07, M(c)), nook, { cast: false }).position.set(-0.64, 1.0 + (i > 2 ? 0.4 : 0), 0.05 + (i % 3) * 0.11));
 
   // ---- Pino's art gallery: six frames that show the drawings he chose to hang
   const gal = new THREE.Group(); gal.position.set(4.4, 0, 2.3); gal.rotation.y = -0.3; scene.add(gal);
@@ -685,7 +652,7 @@ function buildWorld() {
 
     // between decisions, potter about near where he is so he always feels alive
     if (!state.path.length && t > state.nextWander) {
-      const still = state.sleeping || state.indoor || state.base.y > 0.05 || /swing|dance|gramophone|next song|reading nook/.test(state.doing);
+      const still = state.sleeping || state.indoor || state.base.y > 0.05 || /swing|dance|gramophone|next song/.test(state.doing);
       if (!still) {
         if (state.wandering) { state.path = [state.base.clone()]; state.wandering = false; }
         else {
@@ -793,11 +760,6 @@ function buildWorld() {
       pino.body.position.y += Math.abs(Math.sin(t * 6)) * 0.12;
       pino.legs[0].rotation.x = Math.sin(t * 12) * 0.5; pino.legs[1].rotation.x = -Math.sin(t * 12) * 0.5;
     }
-
-    // the nook's fire flickers; the lamp glows brighter at night
-    fire.scale.y = 1 + Math.sin(t * 13) * 0.15 + Math.sin(t * 7.3) * 0.1;
-    fireLight.intensity = (1.0 + Math.sin(t * 11) * 0.25) * (1 + state.nightF * 1.5);
-    lampLight.intensity = 0.5 + state.nightF * 1.8; shadeMat.emissiveIntensity = 0.5 + state.nightF * 1.2;
 
     // duck paddling
     const da = t * 0.35; duck.position.set(POND.x + Math.cos(da) * 0.8, 0.1 + Math.sin(t * 3) * 0.015, POND.z + Math.sin(da) * 0.8); duck.rotation.y = -da;
@@ -913,7 +875,7 @@ function snacksTexture() {
 }
 
 // ================================================================ UI + DATA
-const BADGES = [[/reading nook/, "🛋️"], [/sleep|nap/, "💤"], [/read/, "📖"], [/journal/, "✏️"], [/draw/, "🎨"], [/seed bar/, "🍫"], [/crisps/, "🥨"], [/juice/, "🧃"],
+const BADGES = [[/reading nook/, "🛋️"], [/sleep|nap/, "💤"], [/drawing manual/, "🖌️"], [/read/, "📖"], [/journal/, "✏️"], [/draw/, "🎨"], [/seed bar/, "🍫"], [/crisps/, "🥨"], [/juice/, "🧃"],
   [/leaf/, "🍂"], [/ducks/, "🦆"], [/bench|sit/, "💭"], [/window/, "🪟"], [/tidy/, "🧹"], [/talked/, "💬"], [/petted/, "❤️"], [/treat/, "🍪"], [/reflect/, "🌙"], [/walked/, "👣"], [/swing/, "🎠"], [/telescope/, "🔭"], [/toy train/, "🚂"], [/birdbath/, "💦"], [/kite/, "🪁"], [/given/, "🎁"], [/gramophone|next song/, "🎶"], [/dance/, "💃"], [/hung my drawing|art on the walls|hang/, "🖼️"]];
 let latest = null, first = true, speaking = 0, followOn = false;
 
@@ -1218,7 +1180,7 @@ setInterval(async () => {
 }, 60_000);
 
 // ---- give tab
-const KINDS = [["book", "Books for his library"], ["song", "Records for his gramophone"], ["treat", "Treats (eaten right away)"], ["snack", "New snacks for the vending machine"], ["thing", "Things for his town"]];
+const KINDS = [["artbook", "Art books (he learns to draw from them)"], ["book", "Books for his library"], ["song", "Records for his gramophone"], ["treat", "Treats (eaten right away)"], ["snack", "New snacks for the vending machine"], ["thing", "Things for his town"]];
 let giveSig = "";
 function renderGive(s) {
   const avail = s.giftsAvailable || [];
@@ -1233,7 +1195,7 @@ function renderGive(s) {
     for (const g of items) {
       const card = el("div", "gift"), btn = el("button", null, `Give · 🌱 ${g.price}`); btn.type = "button";
       if (mySeeds < g.price) { btn.disabled = true; btn.title = `You need 🌱 ${g.price}`; }
-      card.append(el("span", "em", g.emoji), el("b", null, g.name.replace(/^(a |an |the book |the record )/, "").replace(/ for the vending machine$/, "")), el("small", null, g.desc), btn);
+      card.append(el("span", "em", g.emoji), el("b", null, g.name.replace(/^(a |an |the book |the art book |the record )/, "").replace(/ for the vending machine$/, "")), el("small", null, g.desc), btn);
       btn.onclick = async () => {
         btn.disabled = true; btn.textContent = "Giving…";
         const j = await post("/api/give", { id: g.id });

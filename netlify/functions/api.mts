@@ -117,6 +117,7 @@ export default async (req: Request, context: Context) => {
     const after = await meet(who, (p) => { p.gave = [...p.gave, gift.name].slice(-20); p.seeds = seedsOf(p) - gift.price; });
     const reaction = gift.kind === "treat" ? `Pino's eyes go wide at ${gift.name}. He'll dig in any second!`
       : gift.kind === "book" ? `Pino hugs ${gift.name} and carries it off to his library shelf.`
+      : gift.kind === "artbook" ? `Pino flips through ${gift.name} with wide eyes. He's going to practise everything in it!`
       : gift.kind === "snack" ? `Pino watches a brand new button appear on the vending machine. ${gift.emoji}`
       : gift.kind === "song" ? `Pino puts ${gift.name} on his gramophone straight away! 💿`
       : `Pino gasps. ${gift.name.charAt(0).toUpperCase() + gift.name.slice(1)}, just for him!`;

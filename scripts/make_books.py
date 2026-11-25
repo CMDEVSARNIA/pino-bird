@@ -34,6 +34,12 @@ GIFT_BOOKS = [
     (14837, "tom-kitten", "The Tale of Tom Kitten", "Beatrix Potter", 1907),
     (14848, "miss-moppet", "The Story of Miss Moppet", "Beatrix Potter", 1906),
 ]
+# Art instruction books visitors can give him: he learns to draw from them
+ART_BOOKS = [
+    (32781, "blackboard-drawing", "Blackboard Drawing", "Frederick Whitney", 1908),
+    (30325, "elements-of-drawing", "The Elements of Drawing", "John Ruskin", 1857),
+    (14264, "practice-of-drawing", "The Practice and Science of Drawing", "Harold Speed", 1913),
+]
 PAGE = 1300  # characters per page
 OPENING = {  # where each story really begins (skips contents pages and front matter)
     "peter-rabbit": "upon a time there were four little Rabbits",
@@ -60,6 +66,9 @@ OPENING = {  # where each story really begins (skips contents pages and front ma
     "jungle-book": "It was seven o'clock of a very warm evening in the Seeonee hills",
     "tom-kitten": "Once upon a time there were three little kittens",
     "miss-moppet": "This is a Pussy called Miss Moppet",
+    "blackboard-drawing": "Upon entering a schoolroom the teacher finds the blackboards bare",
+    "elements-of-drawing": "It may perhaps be thought, that in prefacing a manual of drawing",
+    "practice-of-drawing": "Permit me in the first place to anticipate the disappointment",
 }
 
 
@@ -93,7 +102,7 @@ def paginate(paras):
 
 
 catalog = []
-for gid, slug, title, author, year in BOOKS + GIFT_BOOKS:
+for gid, slug, title, author, year in BOOKS + GIFT_BOOKS + ART_BOOKS:
     paras = clean((RAW / f"{gid}.txt").read_text(encoding="utf-8", errors="replace"))
     marker = OPENING[slug].lower()
     hit = next((i for i, p in enumerate(paras) if marker in re.sub(r"\s+", " ", p).lower()), None)
@@ -103,6 +112,6 @@ for gid, slug, title, author, year in BOOKS + GIFT_BOOKS:
         paras[0] = "There was" + paras[0][len("HERE was"):]
     pages = paginate(paras)
     (OUT / f"{slug}.json").write_text(json.dumps({"slug": slug, "title": title, "author": author, "year": year, "pages": pages}, ensure_ascii=False))
-    catalog.append({"slug": slug, "title": title, "author": author, "year": year, "pages": len(pages), "gift": (gid, slug, title, author, year) in GIFT_BOOKS})
+    catalog.append({"slug": slug, "title": title, "author": author, "year": year, "pages": len(pages), "gift": (gid, slug, title, author, year) in GIFT_BOOKS + ART_BOOKS, "art": (gid, slug, title, author, year) in ART_BOOKS})
     print(f"{title:38} {len(pages):4} pages | first: {pages[0][:70]!r}")
 (OUT / "catalog.json").write_text(json.dumps(catalog, indent=1, ensure_ascii=False))

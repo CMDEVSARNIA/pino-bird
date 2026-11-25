@@ -5,7 +5,8 @@
   "author": "Beatrix Potter",
   "year": 1902,
   "pages": 5,
-  "gift": false
+  "gift": false,
+  "art": false
  },
  {
   "slug": "benjamin-bunny",
@@ -13,7 +14,8 @@
   "author": "Beatrix Potter",
   "year": 1904,
   "pages": 5,
-  "gift": false
+  "gift": false,
+  "art": false
  },
  {
   "slug": "jemima-puddle-duck",
@@ -21,7 +23,8 @@
   "author": "Beatrix Potter",
   "year": 1908,
   "pages": 6,
-  "gift": false
+  "gift": false,
+  "art": false
  },
  {
   "slug": "velveteen-rabbit",
@@ -29,7 +32,8 @@
   "author": "Margery Williams",
   "year": 1922,
   "pages": 19,
-  "gift": false
+  "gift": false,
+  "art": false
  },
  {
   "slug": "alice",
@@ -37,7 +41,8 @@
   "author": "Lewis Carroll",
   "year": 1865,
   "pages": 128,
-  "gift": false
+  "gift": false,
+  "art": false
  },
  {
   "slug": "wind-in-the-willows",
@@ -45,7 +50,8 @@
   "author": "Kenneth Grahame",
   "year": 1908,
   "pages": 305,
-  "gift": false
+  "gift": false,
+  "art": false
  },
  {
   "slug": "wizard-of-oz",
@@ -53,7 +59,8 @@
   "author": "L. Frank Baum",
   "year": 1900,
   "pages": 184,
-  "gift": false
+  "gift": false,
+  "art": false
  },
  {
   "slug": "andersen",
@@ -61,7 +68,8 @@
   "author": "Hans Christian Andersen",
   "year": 1835,
   "pages": 274,
-  "gift": false
+  "gift": false,
+  "art": false
  },
  {
   "slug": "grimm",
@@ -69,7 +77,8 @@
   "author": "The Brothers Grimm",
   "year": 1812,
   "pages": 467,
-  "gift": false
+  "gift": false,
+  "art": false
  },
  {
   "slug": "secret-garden",
@@ -77,7 +86,8 @@
   "author": "Frances Hodgson Burnett",
   "year": 1911,
   "pages": 382,
-  "gift": false
+  "gift": false,
+  "art": false
  },
  {
   "slug": "pinocchio",
@@ -85,7 +95,8 @@
   "author": "Carlo Collodi",
   "year": 1883,
   "pages": 180,
-  "gift": true
+  "gift": true,
+  "art": false
  },
  {
   "slug": "railway-children",
@@ -93,7 +104,8 @@
   "author": "E. Nesbit",
   "year": 1906,
   "pages": 280,
-  "gift": true
+  "gift": true,
+  "art": false
  },
  {
   "slug": "anne-of-green-gables",
@@ -101,7 +113,8 @@
   "author": "L. M. Montgomery",
   "year": 1908,
   "pages": 502,
-  "gift": true
+  "gift": true,
+  "art": false
  },
  {
   "slug": "heidi",
@@ -109,7 +122,8 @@
   "author": "Johanna Spyri",
   "year": 1881,
   "pages": 437,
-  "gift": true
+  "gift": true,
+  "art": false
  },
  {
   "slug": "black-beauty",
@@ -117,7 +131,8 @@
   "author": "Anna Sewell",
   "year": 1877,
   "pages": 272,
-  "gift": true
+  "gift": true,
+  "art": false
  },
  {
   "slug": "looking-glass",
@@ -125,7 +140,8 @@
   "author": "Lewis Carroll",
   "year": 1871,
   "pages": 137,
-  "gift": true
+  "gift": true,
+  "art": false
  },
  {
   "slug": "princess-and-goblin",
@@ -133,7 +149,8 @@
   "author": "George MacDonald",
   "year": 1872,
   "pages": 241,
-  "gift": true
+  "gift": true,
+  "art": false
  },
  {
   "slug": "happy-prince",
@@ -141,7 +158,8 @@
   "author": "Oscar Wilde",
   "year": 1888,
   "pages": 77,
-  "gift": true
+  "gift": true,
+  "art": false
  },
  {
   "slug": "jungle-book",
@@ -149,7 +167,8 @@
   "author": "Rudyard Kipling",
   "year": 1894,
   "pages": 241,
-  "gift": true
+  "gift": true,
+  "art": false
  },
  {
   "slug": "tom-kitten",
@@ -157,7 +176,8 @@
   "author": "Beatrix Potter",
   "year": 1907,
   "pages": 4,
-  "gift": true
+  "gift": true,
+  "art": false
  },
  {
   "slug": "miss-moppet",
@@ -165,6 +185,34 @@
   "author": "Beatrix Potter",
   "year": 1906,
   "pages": 1,
-  "gift": true
+  "gift": true,
+  "art": false
+ },
+ {
+  "slug": "blackboard-drawing",
+  "title": "Blackboard Drawing",
+  "author": "Frederick Whitney",
+  "year": 1908,
+  "pages": 16,
+  "gift": true,
+  "art": true
+ },
+ {
+  "slug": "elements-of-drawing",
+  "title": "The Elements of Drawing",
+  "author": "John Ruskin",
+  "year": 1857,
+  "pages": 318,
+  "gift": true,
+  "art": true
+ },
+ {
+  "slug": "practice-of-drawing",
+  "title": "The Practice and Science of Drawing",
+  "author": "Harold Speed",
+  "year": 1913,
+  "pages": 387,
+  "gift": true,
+  "art": true
  }
 ]
