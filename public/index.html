@@ -179,6 +179,49 @@
   .noteform .send { justify-self: end; background: var(--accent); color: #fff; border: 0; border-radius: 999px; padding: 10px 18px; font: inherit; font-weight: 800; font-size: 15px; cursor: pointer; }
   .noteform .send:disabled { opacity: .5; }
   .formmsg { font-size: 13px; color: var(--muted); min-height: 1em; }
+  /* ---------- cleaned-up layout ---------- */
+  header { display: flex; align-items: center; gap: 10px; padding: 2px 2px 10px; }
+  header h1 { font-size: 22px; flex: 1; }
+  .status { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); white-space: nowrap; }
+  .iconbtn { border: 1px solid var(--line); background: var(--card); border-radius: 999px; width: 36px; height: 36px; font-size: 17px; cursor: pointer; padding: 0; }
+  .iconbtn[hidden] { display: none; }
+
+  .hud { position: absolute; left: 10px; top: 10px; display: grid; gap: 4px; background: rgba(255,255,255,.82); padding: 7px 9px;
+    border-radius: 12px; pointer-events: none; box-shadow: 0 1px 6px rgba(0,0,0,.08); }
+  .hud .need { display: grid; grid-template-columns: 16px 64px; gap: 6px; align-items: center; font-size: 12px; }
+  .hud .bar { height: 6px; }
+  .hint { top: auto; bottom: 62px; left: 50%; transform: translateX(-50%); white-space: nowrap; }
+
+  .nowline { display: block; width: 100%; text-align: left; margin-top: 10px; padding: 9px 12px; border: 1px solid var(--line); background: var(--card);
+    border-radius: 12px; font: inherit; color: var(--ink); cursor: pointer; }
+  .nowline #doing { display: block; font-size: 14px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .nowline .thought { display: block; margin-top: 4px; font-size: 14px; font-weight: 400; }
+  .nowline .thought[hidden] { display: none; }
+
+  .talk { align-items: stretch; }
+  .talk .mechip { flex: 0 0 auto; display: flex; flex-direction: column; justify-content: center; align-items: flex-start; gap: 1px; max-width: 92px;
+    border: 1px solid #cfe3c0; background: #f1f8ea; color: #2f5d1f; border-radius: 14px; padding: 4px 10px; font: inherit; font-weight: 400; cursor: pointer;
+    transition: transform .2s; }
+  .talk .mechip #meName { font-size: 11px; font-weight: 700; color: var(--muted); max-width: 72px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .talk .mechip .seeds { font-size: 14px; font-weight: 800; white-space: nowrap; }
+  .talk .mechip.bump { transform: scale(1.1); }
+  .talk .mechip.ask #meName { color: var(--accent); }
+  .earned { display: block; height: 0; overflow: visible; text-align: left; padding-left: 14px; }
+  .meedit { margin-top: 10px; background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 10px 12px; }
+  .meedit[hidden] { display: none; }
+  .meedit .me { margin-top: 0; }
+  .meedit p { margin: 8px 0 0; font-size: 12px; color: var(--muted); line-height: 1.4; }
+
+  .tabs { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; overflow: visible; }
+  .tabs .tab { display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 6px 2px; font-size: 11.5px; border-radius: 12px; position: relative; }
+  .tabs .tab .ti { font-size: 17px; line-height: 1.1; }
+  .tabs .badge { position: absolute; top: -4px; right: 2px; margin: 0; }
+  .subs { display: flex; gap: 4px; background: #f1ebde; border-radius: 999px; padding: 3px; margin-bottom: 10px; }
+  .sub { flex: 1; border: 0; background: none; border-radius: 999px; padding: 6px 8px; font: inherit; font-size: 13px; color: var(--muted); cursor: pointer; }
+  .sub[aria-selected="true"] { background: #fff; color: var(--ink); font-weight: 700; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+  section[hidden] { display: none; }
+  .fineprint { font-size: 12px; color: var(--muted); margin-top: 14px; }
+  .card { margin-top: 10px; }
 </style>
 </head>
 <body>
@@ -191,99 +234,106 @@
 <button class="update" id="updateBtn" type="button" hidden>✨ Pino's town was updated · tap to refresh</button>
 <div class="wrap">
   <header>
-    <div class="titlerow"><h1 id="name">Pino's Town</h1><button class="installbtn" id="installBtn" type="button" hidden>📲 Install</button></div>
-    <div>
-      <div class="clock" id="clock">waking up…</div>
-      <div class="brain"><span class="dot" id="dot"></span><span id="brain">—</span></div>
-    </div>
+    <h1 id="name">Pino's Town</h1>
+    <div class="status"><span class="dot" id="dot"></span><span id="status">waking up…</span></div>
+    <button class="iconbtn" id="installBtn" type="button" hidden aria-label="Install Pino on your home screen" title="Install">📲</button>
   </header>
 
   <div class="stage" id="stage">
-    <div class="hint" id="hint">Tap Pino to pet him · drag to look around</div>
-    <div class="toast" id="toast"></div>
+    <div class="hud" id="needs" aria-label="How Pino feels"></div>
     <div class="nowplaying" id="nowPlaying" hidden></div>
+    <div class="hint" id="hint" hidden>Tap Pino to pet him · drag to look around</div>
+    <div class="toast" id="toast"></div>
     <div class="controls">
       <button class="fab" id="soundBtn" type="button" aria-pressed="false" title="Sound: birds, music and Pino">🔇</button>
-      <button class="fab" id="treatBtn" type="button">🍪 🌱2</button>
+      <button class="fab" id="treatBtn" type="button" title="Give Pino a quick treat">🍪 🌱2</button>
       <button class="fab" id="followBtn" type="button" aria-pressed="false">🎥 Follow</button>
     </div>
   </div>
 
-  <div class="me" id="meBox"></div>
-  <div class="me"><button class="wallet" id="wallet" type="button" title="How to earn seeds">🌱 <span id="seedCount">…</span></button><span class="earned" id="earned"></span>
-    <span style="flex:1"></span><span style="font-size:12px">Earn seeds by watching &amp; chatting with Pino</span></div>
+  <button class="nowline" id="nowLine" type="button" aria-expanded="false">
+    <span id="doing">…</span>
+    <span class="thought" id="thought" hidden></span>
+  </button>
+
   <form class="talk" id="talkForm" autocomplete="off">
+    <button class="mechip" id="meChip" type="button" aria-expanded="false" title="You and your seeds">
+      <span id="meName">You</span><span class="seeds">🌱 <span id="seedCount">15</span></span>
+    </button>
     <input id="talkText" maxlength="280" placeholder="Say something to Pino…" enterkeyhint="send">
     <button type="submit" id="talkBtn">Send</button>
   </form>
+  <span class="earned" id="earned"></span>
+  <div class="meedit" id="meEdit" hidden>
+    <div class="me" id="meBox"></div>
+    <p id="earnInfo">Earn seeds 🌱 by watching Pino, chatting with him and petting him. Spend them on gifts.</p>
+  </div>
 
   <div class="lastreply" id="lastReply" hidden aria-live="polite"></div>
-
   <div class="banner" id="banner" hidden></div>
 
-  <div class="card">
-    <div class="now">Right now</div>
-    <div class="doing" id="doing">…</div>
-    <p class="thought" id="thought"></p>
-    <div class="heartbeat" id="heartbeat"></div>
-  </div>
-
-  <div class="card needs" id="needs"></div>
-
   <div class="tabs" role="tablist">
-    <button class="tab" role="tab" data-tab="chat" aria-selected="true">Chat</button>
-    <button class="tab" role="tab" data-tab="diary">Diary</button>
-    <button class="tab" role="tab" data-tab="journal">Journal</button>
-    <button class="tab" role="tab" data-tab="drawings">Drawings</button>
-    <button class="tab" role="tab" data-tab="books">Books</button>
-    <button class="tab" role="tab" data-tab="give">Give 🎁</button>
-    <button class="tab" role="tab" data-tab="wants">Wants</button>
-    <button class="tab" role="tab" data-tab="friends">Friends</button>
-    <button class="tab" role="tab" data-tab="notes">Notes<span class="badge" id="unread" hidden></span></button>
-    <button class="tab" role="tab" data-tab="mind">Mind</button>
+    <button class="tab" role="tab" data-tab="chat" aria-selected="true"><span class="ti">💬</span>Chat<span class="badge" id="unread" hidden></span></button>
+    <button class="tab" role="tab" data-tab="life"><span class="ti">📔</span>Life</button>
+    <button class="tab" role="tab" data-tab="art"><span class="ti">🎨</span>Art &amp; Books</button>
+    <button class="tab" role="tab" data-tab="give"><span class="ti">🎁</span>Give</button>
+    <button class="tab" role="tab" data-tab="friends"><span class="ti">👋</span>Friends</button>
   </div>
-  <div class="card panel" id="p-chat"><ul class="list" id="chat"></ul></div>
-  <div class="card panel" id="p-diary" hidden><ul class="list" id="diary"></ul></div>
-  <div class="card panel" id="p-journal" hidden><ul class="list" id="journal"></ul></div>
-  <div class="card panel" id="p-drawings" hidden><div class="gallery" id="drawings"></div></div>
-  <div class="card panel" id="p-books" hidden>
-    <h3>His bookshelf</h3>
-    <div id="shelf"></div>
-    <h3 style="margin-top:14px">What he thought while reading</h3>
-    <ul class="list" id="reading"></ul>
+
+  <div class="card panel" id="p-chat">
+    <div class="subs"><button class="sub" data-sub="chat-live" aria-selected="true">Chat</button><button class="sub" data-sub="chat-notes">Notes</button></div>
+    <section data-sub="chat-live"><ul class="list" id="chat"></ul></section>
+    <section data-sub="chat-notes" hidden>
+      <form class="noteform" id="noteForm">
+        <textarea id="noteText" maxlength="300" placeholder="Leave Pino a note… he'll find it and write back in his own time."></textarea>
+        <div class="formmsg" id="formmsg"></div>
+        <button class="send" type="submit">Leave note</button>
+      </form>
+      <ul class="list" id="convos"></ul>
+    </section>
   </div>
+
+  <div class="card panel" id="p-life" hidden>
+    <div class="subs"><button class="sub" data-sub="life-diary" aria-selected="true">Diary</button><button class="sub" data-sub="life-mind">Mind</button><button class="sub" data-sub="life-wants">Wants</button></div>
+    <section data-sub="life-diary"><ul class="list" id="diary"></ul></section>
+    <section data-sub="life-mind" hidden>
+      <h3>Who I am (written by me)</h3>
+      <p class="personality" id="personality"></p>
+      <h3>Things I've realised</h3>
+      <ul class="list" id="insights"></ul>
+      <p class="fineprint"><span id="brain">—</span> · <span id="heartbeat"></span></p>
+    </section>
+    <section data-sub="life-wants" hidden>
+      <div id="wants"></div>
+      <h3 style="margin-top:14px">Things he used to want</h3>
+      <ul class="list" id="pastWants"></ul>
+    </section>
+  </div>
+
+  <div class="card panel" id="p-art" hidden>
+    <div class="subs"><button class="sub" data-sub="art-drawings" aria-selected="true">Drawings</button><button class="sub" data-sub="art-books">Books</button><button class="sub" data-sub="art-journal">Journal</button></div>
+    <section data-sub="art-drawings"><div class="gallery" id="drawings"></div></section>
+    <section data-sub="art-books" hidden>
+      <div id="shelf"></div>
+      <h3 style="margin-top:14px">What he thought while reading</h3>
+      <ul class="list" id="reading"></ul>
+    </section>
+    <section data-sub="art-journal" hidden><ul class="list" id="journal"></ul></section>
+  </div>
+
   <div class="card panel" id="p-give" hidden>
-    <p class="givehint">Every gift here is one of a kind and costs seeds 🌱. Once someone gives it, it's Pino's for good and disappears from this list. Earn seeds by watching Pino, chatting with him and petting him.</p>
+    <p class="givehint">Every gift is one of a kind and costs seeds 🌱. Once someone gives it, it's Pino's for good.</p>
     <div id="giveList"></div>
     <h3 style="margin-top:14px">Gifts Pino has received</h3>
     <ul class="list" id="giftLog"></ul>
   </div>
+
   <div class="card panel" id="p-friends" hidden>
-    <h3>Visitors Pino remembers</h3>
     <ul class="list" id="friends"></ul>
   </div>
-  <div class="card panel" id="p-wants" hidden>
-    <h3>What Pino wants right now</h3>
-    <div id="wants"></div>
-    <h3 style="margin-top:14px">Things he used to want</h3>
-    <ul class="list" id="pastWants"></ul>
-  </div>
+
   <div class="viewer" id="viewer" hidden>
     <figure><img id="viewerImg" alt=""><figcaption id="viewerCap"></figcaption></figure>
-  </div>
-  <div class="card panel" id="p-notes" hidden>
-    <form class="noteform" id="noteForm">
-      <textarea id="noteText" maxlength="300" placeholder="Leave Pino a note… he'll find it and write back in his own time."></textarea>
-      <div class="formmsg" id="formmsg"></div>
-      <button class="send" type="submit">Leave note</button>
-    </form>
-    <ul class="list" id="convos"></ul>
-  </div>
-  <div class="card panel" id="p-mind" hidden>
-    <h3>Who I am (written by me)</h3>
-    <p class="personality" id="personality"></p>
-    <h3>Things I've realised</h3>
-    <ul class="list" id="insights"></ul>
   </div>
 </div>
 
@@ -303,7 +353,10 @@ function toast(msg) {
   const t = $("toast"); t.textContent = msg; t.classList.add("show");
   clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove("show"), 3800);
 }
-setTimeout(() => ($("hint").style.opacity = 0), 7000);
+(() => {  // the "tap Pino" hint only shows on your first visit
+  let seen = false; try { seen = localStorage.getItem("pinoHintSeen") === "1"; localStorage.setItem("pinoHintSeen", "1"); } catch {}
+  if (!seen) { $("hint").hidden = false; setTimeout(() => ($("hint").style.opacity = 0), 7000); }
+})();
 
 // ================================================================ 3D WORLD
 let world = null;
@@ -890,11 +943,13 @@ const me = (() => {
   return { id, name };
 })();
 function renderMe(editing = false) {
+  $("meName").textContent = me.name || "Add name";
+  $("meChip").classList.toggle("ask", !me.name);
   const box = $("meBox"); box.replaceChildren();
   if (!me.name || editing) {
     const input = Object.assign(document.createElement("input"), { placeholder: "Your name, so Pino remembers you", maxLength: 30, value: me.name });
     const save = el("button", null, "Save"); save.type = "button";
-    save.onclick = () => { me.name = input.value.trim().slice(0, 30); try { localStorage.setItem("pinoName", me.name); } catch {} renderMe(); };
+    save.onclick = () => { me.name = input.value.trim().slice(0, 30); try { localStorage.setItem("pinoName", me.name); } catch {} renderMe(); if (me.name) $("meEdit").hidden = true; };
     input.onkeydown = (e) => { if (e.key === "Enter") save.click(); };
     box.append(input, save);
   } else {
@@ -952,11 +1007,15 @@ function render(s) {
   if (s.me) setSeeds(s.me.seeds);
   checkVersion(s.version);
   $("name").textContent = `${s.name}'s Town`; document.title = `${s.name}'s Town`;
-  $("clock").textContent = `${s.weekday} · ${s.clock}`;
   const last = [...s.memories].reverse().find((m) => m.brain !== "visitor");
   const onInstinct = !last || last.brain === "instinct";
+  const asleep = /^sleep|nap/.test(s.doing);
+  const [, hh, mm] = /(\d\d):(\d\d)/.exec(s.clock) || [];
+  const time = hh ? `${(+hh % 12) || 12}:${mm} ${+hh < 12 ? "am" : "pm"}` : "";
+  $("status").textContent = `${asleep ? "Asleep" : "Awake"} · ${String(s.weekday).slice(0, 3)} ${time}`;
+  $("status").title = s.clock;
   $("dot").classList.toggle("off", onInstinct);
-  $("brain").textContent = onInstinct ? "running on instinct" : `thinking with ${last.brain}`;
+  $("brain").textContent = onInstinct ? "Running on instinct (no brain connected)" : `Thinks with ${last.brain}`;
   $("banner").hidden = !s.last_error; $("banner").textContent = s.last_error || "";
 
   if (world) {
@@ -969,16 +1028,18 @@ function render(s) {
   }
   first = false;
 
-  $("doing").textContent = `${s.doing.charAt(0).toUpperCase() + s.doing.slice(1)} · ${s.places[s.place] || s.place}`;
+  const badge = BADGES.find(([re]) => re.test(s.doing));
+  $("doing").textContent = `${badge ? badge[1] + " " : ""}${s.doing.charAt(0).toUpperCase() + s.doing.slice(1)} · ${s.places[s.place] || s.place}`;
   $("thought").textContent = s.thought ? `“${s.thought}”` : "";
   const pace = s.pace < 1 ? "about twice a minute (he's new here!)" : "about every 5 minutes";
-  $("heartbeat").textContent = s.last_tick_at ? `Last moment ${ago(s.last_tick_at)} · he decides something new ${pace}` : "His first moment happens within a minute.";
+  $("heartbeat").textContent = `decides something new ${pace}`;
 
   const needs = $("needs"); needs.replaceChildren();
-  for (const [k, label] of [["food", "Food"], ["energy", "Energy"], ["joy", "Joy"]]) {
+  for (const [k, icon, label] of [["food", "🍎", "Food"], ["energy", "⚡", "Energy"], ["joy", "💖", "Joy"]]) {
     const row = el("div", "need"), bar = el("div", "bar"), fill = el("i");
     fill.style.width = `${s.needs[k]}%`; fill.style.background = `var(--${k})`; bar.append(fill);
-    row.append(el("span", null, label), bar, el("span", null, s.needs[k])); needs.append(row);
+    row.title = `${label}: ${s.needs[k]}/100`;
+    row.append(el("span", null, icon), bar); needs.append(row);
   }
   renderChat();
   list("diary", s.memories, (m) => {
@@ -1165,12 +1226,14 @@ function setSeeds(n, got = 0) {
     const e = $("earned"); e.textContent = `+${got} 🌱`; e.classList.add("show");
     clearTimeout(earnedTimer); earnedTimer = setTimeout(() => e.classList.remove("show"), 2200);
   }
-  if (changed) { $("wallet").classList.add("bump"); setTimeout(() => $("wallet").classList.remove("bump"), 250); if (latest) { giveSig = ""; renderGive(latest); } }
-}
-$("wallet").addEventListener("click", () => {
+  try { localStorage.setItem("pinoSeeds", String(n)); } catch {}
+  if (changed) { $("meChip").classList.add("bump"); setTimeout(() => $("meChip").classList.remove("bump"), 250); if (latest) { giveSig = ""; renderGive(latest); } }
   const r = latest?.me?.rules, e = latest?.me?.earned;
-  if (!r) return;
-  toast(`Earn seeds 🌱 — watching: ${r.watch.each}/min (${e?.watch ?? 0}/${r.watch.cap} today) · chatting: ${r.chat.each} each (${e?.chat ?? 0}/${r.chat.cap}) · petting: ${r.pet.each} (${e?.pet ?? 0}/${r.pet.cap})`);
+  if (r) $("earnInfo").textContent = `Earn seeds 🌱 by watching (${r.watch.each}/min, ${e?.watch ?? 0}/${r.watch.cap} today), chatting (${r.chat.each} each, ${e?.chat ?? 0}/${r.chat.cap}) and petting (${r.pet.each}, ${e?.pet ?? 0}/${r.pet.cap}). Spend them in 🎁 Give.`;
+}
+try { const cached = localStorage.getItem("pinoSeeds"); if (cached) $("seedCount").textContent = cached; } catch {}
+$("meChip").addEventListener("click", () => {
+  const box = $("meEdit"); box.hidden = !box.hidden; $("meChip").setAttribute("aria-expanded", !box.hidden);
 });
 // watching earns seeds: one ping a minute while the page is open and visible
 setInterval(async () => {
@@ -1305,6 +1368,13 @@ document.querySelectorAll(".tab").forEach((t) => t.addEventListener("click", () 
   document.querySelectorAll(".tab").forEach((x) => x.setAttribute("aria-selected", x === t));
   document.querySelectorAll(".panel").forEach((p) => (p.hidden = p.id !== `p-${t.dataset.tab}`));
 }));
+document.querySelectorAll(".panel").forEach((panel) => panel.querySelectorAll(".sub").forEach((b) => b.addEventListener("click", () => {
+  panel.querySelectorAll(".sub").forEach((x) => x.setAttribute("aria-selected", x === b));
+  panel.querySelectorAll("section[data-sub]").forEach((sec) => (sec.hidden = sec.dataset.sub !== b.dataset.sub));
+})));
+$("nowLine").addEventListener("click", () => {
+  const th = $("thought"); th.hidden = !th.hidden; $("nowLine").setAttribute("aria-expanded", !th.hidden);
+});
 
 // check in more often while he's thinking fast
 (function poll() { refresh().finally(() => setTimeout(poll, latest && latest.pace < 1 ? 6000 : 15000)); })();
