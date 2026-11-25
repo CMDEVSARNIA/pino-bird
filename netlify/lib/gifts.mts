@@ -41,9 +41,9 @@ const SNACKS: Omit<Gift, "price">[] = [
 
 const THINGS: Omit<Gift, "price">[] = [
   { id: "thing-telescope", kind: "thing", name: "a telescope", emoji: "🔭", desc: "Set up beside his house, pointed at the sky.", place: "house", activity: "look at the sky through my telescope", fx: { joy: 12, energy: -2 } },
-  { id: "thing-train", kind: "thing", name: "a toy train set", emoji: "🚂", desc: "A little train that goes round a track in the park.", place: "park", activity: "play with my toy train", fx: { joy: 14, energy: -6 } },
-  { id: "thing-birdbath", kind: "thing", name: "a birdbath", emoji: "🛁", desc: "A stone birdbath for the park.", place: "park", activity: "splash in the birdbath", fx: { joy: 10, energy: -4 } },
-  { id: "thing-kite", kind: "thing", name: "a kite", emoji: "🪁", desc: "A red kite with a long tail.", place: "park", activity: "fly my kite", fx: { joy: 13, energy: -8 } },
+  { id: "thing-train", kind: "thing", name: "a toy train set", emoji: "🚂", desc: "A little train that goes round a track in the park.", place: "park", activity: "play with my toy train", fx: { joy: 14, energy: -6, food: -2 } },
+  { id: "thing-birdbath", kind: "thing", name: "a birdbath", emoji: "🛁", desc: "A stone birdbath for the park.", place: "park", activity: "splash in the birdbath", fx: { joy: 10, energy: -4, food: -2 } },
+  { id: "thing-kite", kind: "thing", name: "a kite", emoji: "🪁", desc: "A red kite with a long tail.", place: "park", activity: "fly my kite", fx: { joy: 13, energy: -8, food: -3 } },
   { id: "thing-paints", kind: "thing", name: "a set of watercolour paints", emoji: "🎨", desc: "For the drawing table at the library.", place: "library", activity: "paint with watercolours", fx: { joy: 12, energy: -5, kind: "drawing" } },
   { id: "thing-blanket", kind: "thing", name: "a cosy knitted blanket", emoji: "🧶", desc: "For curling up at home.", place: "house", activity: "curl up in my cosy blanket", fx: { energy: 8, joy: 6 } },
 ];

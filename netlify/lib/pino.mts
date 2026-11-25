@@ -33,7 +33,7 @@ export const PLACES: Record<string, Place> = {
     desc: "your little round house with a soft bed, a rug and a window that looks out over the path",
     activities: {
       "sleep in my bed": { energy: 14, food: -1 },
-      "tidy up the house": { joy: 4, energy: -3 },
+      "tidy up the house": { joy: 4, energy: -3, food: -1 },
       "look out the window": { joy: 4, energy: 2 },
     },
   },
@@ -58,8 +58,8 @@ export const PLACES: Record<string, Place> = {
     label: "park",
     desc: "a small park with a big tree, a leaf pile, a bench, a swing set, a pond where ducks paddle about, and your gramophone (a wind-up record player)",
     activities: {
-      "swing on the swings": { joy: 14, energy: -5 },
-      "play in the leaf pile": { joy: 12, energy: -7 },
+      "swing on the swings": { joy: 14, energy: -5, food: -2 },
+      "play in the leaf pile": { joy: 12, energy: -7, food: -3 },
       "watch the ducks": { joy: 6, energy: 3 },
       "sit on the bench": { joy: 3, energy: 5 },
     },
@@ -185,7 +185,7 @@ export function activitiesAt(s: State, place: string): Record<string, Effects> {
     if (!s.music?.on) acts["turn on the gramophone"] = { joy: 6 };
     else {
       acts["skip to the next song"] = { joy: 3 };
-      acts["dance to the music"] = { joy: 12, energy: -6 };
+      acts["dance to the music"] = { joy: 12, energy: -6, food: -4 };
       acts["turn off the gramophone"] = { energy: 1 };
     }
   }
@@ -385,7 +385,7 @@ export function applyChoice(
     note = "";
   } else if (opt.type === "go") {
     s.place = opt.name;
-    deltas = { energy: -2 };
+    deltas = { energy: -2, food: -2 };             // walking works up an appetite
     action = `walked to the ${PLACES[opt.name].label}`;
     note = "";
   } else {
