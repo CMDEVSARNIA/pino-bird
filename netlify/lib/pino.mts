@@ -2,6 +2,7 @@
 
 import { BOOKS } from "./library.mts";
 import { GIFT_BY_ID } from "./gifts.mts";
+import { SONG_BY_ID, nextSong, randomSong, silence, type Music } from "./music.mts";
 
 export const NAME = "Pino";
 export const SPECIES = "kiwi bird";
@@ -88,6 +89,7 @@ export type State = {
   pendingDrawing: number | null;                 // index of a drawing he still has to put on paper
   art: { drawn: number; lessons: string[] };     // how practised he is, and notes-to-self after each drawing
   gifts: { received: string[]; log: { t: string; id: string; name: string; emoji: string; from: string }[] };
+  music: Music;                                  // the gramophone in the park
   wants: Want[];                                 // what he wants right now, in his own words
   pastWants: Want[];                             // wishes he's let go of or moved on from
   conversations: { t: string; visitor: string; reply: string }[];
@@ -103,7 +105,7 @@ export function newState(now: number): State {
     personality: "I'm new here and I don't know what I like yet. I want to find out.",
     insights: [], memories: [], journal: [], drawings: [], conversations: [], tried: {},
     books: {}, lastRead: null, readingLog: [], pendingDrawing: null, wants: [], pastWants: [], art: { drawn: 0, lessons: [] },
-    gifts: { received: [], log: [] },
+    gifts: { received: [], log: [] }, music: silence(),
     thought: "Where am I? It's cosy here...", doing: "waking up for the first time",
     last_error: "", last_tick_at: 0,
   };
@@ -178,6 +180,14 @@ export function parseJSON(text: string): any {
 // What he can do at a place: the town's basics plus anything visitors have given him
 export function activitiesAt(s: State, place: string): Record<string, Effects> {
   const acts: Record<string, Effects> = { ...PLACES[place].activities };
+  if (place === "park") {
+    if (!s.music?.on) acts["turn on the gramophone"] = { joy: 6 };
+    else {
+      acts["skip to the next song"] = { joy: 3 };
+      acts["dance to the music"] = { joy: 12, energy: -6 };
+      acts["turn off the gramophone"] = { energy: 1 };
+    }
+  }
   for (const id of s.gifts?.received ?? []) {
     const g = GIFT_BY_ID[id];
     if (g?.place === place && g.activity) acts[g.activity] = { ...(g.fx ?? {}) };
@@ -238,7 +248,9 @@ export function decisionPrompt(s: State, opts: Option[], notes: Note[], now: num
   const tired = e < 15 ? "\nYou are EXHAUSTED. Your eyes keep closing and everything feels heavy. You really need to sleep now - anything else will feel awful.\n"
     : e < 30 ? "\nYou're very tired. Your body is asking for sleep (your bed is at home, or you could nap where you are).\n"
     : isNight(now) && e < 70 ? "\nIt's late and you're getting sleepy.\n" : "";
-  let bored = tired;
+  const playing = s.music?.on && SONG_BY_ID[s.music.song];
+  const music = playing ? `\nMusic: the gramophone in the park is playing "${playing.title}" by ${playing.by}. You can hear it all over town.\n` : "";
+  let bored = tired + music;
   if (recent.length) {
     const top = recent.reduce((a, b) => (recent.filter((x) => x === a).length >= recent.filter((x) => x === b).length ? a : b));
     if (recent.filter((x) => x === top).length >= 3) bored = `\nYou've done "${top}" a lot lately and it's starting to feel boring.\n`;
@@ -372,6 +384,16 @@ export function applyChoice(
     if (isSleep && isNight(now)) eff.energy = (eff.energy ?? 0) + 6;
     s.tried[action] = (s.tried[action] ?? 0) + 1;
     deltas = eff as Partial<Record<Need, number>>;
+
+    // the gramophone
+    s.music ??= silence();
+    if (action === "turn on the gramophone") s.music = { on: true, song: randomSong(), since: now };
+    else if (action === "skip to the next song") s.music = { on: true, song: nextSong(s.music.song), since: now };
+    else if (action === "turn off the gramophone") s.music = silence();
+    if (/gramophone|next song/.test(action) && s.music.on) {
+      const song = SONG_BY_ID[s.music.song];
+      action = `${action} - now playing "${song.title}" by ${song.by}`;
+    }
 
     if (kind === "journal" && note) s.journal.push({ t, text: note });
     if (kind === "drawing") {
@@ -542,6 +564,7 @@ export function publicView(s: State, unread: number, now: number, chats: { at: n
     readingLog: s.readingLog.slice(-40),
     wants: s.wants, pastWants: s.pastWants.slice(-15),
     gifts: (s.gifts?.log ?? []).slice(-40), owned: s.gifts?.received ?? [],
+    music: s.music?.on ? { ...s.music, title: SONG_BY_ID[s.music.song]?.title, by: SONG_BY_ID[s.music.song]?.by } : { on: false },
     unread, tick: s.tick, last_error: s.last_error, last_tick_at: s.last_tick_at, pace: paceMinutes(s, now),
     places: Object.fromEntries(Object.entries(PLACES).map(([k, p]) => [k, p.label])),
   };

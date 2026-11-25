@@ -86,6 +86,9 @@
     background: rgba(43,42,39,.88); color: #fff; padding: 7px 12px; border-radius: 12px; text-align: center;
     opacity: 0; transition: opacity .3s; pointer-events: none; }
   .toast.show { opacity: 1; }
+  .nowplaying { position: absolute; left: 10px; bottom: 62px; max-width: 75%; font-size: 12px; background: rgba(43,42,39,.78); color: #fff;
+    padding: 6px 10px; border-radius: 999px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none; }
+  .nowplaying[hidden] { display: none; }
   .controls { position: absolute; right: 10px; bottom: 10px; display: flex; gap: 8px; }
   .fab { border: 0; background: rgba(255,255,255,.95); color: var(--ink); border-radius: 999px; padding: 9px 13px;
     font: inherit; font-size: 14px; font-weight: 700; box-shadow: 0 2px 8px rgba(0,0,0,.15); cursor: pointer; }
@@ -193,7 +196,9 @@
   <div class="stage" id="stage">
     <div class="hint" id="hint">Tap Pino to pet him · drag to look around</div>
     <div class="toast" id="toast"></div>
+    <div class="nowplaying" id="nowPlaying" hidden></div>
     <div class="controls">
+      <button class="fab" id="soundBtn" type="button" aria-pressed="false" title="Sound: birds, music and Pino">🔇</button>
       <button class="fab" id="treatBtn" type="button">🍪 Treat</button>
       <button class="fab" id="followBtn" type="button" aria-pressed="false">🎥 Follow</button>
     </div>
@@ -278,6 +283,7 @@
 <script type="module">
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import { Gramophone, Ambience, pinoChirp } from "./music.js";
 
 const $ = (id) => document.getElementById(id);
 const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
@@ -450,6 +456,8 @@ function buildWorld() {
     [/birdbath/, V(-0.9, 0, 5.75), V(-0.9, 0, 6.6)],
     [/kite/, V(-1.4, 0, 6.2), V(-3, 0, 2)],
     [/swing/, V(1.15, 0, 7.6), V(1.15, 0, 12)],
+    [/gramophone|next song/, V(-4.55, 0, 5.55), V(-5.1, 0, 6.3)],
+    [/dance/, V(-3.9, 0, 5.2), V(-3.9, 0, 12)],
     [/leaf/, V(-5.3, 0, 4.7), V(-6.0, 0, 4.4)],
     [/ducks/, V(-3.6, 0, 5.0), V(-2.4, 0, 3.6)],
     [/bench|sit and think/, V(-3.4, 0.52, 6.6), V(-2.4, 0, 3.6)],
@@ -458,6 +466,18 @@ function buildWorld() {
   const CHIMNEY = V(-4.1, 4.0, -5.5);
   for (const k of Object.keys(SPOTS)) strip(JUNCTION, SPOTS[k]);
   strip(SPOTS.house, V(-5, 0, -3.9), 0.9); strip(SPOTS.library, V(5, 0, -3.8), 0.9);
+
+  // ---- the gramophone in the park
+  const gram = new THREE.Group(); gram.position.set(-5.1, 0, 6.3); gram.rotation.y = 0.6; scene.add(gram);
+  add(box(0.7, 0.35, 0.6, M(0x8b5a3c)), gram).position.y = 0.45;
+  for (const [x, z] of [[-0.28, -0.22], [0.28, -0.22], [-0.28, 0.22], [0.28, 0.22]]) add(box(0.06, 0.28, 0.06, M(0x5a3a24)), gram).position.set(x, 0.14, z);
+  const platter = add(new THREE.Mesh(new THREE.CylinderGeometry(0.26, 0.26, 0.03, 20), M(0x1d1a16)), gram); platter.position.y = 0.64;
+  add(new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.035, 12), M(0xd2604b)), platter).position.y = 0.002;
+  const horn = add(new THREE.Mesh(new THREE.ConeGeometry(0.34, 0.75, 16, 1, true), new THREE.MeshStandardMaterial({ color: 0xd9a441, metalness: 0.6, roughness: 0.35, side: THREE.DoubleSide })), gram);
+  horn.position.set(0.18, 1.12, -0.12); horn.rotation.set(-0.5, 0, 0.75);
+  add(new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.45, 6), M(0xb08a3a)), gram).position.set(0.27, 0.8, -0.1);
+  const noteTex = textTexture("♪", "rgba(0,0,0,0)", "#2b2a27", 64, 64, 54);
+  let musicOn = false;
 
   // ---- swing set in the park (two swings that really swing)
   const swingSet = new THREE.Group(); swingSet.position.set(1.6, 0, 7.0); scene.add(swingSet);
@@ -592,7 +612,7 @@ function buildWorld() {
 
     // between decisions, potter about near where he is so he always feels alive
     if (!state.path.length && t > state.nextWander) {
-      const still = state.sleeping || state.indoor || state.base.y > 0.05 || /swing/.test(state.doing);
+      const still = state.sleeping || state.indoor || state.base.y > 0.05 || /swing|dance|gramophone|next song/.test(state.doing);
       if (!still) {
         if (state.wandering) { state.path = [state.base.clone()]; state.wandering = false; }
         else {
@@ -622,7 +642,7 @@ function buildWorld() {
     const targetY = state.path.length || /swing/.test(state.doing) ? 0 : (ACT.find(([re]) => re.test(state.doing))?.[1].y ?? 0);
     g.position.y += (targetY - g.position.y) * Math.min(1, dt * 8);
     let dA = lookAngle - g.rotation.y; dA = Math.atan2(Math.sin(dA), Math.cos(dA));
-    g.rotation.y += dA * Math.min(1, dt * 6);
+    if (!(/dance/.test(state.doing) && !state.path.length)) g.rotation.y += dA * Math.min(1, dt * 6);
 
     // going inside: shrink away at the door, pop back out when leaving
     const inside = !!state.indoor && !state.path.length;
@@ -689,6 +709,18 @@ function buildWorld() {
       pino.legs[0].rotation.x = pino.legs[1].rotation.x = -0.9 + Math.sin(t * 2.3) * 0.4; // kicking his legs
     }
 
+    // gramophone: the record spins and notes float out of the horn while it plays
+    if (musicOn) {
+      platter.rotation.y += dt * 3.5;
+      if (Math.random() < dt * 1.6) spawn(noteTex, gram.position.clone().add(V(0.5, 1.5, -0.2)), { vy: 0.5, life: 2.6, size: 0.35, spread: 0.4 });
+    }
+    // dancing: a happy spin-and-hop
+    if (/dance/.test(state.doing) && !state.path.length) {
+      g.rotation.y += dt * 2.2;
+      pino.body.position.y += Math.abs(Math.sin(t * 6)) * 0.12;
+      pino.legs[0].rotation.x = Math.sin(t * 12) * 0.5; pino.legs[1].rotation.x = -Math.sin(t * 12) * 0.5;
+    }
+
     // duck paddling
     const da = t * 0.35; duck.position.set(-2.4 + Math.cos(da) * 1.0, 0.1 + Math.sin(t * 3) * 0.015, 3.6 + Math.sin(da) * 1.0); duck.rotation.y = -da;
 
@@ -740,6 +772,7 @@ function buildWorld() {
     pet: () => onPet(true),
     treat: () => { dropTreat(); state.happy = 1.5; },
     isInside: () => !!state.indoor && !state.path.length,
+    setMusic: (on) => (musicOn = on),
     setOwned: (ids) => { owned.clear(); ids.forEach((i) => owned.add(i)); for (const [id, p] of Object.entries(props)) p.visible = owned.has(id); },
     bubble,
   };
@@ -802,7 +835,7 @@ function snacksTexture() {
 
 // ================================================================ UI + DATA
 const BADGES = [[/sleep|nap/, "💤"], [/read/, "📖"], [/journal/, "✏️"], [/draw/, "🎨"], [/seed bar/, "🍫"], [/crisps/, "🥨"], [/juice/, "🧃"],
-  [/leaf/, "🍂"], [/ducks/, "🦆"], [/bench|sit/, "💭"], [/window/, "🪟"], [/tidy/, "🧹"], [/talked/, "💬"], [/petted/, "❤️"], [/treat/, "🍪"], [/reflect/, "🌙"], [/walked/, "👣"], [/swing/, "🎠"], [/telescope/, "🔭"], [/toy train/, "🚂"], [/birdbath/, "💦"], [/kite/, "🪁"], [/given/, "🎁"]];
+  [/leaf/, "🍂"], [/ducks/, "🦆"], [/bench|sit/, "💭"], [/window/, "🪟"], [/tidy/, "🧹"], [/talked/, "💬"], [/petted/, "❤️"], [/treat/, "🍪"], [/reflect/, "🌙"], [/walked/, "👣"], [/swing/, "🎠"], [/telescope/, "🔭"], [/toy train/, "🚂"], [/birdbath/, "💦"], [/kite/, "🪁"], [/given/, "🎁"], [/gramophone|next song/, "🎶"], [/dance/, "💃"]];
 let latest = null, first = true, speaking = 0, followOn = false;
 
 // ---- who you are: a random id this browser keeps, plus the name you tell Pino
@@ -915,6 +948,7 @@ function render(s) {
   renderGallery(s.drawings || []);
   renderBooks(s);
   if (world) world.setOwned(s.owned || []);
+  syncMusic(s.music || { on: false });
   renderGive(s);
   list("friends", s.friends || [], (f) => {
     const li = el("li");
@@ -992,7 +1026,7 @@ function announceOthers(chats) {
   if (!c || Date.now() - c.at > 90_000) return;
   toast(`💬 ${c.name || "Someone"} said: “${short(c.you, 70)}”${c.react ? " " + c.react : ""}`);
   speaking = Date.now() + 12000;
-  showBubble("speech", c.pino);
+  showBubble("speech", c.pino); chirp(false);
   setTimeout(() => { if (Date.now() > speaking && latest) render(latest); }, 12500);
 }
 
@@ -1041,6 +1075,30 @@ if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").cat
   window.addEventListener("appinstalled", () => { tip.hidden = true; btn.hidden = true; });
   if (!dismissed) setTimeout(explain, 1500); // greet new visitors with the how-to right away
 })();
+
+// ---- the gramophone: everyone hears the same song at the same moment (after tapping 🔇 to allow sound)
+const gramophone = new Gramophone();
+let soundOn = false, ambience = null;
+const chirp = (happy) => { if (soundOn && gramophone.ctx) pinoChirp(gramophone.ctx, gramophone.ctx.destination, happy); };
+function syncMusic(m) {
+  if (ambience && latest) ambience.setNight(!!latest.night);
+  if (world) world.setMusic(!!m.on);
+  const np = $("nowPlaying");
+  if (m.on) { np.hidden = false; np.textContent = `♪ ${m.title} · ${String(m.by).replace(/ \(.*\)$/, "")}`; gramophone.play(m.song, m.since); }
+  else { np.hidden = true; gramophone.off(); }
+}
+$("soundBtn").addEventListener("click", () => {
+  soundOn = !soundOn;
+  $("soundBtn").textContent = soundOn ? "🔊" : "🔇"; $("soundBtn").setAttribute("aria-pressed", soundOn);
+  if (soundOn) {
+    gramophone.enable();
+    ambience ??= new Ambience(gramophone.ctx);
+    ambience.setNight(!!latest?.night); ambience.start();
+    if (latest?.music?.on) gramophone.play(latest.music.song, latest.music.since);
+    toast("Sound on: the breeze, the birds, Pino's whistle and his gramophone.");
+    chirp(false);
+  } else { ambience?.stop(); gramophone.disable(); }
+});
 
 // ---- give tab
 const KINDS = [["book", "Books for his library"], ["treat", "Treats (eaten right away)"], ["snack", "New snacks for the vending machine"], ["thing", "Things for his town"]];
@@ -1103,6 +1161,7 @@ async function post(path, body) {
 // pet (tap on Pino)
 let lastPet = 0;
 window.addEventListener("pino:pet", async () => {
+  chirp(true);
   if (Date.now() - lastPet < 1500) return; lastPet = Date.now();
   const j = await post("/api/pet"); if (j.reaction) toast(j.reaction);
 });
@@ -1136,7 +1195,7 @@ $("talkForm").addEventListener("submit", async (e) => {
   if (j.ok) {
     pending.push({ at: j.at || Date.now(), you: text, pino: j.reply, name: me.name || "You", react: j.react, mine: true });
     seenChat = Math.max(seenChat, j.at || 0);
-    speaking = Date.now() + 14000; showBubble("speech", j.reply);
+    speaking = Date.now() + 14000; showBubble("speech", j.reply); chirp(/happy|excited/.test(j.mood || ""));
     const youLine = el("div", "you", `You: ${text}`); if (j.react) youLine.append(el("span", "react", j.react));
     box.replaceChildren(youLine, el("div", "pino", `${latest ? latest.name : "Pino"}: ${j.reply}`));
     if (world && /happy|excited/.test(j.mood || "")) world.pet();
