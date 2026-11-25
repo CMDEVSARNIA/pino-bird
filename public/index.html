@@ -1145,9 +1145,7 @@ function buildWorld() {
   pino.group.position.copy(SPOTS.house);
 
   // ---------------------------------------------------------------- overlays
-  const labels = [["home", V(-4.7, 4.2, -5.0)], ["library", V(4.8, 4.1, -5.2)], ["snacks", V(-2.3, 2.75, -2.6)], ["park", V(-5.0, 4.1, 1.9)], ["gallery", V(4.6, 3.0, 2.3)], ["museum", V(0, 6.0, -10.2)]].map(([t, p]) => {
-    const d = el("div", "ov label", t); stage.append(d); return { d, p };
-  });
+  const labels = []; // no floating name tags over the buildings
   const bubble = el("div", "ov bubble thought"); bubble.hidden = true; stage.append(bubble);
 
   // ---------------------------------------------------------------- particles
