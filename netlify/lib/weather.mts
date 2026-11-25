@@ -12,6 +12,7 @@ export type Weather = {
   snow: number;      // snow on the ground, cm
   day: boolean;
   desc: string;      // "light snow", "clear sky", ...
+  forecast?: { day: string; kind: WeatherKind; desc: string; hi: number; lo: number }[]; // next few days, for the TV weather channel
 };
 export type Season = { name: "winter" | "spring" | "summer" | "autumn"; phase: "early" | "mid" | "late"; label: string };
 
@@ -37,17 +38,23 @@ export function needsRefresh(w: Weather | undefined, now: number) {
 export async function fetchWeather(now: number, timeoutMs = 4000): Promise<Weather | null> {
   const { lat, lon } = WEATHER_PLACE;
   const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` +
-    "&current=temperature_2m,weather_code,wind_speed_10m,is_day,snow_depth&timezone=America%2FToronto";
+    "&current=temperature_2m,weather_code,wind_speed_10m,is_day,snow_depth" +
+    "&daily=weather_code,temperature_2m_max,temperature_2m_min&forecast_days=4&timezone=America%2FToronto";
   try {
     const r = await fetch(url, { signal: AbortSignal.timeout(timeoutMs) });
     if (!r.ok) throw new Error(`open-meteo ${r.status}`);
-    const c = (await r.json())?.current;
+    const body = await r.json(), c = body?.current, dl = body?.daily;
     if (!c || typeof c.weather_code !== "number") throw new Error("open-meteo: no current weather");
     const [kind, desc] = CODES[c.weather_code] ?? ["cloudy", "grey skies"];
     return {
       at: now, code: c.weather_code, kind, desc,
       temp: Math.round(c.temperature_2m ?? 0), wind: Math.round(c.wind_speed_10m ?? 0),
       snow: Math.round((c.snow_depth ?? 0) * 100), day: c.is_day === 1,
+      forecast: Array.isArray(dl?.time) ? dl.time.slice(0, 4).map((t: string, i: number) => {
+        const [k, ds] = CODES[dl.weather_code?.[i]] ?? ["cloudy", "grey skies"];
+        const day = new Date(`${t}T12:00:00Z`).toLocaleDateString("en-CA", { weekday: "short", timeZone: "UTC" });
+        return { day, kind: k, desc: ds, hi: Math.round(dl.temperature_2m_max?.[i] ?? 0), lo: Math.round(dl.temperature_2m_min?.[i] ?? 0) };
+      }) : undefined,
     };
   } catch (e) {
     console.log("Weather check failed:", (e as Error).message);

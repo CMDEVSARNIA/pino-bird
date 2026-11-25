@@ -850,7 +850,7 @@ function buildWorld() {
   add(box(1.5, 0.9, 0.12, M(0x8b5a3c)), bed).position.set(0, 0.45, -1.15);
   rug(hroom, V(0, 0, 0.4), 1.2, 0xd2604b, 0xf2c94c);
   fireplace(hroom, V(-HW + 0.38, 0, 1.3), Math.PI / 2);
-  const tbl = new THREE.Group(); tbl.position.set(2.3, 0, -1.6); hroom.add(tbl);
+  const tbl = new THREE.Group(); tbl.position.set(-1.0, 0, 2.2); hroom.add(tbl);
   add(new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.6, 0.08, 16), M(0xc58b4d)), tbl).position.y = 0.7;
   add(new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.12, 0.7, 8), M(0x8b5a3c)), tbl).position.y = 0.35;
   add(new THREE.Mesh(new THREE.SphereGeometry(0.13, 10, 8), M(0x6f9fd8)), tbl).position.set(0.15, 0.85, 0);
@@ -858,7 +858,16 @@ function buildWorld() {
   const shelf = bookcase(hroom, 1.3, 1.2, V(HW - 0.3, 0, 0.1), -Math.PI / 2);
   add(new THREE.Mesh(new THREE.IcosahedronGeometry(0.2, 0), M(0x5fae5a)), shelf).position.set(0.4, 1.35, 0);
   add(new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.1, 0.2, 8), M(0xc8643b)), shelf).position.set(0.4, 1.25, 0);
-  const hchair = armchair(hroom, V(2.2, 0, 1.75), -2.3, 0x6f9a8a);
+  const hchair = armchair(hroom, V(2.3, 0, 1.3), Math.PI, 0x6f9a8a);
+  // the TV: a cabinet in the corner, its screen drawn live (five free channels)
+  const tvSet = new THREE.Group(); tvSet.position.set(2.3, 0, -2.55); hroom.add(tvSet);
+  add(box(1.5, 0.6, 0.55, M(0x8b5a3c)), tvSet).position.y = 0.3;
+  add(box(1.3, 0.82, 0.14, M(0x2b2b2e)), tvSet).position.y = 1.03;
+  add(box(0.3, 0.06, 0.2, M(0x2b2b2e)), tvSet).position.y = 0.62;
+  const tvCanvas = Object.assign(document.createElement("canvas"), { width: 320, height: 192 }), tvCtx = tvCanvas.getContext("2d");
+  const tvTex = new THREE.CanvasTexture(tvCanvas); tvTex.colorSpace = THREE.SRGBColorSpace;
+  const tvScreen = add(new THREE.Mesh(new THREE.PlaneGeometry(1.18, 0.7), new THREE.MeshBasicMaterial({ map: tvTex })), tvSet, { cast: false });
+  tvScreen.position.set(0, 1.03, 0.075); tvSet.userData.tv = true;
   const blanket = add(box(0.9, 0.06, 0.8, M(0xe8b04a)), hchair); blanket.position.set(0, 0.62, 0.05); blanket.rotation.x = -0.15;
   roomProps["thing-blanket"] = blanket;
   const broom = new THREE.Group(); broom.position.set(-HW + 0.35, 0, -0.1); broom.rotation.z = -0.15; hroom.add(broom);
@@ -910,11 +919,77 @@ function buildWorld() {
   nookSign.position.set(NOOK.x - 0.6, 2.8, -LD + 0.15);
   add(new THREE.Mesh(new THREE.PlaneGeometry(1.8, 0.36), new THREE.MeshBasicMaterial({ map: textTexture("LIBRARY", "#e8e1d3", "#5b4a3a", 512, 102, 64) })), lroom, { cast: false }).position.set(-3.6, 3.75, -LD + 0.14);
 
+  // drawing the TV picture: each channel has its own little show, built from the same lines Pino watches
+  let tvProg = null, tvDrawn = -1;
+  function wrap(x, text, maxW) {
+    const words = text.split(" "), out = []; let line = "";
+    for (const w of words) { const tryL = line ? line + " " + w : w; if (x.measureText(tryL).width > maxW && line) { out.push(line); line = w; } else line = tryL; }
+    if (line) out.push(line); return out;
+  }
+  function drawTV(t) {
+    const x = tvCtx, W = 320, H = 192, p = tvProg;
+    if (!p) { x.fillStyle = "#15161a"; x.fillRect(0, 0, W, H); x.fillStyle = "rgba(255,255,255,.06)"; x.beginPath(); x.ellipse(90, 50, 80, 30, -0.4, 0, 6.3); x.fill(); tvTex.needsUpdate = true; return; }
+    const ch = p.channel, cycle = Math.floor(t / 5) % Math.max(1, p.lines.length);
+    const caption = (txt, bg = "rgba(0,0,0,.55)") => {
+      x.font = "600 13px system-ui, sans-serif"; const ls = wrap(x, txt, W - 24).slice(0, 3);
+      x.fillStyle = bg; x.fillRect(0, H - 14 - ls.length * 16, W, 14 + ls.length * 16);
+      x.fillStyle = "#fff"; ls.forEach((l, i) => x.fillText(l, 12, H - 8 - (ls.length - 1 - i) * 16));
+    };
+    if (ch === "weather") {
+      const g = x.createLinearGradient(0, 0, 0, H); g.addColorStop(0, "#3b7dd8"); g.addColorStop(1, "#7fb7ef"); x.fillStyle = g; x.fillRect(0, 0, W, H);
+      x.fillStyle = "#fff"; x.font = "800 16px system-ui, sans-serif"; x.fillText("🌦️ SARNIA WEATHER", 12, 24);
+      x.font = "600 13px system-ui, sans-serif";
+      p.lines.slice(0, 4).forEach((l, i) => { x.fillStyle = i === cycle ? "#ffe27a" : "#fff"; wrap(x, l, W - 24).slice(0, 1).forEach((w) => x.fillText(w, 12, 52 + i * 32)); });
+    } else if (ch === "aquarium") {
+      const g = x.createLinearGradient(0, 0, 0, H); g.addColorStop(0, "#1f8fbf"); g.addColorStop(1, "#0b3d63"); x.fillStyle = g; x.fillRect(0, 0, W, H);
+      x.fillStyle = "#3f9a5a"; for (let i = 0; i < 6; i++) { x.beginPath(); x.ellipse(20 + i * 55, H - 30, 6, 30 + (i % 3) * 8, Math.sin(t + i) * 0.15, 0, 6.3); x.fill(); }
+      [["#ff8c2a", 0], ["#3ad1ff", 1.7], ["#ffd23a", 3.1]].forEach(([c, ph], i) => {
+        const fx = ((t * (22 + i * 9) + ph * 80) % (W + 80)) - 40, fy = 50 + i * 34 + Math.sin(t * 1.3 + ph) * 8;
+        x.fillStyle = c; x.beginPath(); x.ellipse(fx, fy, 16, 9, 0, 0, 6.3); x.fill();
+        x.beginPath(); x.moveTo(fx - 14, fy); x.lineTo(fx - 26, fy - 8); x.lineTo(fx - 26, fy + 8); x.fill();
+        x.fillStyle = "#111"; x.beginPath(); x.arc(fx + 8, fy - 2, 2, 0, 6.3); x.fill();
+      });
+      x.fillStyle = "rgba(255,255,255,.5)"; for (let i = 0; i < 8; i++) { const by = H - ((t * 30 + i * 40) % H); x.beginPath(); x.arc(40 + i * 33, by, 2 + (i % 3), 0, 6.3); x.fill(); }
+      caption(p.lines[cycle]);
+    } else if (ch === "space") {
+      x.fillStyle = "#070b1f"; x.fillRect(0, 0, W, H);
+      x.fillStyle = "#fff"; for (let i = 0; i < 40; i++) { const sx = (i * 73) % W, sy = (i * 37) % (H - 40); x.globalAlpha = 0.4 + 0.6 * Math.abs(Math.sin(t * 2 + i)); x.fillRect(sx, sy, 1.5, 1.5); } x.globalAlpha = 1;
+      const ph = p.moon ?? 0.5, mx = 230, my = 70, r = 36;
+      x.fillStyle = "#2a2f45"; x.beginPath(); x.arc(mx, my, r, 0, 6.3); x.fill();
+      // lit part of the moon for this phase
+      const k = Math.cos(ph * 2 * Math.PI), waxing = ph < 0.5;
+      x.fillStyle = "#f4f1dc"; x.beginPath();
+      x.arc(mx, my, r, -Math.PI / 2, Math.PI / 2, !waxing);
+      x.ellipse(mx, my, Math.abs(k) * r, r, 0, Math.PI / 2, -Math.PI / 2, (k > 0) === waxing);
+      x.fill();
+      x.fillStyle = "#cfd8ff"; x.font = "800 15px system-ui, sans-serif"; x.fillText("🔭 TONIGHT'S SKY", 12, 24);
+      caption(p.lines[cycle], "rgba(20,24,60,.8)");
+    } else if (ch === "news") {
+      x.fillStyle = "#f4efe4"; x.fillRect(0, 0, W, H);
+      x.fillStyle = "#b8433a"; x.fillRect(0, 0, W, 34); x.fillStyle = "#fff"; x.font = "800 17px system-ui, sans-serif"; x.fillText("📰 TOWN NEWS", 12, 23);
+      x.fillStyle = "#2b2a27"; x.font = "700 15px system-ui, sans-serif";
+      wrap(x, p.lines[cycle], W - 24).slice(0, 4).forEach((l, i) => x.fillText(l, 12, 62 + i * 20));
+      x.fillStyle = "#2b2a27"; x.fillRect(0, H - 22, W, 22); x.fillStyle = "#ffe27a"; x.font = "600 12px system-ui, sans-serif";
+      const ticker = p.lines.join("   •   "), tw = x.measureText(ticker).width + 60; x.fillText(ticker, W - ((t * 40) % (tw + W)), H - 7);
+    } else {
+      const g = x.createLinearGradient(0, 0, 0, H); g.addColorStop(0, "#ffd56b"); g.addColorStop(1, "#ff9f6b"); x.fillStyle = g; x.fillRect(0, 0, W, H);
+      const bx = 160 + Math.sin(t * 1.2) * 90, by = 95 - Math.abs(Math.sin(t * 3)) * 30;
+      x.fillStyle = "#6fb6ff"; x.beginPath(); x.arc(bx, by, 22, 0, 6.3); x.fill();
+      x.fillStyle = "#fff"; x.beginPath(); x.arc(bx - 7, by - 5, 6, 0, 6.3); x.arc(bx + 7, by - 5, 6, 0, 6.3); x.fill();
+      x.fillStyle = "#111"; x.beginPath(); x.arc(bx - 6, by - 4, 2.5, 0, 6.3); x.arc(bx + 8, by - 4, 2.5, 0, 6.3); x.fill();
+      x.strokeStyle = "#111"; x.lineWidth = 2; x.beginPath(); x.arc(bx, by + 4, 8, 0.2, Math.PI - 0.2); x.stroke();
+      x.fillStyle = "#7a3b12"; x.font = "800 15px system-ui, sans-serif"; wrap(x, p.title, W - 24).slice(0, 2).forEach((l, i) => x.fillText(l, 12, 24 + i * 18));
+      caption(p.lines[cycle], "rgba(122,59,18,.7)");
+    }
+    x.fillStyle = "rgba(255,255,255,.05)"; for (let yy = 0; yy < H; yy += 3) x.fillRect(0, yy, W, 1); // a touch of old-TV scanlines
+    tvTex.needsUpdate = true;
+  }
+
   // where he stands (or sits, or sleeps) for each thing he does indoors: [activity, position, faces toward]
   const HOUSE_SPOTS = [
     [/^sleep|nap/, V(-2.55, 0.6, -1.8), V(-2.55, 0.6, 2)],
     [/window|snow fall/, V(0.4, 0, -2.2), V(0.4, 0, -6)],
-    [/blanket/, V(2.2, 0.45, 1.75), V(0, 0, 0)],
+    [/blanket|TV/, V(2.3, 0.45, 1.25), V(2.3, 0.45, -4)],
     [/rain on the roof/, V(0, 0, 0.4), V(0, 0, 3)],
     [/tidy/, V(-1.0, 0, 0.9), V(-4, 0, 1)],
   ];
@@ -1255,7 +1330,9 @@ function buildWorld() {
     if (state.room === name) at.lerp(pino.group.position.clone().setY(at.y), name === "museum" ? 0.5 : 0.3);
     const inNook = name === "library" && state.room === "library" && /nook|read|nap|sleep/.test(state.doing) && !/drawing manual/.test(state.doing);
     if (inNook) at.copy(LROOM).add(NOOK).add(V(-0.4, 0.9, 0.4)); // he's in his reading nook: look right at it
-    controls.target.copy(at); camera.position.copy(at).add(inNook ? V(-2.6, 1.6, 3.2) : R.cam);
+    const onCouch = name === "house" && state.room === "house" && /\bTV\b|blanket/.test(state.doing);
+    if (onCouch) at.copy(HROOM).add(V(2.1, 0.95, -0.5)); // watching TV from his armchair: see him and the screen
+    controls.target.copy(at); camera.position.copy(at).add(inNook ? V(-2.6, 1.6, 3.2) : onCouch ? V(-2.9, 1.3, 2.7) : R.cam);
     camera.fov = R.fov || 62; camera.updateProjectionMatrix();
     Object.assign(controls, { minDistance: R.minD, maxDistance: R.maxD, minPolarAngle: 0.95, maxPolarAngle: 1.52 });
     roomLight.position.copy(R.origin).add(V(0, R.h - 0.6, 0)); roomLight.distance = Math.max(R.w, R.d) * 4;
@@ -1292,7 +1369,8 @@ function buildWorld() {
       let o = hit?.object; while (o && !o.userData.exhibit) o = o.parent;
       if (o) window.dispatchEvent(new CustomEvent("pino:exhibit", { detail: o.userData.exhibit }));
     }
-    else if (view.mode !== "town") { /* inside the house or library: nothing to tap but Pino */ }
+    else if (view.mode === "house" && ray.intersectObject(tvSet, true).length) window.dispatchEvent(new CustomEvent("pino:tv"));
+    else if (view.mode !== "town") { /* inside the house or library: nothing else to tap but Pino */ }
     else if (ray.intersectObject(mus, true).length) enterRoom("museum");
     else if (ray.intersectObject(house, true).length) enterRoom("house");
     else if (ray.intersectObject(lib, true).length) enterRoom("library");
@@ -1445,6 +1523,9 @@ function buildWorld() {
       pts.setXYZ(0, hand.x, hand.y, hand.z); pts.setXYZ(1, kite.position.x, kite.position.y - 0.6, kite.position.z); pts.needsUpdate = true;
     }
 
+    // the TV picture (only drawn while someone is looking inside the house)
+    if (view.mode === "house") { const frame = Math.floor(t * 8); if (frame !== tvDrawn) { tvDrawn = frame; drawTV(t); } }
+
     // the penguin teddy: tucked under his wing, hugged close, or sitting where he left it
     if (teddyState) {
       teddy.visible = true;
@@ -1512,7 +1593,8 @@ function buildWorld() {
     vmLight.intensity = f * 5; houseLight.intensity = f * 4; stars.material.opacity = f; moon.material.opacity = f;
 
     // camera follow
-    if (state.follow && (view.mode === "town" ? null : view.mode) === state.room) {
+    // follow him around town and the museum hall; the house and library are small enough to see at a glance
+    if (state.follow && (view.mode === "town" ? null : view.mode) === state.room && (view.mode === "town" || view.mode === "museum")) {
       tmp.copy(g.position).add(V(0, 0.5, 0)).sub(controls.target).multiplyScalar(Math.min(1, dt * 3));
       controls.target.add(tmp); camera.position.add(tmp);
     }
@@ -1567,6 +1649,7 @@ function buildWorld() {
     setGallery,
     setWeather,
     setTeddy: (t) => (teddyState = t),
+    setTV: (p) => { tvProg = p; tvDrawn = -1; if (view.mode !== "house") drawTV(0); },
     enterMuseum, exitMuseum, enterRoom, viewMode: () => view.mode, inRoom: () => !!state.room && state.room === view.mode, room: () => state.room,
     loadMuseum: (list) => {
       list.forEach((e) => (exhibitByName[e.name] = e.id));
@@ -1636,7 +1719,7 @@ function snacksTexture() {
 // ================================================================ UI + DATA
 const BADGES = [[/reading nook/, "🛋️"], [/sleep|nap/, "💤"], [/drawing manual/, "🖌️"], [/read/, "📖"], [/journal/, "✏️"], [/draw/, "🎨"], [/seed bar/, "🍫"], [/crisps/, "🥨"], [/juice/, "🧃"],
   [/leaf/, "🍂"], [/ducks/, "🦆"], [/bench|sit/, "💭"], [/window/, "🪟"], [/tidy/, "🧹"], [/talked/, "💬"], [/petted/, "❤️"], [/treat/, "🍪"], [/reflect/, "🌙"], [/walked/, "👣"], [/swing/, "🎠"], [/telescope/, "🔭"], [/toy train/, "🚂"], [/birdbath/, "💦"], [/kite/, "🪁"], [/given/, "🎁"], [/gramophone|next song/, "🎶"], [/dance/, "💃"], [/hung my drawing|art on the walls|hang/, "🖼️"],
-  [/exhibit|museum/, "🏛️"], [/penguin teddy/, "🐧"], [/snow-kiwi|soft snow/, "☃️"], [/snowflakes|snow fall/, "❄️"], [/frozen pond/, "⛸️"], [/puddles|rain on the roof/, "🌧️"], [/shelter/, "🌳"], [/spring flowers/, "🌷"], [/paddle/, "💦"]];
+  [/exhibit|museum/, "🏛️"], [/penguin teddy/, "🐧"], [/\bTV\b/, "📺"], [/snow-kiwi|soft snow/, "☃️"], [/snowflakes|snow fall/, "❄️"], [/frozen pond/, "⛸️"], [/puddles|rain on the roof/, "🌧️"], [/shelter/, "🌳"], [/spring flowers/, "🌷"], [/paddle/, "💦"]];
 let latest = null, first = true, speaking = 0, followOn = false;
 
 // ---- who you are: a random id this browser keeps, plus the name you tell Pino
@@ -1779,6 +1862,7 @@ function render(s) {
   renderWeather(s);
   renderMuseum(s);
   if (world) world.setTeddy(s.teddy || null);
+  if (world && JSON.stringify(s.tv) !== tvSig) { tvSig = JSON.stringify(s.tv); world.setTV(s.tv || null); }
   syncMusic(s.music || { on: false });
   renderGive(s);
   list("friends", s.friends || [], (f) => {
@@ -1920,6 +2004,21 @@ if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").cat
   window.addEventListener("appinstalled", () => { tip.hidden = true; btn.hidden = true; });
   if (!dismissed) setTimeout(explain, 1500); // greet new visitors with the how-to right away
 })();
+
+// ---- Pino's TV: tap it (inside his house) to see what's on and what he thought of it
+let tvSig = "-";
+window.addEventListener("pino:tv", () => {
+  const p = $("plaque"), tv = latest?.tv; p.replaceChildren();
+  const x = el("button", "x", "×"); x.type = "button"; x.onclick = () => (p.hidden = true);
+  if (!tv) p.append(x, el("b", null, "📺 The TV is off"), el("small", null, "Pino can switch it on whenever he likes. It has five free channels: weather, an aquarium cam, space, town news and cartoons."));
+  else {
+    p.append(x, el("b", null, `${tv.emoji} ${tv.name}`), el("small", null, tv.title));
+    tv.lines.forEach((l) => p.append(el("div", null, l)));
+  }
+  const last = (latest?.tvLog || []).at(-1);
+  if (last) p.append(el("div", "pino", `Pino thought: “${last.reaction}”`));
+  p.hidden = false;
+});
 
 // ---- weather & seasons: the real weather in Sarnia
 const WX_EMOJI = { clear: "☀️", partly: "⛅", cloudy: "☁️", fog: "🌫️", drizzle: "🌦️", rain: "🌧️", snow: "🌨️", storm: "⛈️" };

@@ -6,6 +6,7 @@ import { SONG_BY_ID, nextSong, randomSong, silence, songsOwned, type Music } fro
 import { recall } from "./memory.mts";
 import { frozenPond, outdoorFeeling, season, snowy, weatherDrain, weatherLine, wet, type Weather } from "./weather.mts";
 import { EXHIBITS, EXHIBIT_BY_ID, exhibitAction, exhibitFromAction } from "./museum.mts";
+import { nextChannel, programme, randomChannel, TV_OFF, type TV } from "./tv.mts";
 
 export const NAME = "Pino";
 export const SPECIES = "kiwi bird";
@@ -115,6 +116,9 @@ export type State = {
   lastSaw?: string | null;                       // museum exhibit he just looked at (he reacts next moment)
   museumLog?: { t: string; id: string; name: string; reaction: string }[];
   teddy?: { holding: boolean; place: string };   // his penguin teddy: in his wing, or left somewhere in town
+  tv?: TV;                                       // the TV in his house
+  lastWatched?: { channel: string; title: string; lines: string[] } | null; // what he just watched (he reacts next moment)
+  tvLog?: { t: string; channel: string; title: string; reaction: string }[];
   wants: Want[];                                 // what he wants right now, in his own words
   pastWants: Want[];                             // wishes he's let go of or moved on from
   conversations: { t: string; visitor: string; reply: string }[];
@@ -231,6 +235,13 @@ export function activitiesAt(s: State, place: string): Record<string, Effects> {
     } else if (s.teddy.place === place) acts["pick up my penguin teddy"] = { joy: 4 };
   }
   if (place === "house") {
+    // the TV: five free channels
+    if (!s.tv?.on) acts["turn on the TV"] = { joy: 3 };
+    else {
+      acts["watch TV"] = { joy: 6, energy: 3 };
+      acts["flip to the next TV channel"] = { joy: 3 };
+      acts["turn off the TV"] = { energy: 1 };
+    }
     if (wet(w)) acts["listen to the rain on the roof"] = { energy: 6, joy: 5 };
     if (w?.kind === "snow") acts["watch the snow fall from the window"] = { joy: 7, energy: 2 };
   }
@@ -303,7 +314,7 @@ export function townDescription(s: State) {
   const records = songsOwned(got).length;
   const playing = s.music?.on ? `it's playing "${SONG_BY_ID[s.music.song]?.title}" right now` : "it's switched off right now";
   return [
-    `- Your little house: your bed, a rug and a window over the path${extras("house").length ? `; plus ${extras("house").join(", ")}` : ""}.`,
+    `- Your little house: your bed, a rug, a fireplace, an armchair, a TV with five free channels (weather, an aquarium cam, space, town news and cartoons${s.tv?.on ? " - it's on right now" : ""}) and a window over the path${extras("house").length ? `; plus ${extras("house").join(", ")}` : ""}.`,
     `- The library: ${books} books on your shelf, your journal, a big drawing table, and - tucked inside at the back - your warm, cozy reading nook (squashy armchair, lamp, little crackling fireplace)${extras("library").length ? `; plus ${extras("library").join(", ")}` : ""}.`,
     `- The vending machine: ${snacks.join(", ")} (no coins needed).`,
     `- Your art gallery: ${(s.galleryWall ?? []).length ? `${s.galleryWall.length} of your drawings hang on the walls (${s.galleryWall.map((d) => `"${d.title ?? "untitled"}"`).join(", ")})` : `empty frames waiting for your drawings`}. You can hang any drawing you've finished.`,
@@ -353,6 +364,9 @@ export function decisionPrompt(s: State, opts: Option[], notes: Note[], now: num
   const note = notes.length ? `\nSomeone visited and left you a note: "${notes[0].text}"\n` : "";
   const outside = OUTDOORS.has(s.place) ? outdoorFeeling(s.weather) : "";
   const weather = `\nWeather: ${weatherLine(s.weather, now)}${outside ? ` ${outside}` : ""}\n`;
+  const tvNow = s.lastWatched
+    ? `\nYou just watched "${s.lastWatched.title}" on ${s.lastWatched.channel}:\n${s.lastWatched.lines.map((l) => `- ${l}`).join("\n")}\nLet your thought be your honest reaction to what you watched.\n`
+    : s.tv?.on && s.place === "house" ? `\nThe TV is on (${programme(s.tv.channel, s, now).name}).\n` : "";
   const ex = s.lastSaw ? EXHIBIT_BY_ID[s.lastSaw] : undefined;
   const museum = ex
     ? `\nYou just looked at "${ex.name}" (${ex.by}) in the museum. The plaque says: "${ex.fact}"\nLet your thought be your honest reaction to it - what amazes, puzzles or delights you, in your own words.\n`
@@ -380,7 +394,7 @@ export function decisionPrompt(s: State, opts: Option[], notes: Note[], now: num
     (openers.length ? ` Your recent thoughts started like ${openers.join(", ")} - start this one a different way.` : "") + "\n";
   return (
     `It is ${weekday}, ${clockStr(s, now)} (${night}). You are at the ${PLACES[s.place].label}: ${PLACES[s.place].desc}.\n\n` +
-    `How you feel right now:\n${feel}\n${weather}${bored}${note}${reading}${museum}\n` +
+    `How you feel right now:\n${feel}\n${weather}${bored}${note}${reading}${museum}${tvNow}\n` +
     (friends ? `Visitors you know:\n${friends}\n\n` : "") +
     `What happened recently (oldest first):\n${history}\n\n` +
     (remembered ? `Older memories that come to mind:\n${remembered}\n\n` : "") +
@@ -465,6 +479,10 @@ export function applyChoice(
     s.museumLog = [...(s.museumLog ?? []), { t, id: e.id, name: e.name, reaction: thought }].slice(-120);
   }
   s.lastSaw = null;
+  if (s.lastWatched) {
+    s.tvLog = [...(s.tvLog ?? []), { t, channel: s.lastWatched.channel, title: s.lastWatched.title, reaction: thought }].slice(-120);
+  }
+  s.lastWatched = null;
 
   if (opt.type === "hang") {
     const d = (s.drawings ?? []).find((x) => x.t === opt.name);
@@ -522,6 +540,15 @@ export function applyChoice(
       action = `${action} - now playing "${song.title}" by ${song.by}`;
     }
 
+    s.tv ??= { ...TV_OFF };
+    if (action === "turn on the TV") s.tv = { on: true, channel: s.tv.channel || randomChannel(), since: now };
+    else if (action === "flip to the next TV channel") s.tv = { on: true, channel: nextChannel(s.tv.channel), since: now };
+    else if (action === "turn off the TV") s.tv = { ...s.tv, on: false };
+    if (s.tv.on && /TV/.test(action) && action !== "turn off the TV") {
+      const p = programme(s.tv.channel, s, now);
+      s.lastWatched = { channel: p.name, title: p.title, lines: p.lines };
+      action = `${action} - ${p.name}: "${p.title}"`;
+    }
     if (s.teddy && action === "pick up my penguin teddy") s.teddy = { holding: true, place: here };
     if (s.teddy && action === "put my penguin teddy down here") s.teddy = { holding: false, place: here };
     const exhibit = exhibitFromAction(action);
@@ -728,6 +755,8 @@ export function publicView(s: State, unread: number, now: number, chats: { at: n
     season: season(now), pond: { frozen: frozenPond(s.weather) },
     museumLog: (s.museumLog ?? []).slice(-40),
     teddy: s.teddy ?? null,
+    tv: s.tv?.on ? programme(s.tv.channel, s, now) : null,
+    tvLog: (s.tvLog ?? []).slice(-30),
     exhibit: s.place === "museum" ? exhibitFromAction(s.doing)?.id ?? null : null,
   };
 }
