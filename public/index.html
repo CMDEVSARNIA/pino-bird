@@ -923,6 +923,16 @@ function buildWorld() {
     [/journal/, V(1.5, 0.36, -2.0), V(1.5, 0, -4)],
     [/nook|read|nap|sleep/, NOOK.clone().add(V(0.1, 0.4, 0.1)), NOOK.clone().add(V(-2.5, 0, 2.5))],
   ];
+  // places he pootles over to when he's free in the library: [stand here, look at that]
+  const LIB_ROAM = [
+    [V(-3.6, 0, -3.4), V(-3.6, 1, -6)], [V(-2.6, 0, -3.4), V(-2.6, 1, -6)],   // browsing the big bookcase
+    [V(-4.9, 0, -1.0), V(-8, 1, -1.0)], [V(-4.9, 0, 2.0), V(-8, 1, 2.0)],      // the side shelves
+    [V(4.9, 0, 1.9), V(8, 1, 1.9)],                                             // the shelf by the door
+    [V(-0.6, 0, -3.5), V(-0.6, 2, -6)],                                         // gazing out of the window
+    [V(4.6, 0, -1.1), V(8, 0.5, -1.1)],                                         // warming up by the nook's fire
+    [V(0.6, 0, 1.4), V(0.6, 0, -4)], [V(-2.2, 0, 2.0), V(-2.2, 0, 0.6)],        // the middle of the room, the drawing table
+  ];
+  const SEATED = /nook|read|draw|paint|studied|study|journal|nap|sleep/; // things he does sitting down: he stays put
 
   // ---- WEATHER & SEASONS: the real weather in Sarnia, and the real season
   const SKY = { clear: 0xbfe3f5, partly: 0xc6dceb, cloudy: 0xb3bec8, fog: 0xc9cfd4, drizzle: 0xa6b2bd, rain: 0x98a5b1, snow: 0xc9d2da, storm: 0x6e7986 };
@@ -1219,7 +1229,9 @@ function buildWorld() {
     view.mode = name;
     const at = R.origin.clone().add(R.target);
     if (state.room === name) at.lerp(pino.group.position.clone().setY(at.y), name === "museum" ? 0.5 : 0.3);
-    controls.target.copy(at); camera.position.copy(at).add(R.cam);
+    const inNook = name === "library" && state.room === "library" && /nook|read|nap|sleep/.test(state.doing) && !/drawing manual/.test(state.doing);
+    if (inNook) at.copy(LROOM).add(NOOK).add(V(-0.4, 0.9, 0.4)); // he's in his reading nook: look right at it
+    controls.target.copy(at); camera.position.copy(at).add(inNook ? V(-2.6, 1.6, 3.2) : R.cam);
     camera.fov = R.fov || 62; camera.updateProjectionMatrix();
     Object.assign(controls, { minDistance: R.minD, maxDistance: R.maxD, minPolarAngle: 0.95, maxPolarAngle: 1.52 });
     roomLight.position.copy(R.origin).add(V(0, R.h - 0.6, 0)); roomLight.distance = Math.max(R.w, R.d) * 4;
@@ -1273,6 +1285,17 @@ function buildWorld() {
     const g = pino.group;
 
     // between decisions, potter about near where he is so he always feels alive
+    if (!state.path.length && t > state.nextWander && state.room === "library" && !SEATED.test(state.doing)) {
+      // free in the library: wander from shelf to shelf, to the window, to the fire
+      const hub = V(0.6, 0, 1.6).add(LROOM), via = (to) => (g.position.distanceTo(hub) > 1 && to.distanceTo(hub) > 1 ? [hub.clone(), to] : [to]); // walk round the furniture, through the middle
+      if (state.wandering && Math.random() < 0.3) { state.path = via(state.base.clone().setY(0)); state.wandering = false; state.glance = null; }
+      else {
+        const [at, look] = LIB_ROAM[Math.floor(Math.random() * LIB_ROAM.length)];
+        state.path = via(at.clone().add(LROOM)); state.glance = look.clone().add(LROOM); state.wandering = true;
+        if (Math.random() < 0.2) state.hop = 0.6;
+      }
+      state.nextWander = t + (state.wandering ? 5 + Math.random() * 6 : 7 + Math.random() * 6);
+    }
     if (!state.path.length && t > state.nextWander && state.room === "museum" && !state.sleeping) {
       // in the museum he roams the hall freely, stopping to peer at whatever catches his eye
       if (state.wandering && Math.random() < 0.35) { state.path = [state.base.clone()]; state.wandering = false; state.glance = null; }
