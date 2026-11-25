@@ -11,7 +11,7 @@ import { acquireLock, deleteKeys, deleteNote, listEvents, listNotes, loadState, 
 // While Pino is new (his first few hours) he lives two moments per wake-up,
 // ~22 seconds apart, so he thinks about twice a minute. After that he lives
 // one moment every 5 minutes. Scheduled functions must finish within 30s.
-const SECOND_MOMENT_AT = 22_000;
+const SECOND_MOMENT_AT = 13_000;
 const HARD_STOP = 28_500;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -95,6 +95,7 @@ async function moment(s: State, start: number) {
     try {
       const { text, model } = await ask(identityPrompt(s), decisionPrompt(s, opts, notes, now), timeLeft());
       ({ idx, thought, note } = readChoice(parseJSON(text), opts.length));
+      if (idx < 0) console.log("Brain reply unreadable:", text.slice(0, 300));
       brain = model;
       s.last_error = "";
     } catch (e) {
