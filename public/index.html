@@ -933,6 +933,11 @@ function buildWorld() {
     [V(0.6, 0, 1.4), V(0.6, 0, -4)], [V(-2.2, 0, 2.0), V(-2.2, 0, 0.6)],        // the middle of the room, the drawing table
   ];
   const SEATED = /nook|read|draw|paint|studied|study|journal|nap|sleep/; // things he does sitting down: he stays put
+  // where the teddy sits when he puts it down at each place
+  const TEDDY_SPOTS = {
+    park: V(-4.3, 0, 2.7), gallery: V(3.9, 0, 3.3), vending: V(-1.5, 0, -2.4),
+    house: V(-2.2, 0.6, -0.8).add(HROOM), library: V(3.0, 0, -1.5).add(LROOM), museum: V(0.7, 0.55, 2.2).add(ROOM),
+  };
 
   // ---- WEATHER & SEASONS: the real weather in Sarnia, and the real season
   const SKY = { clear: 0xbfe3f5, partly: 0xc6dceb, cloudy: 0xb3bec8, fog: 0xc9cfd4, drizzle: 0xa6b2bd, rain: 0x98a5b1, snow: 0xc9d2da, storm: 0x6e7986 };
@@ -1152,6 +1157,25 @@ function buildWorld() {
 
   // ================================================================ PINO
   const pino = makeKiwi(M); pino.group.scale.setScalar(1.45); scene.add(pino.group);
+
+  // ---- his penguin teddy (a free gift): carried in his wing, hugged, or left wherever he puts it down
+  const teddy = new THREE.Group(); teddy.visible = false; scene.add(teddy);
+  {
+    const black = M(0x24262b, { flatShading: false }), white = M(0xf6f4ee, { flatShading: false }), orange = M(0xf0a03a);
+    const body = add(new THREE.Mesh(new THREE.SphereGeometry(0.16, 14, 12), black), teddy); body.position.y = 0.17; body.scale.set(1, 1.15, 0.9);
+    const belly = add(new THREE.Mesh(new THREE.SphereGeometry(0.125, 14, 12), white), teddy); belly.position.set(0, 0.15, 0.055); belly.scale.set(1, 1.15, 0.8);
+    const head = add(new THREE.Mesh(new THREE.SphereGeometry(0.105, 14, 12), black), teddy); head.position.y = 0.39;
+    for (const x of [-0.04, 0.04]) {
+      add(new THREE.Mesh(new THREE.SphereGeometry(0.03, 8, 8), white), teddy).position.set(x, 0.41, 0.085);
+      add(new THREE.Mesh(new THREE.SphereGeometry(0.014, 6, 6), M(0x111111)), teddy).position.set(x, 0.41, 0.11);
+    }
+    add(new THREE.Mesh(new THREE.ConeGeometry(0.028, 0.07, 6).rotateX(Math.PI / 2), orange), teddy).position.set(0, 0.37, 0.12);
+    for (const x of [-1, 1]) {
+      const fl = add(new THREE.Mesh(new THREE.SphereGeometry(0.05, 8, 8), black), teddy); fl.position.set(x * 0.15, 0.2, 0); fl.scale.set(0.45, 1.5, 0.8); fl.rotation.z = x * 0.35;
+      add(new THREE.Mesh(new THREE.SphereGeometry(0.045, 8, 6), orange), teddy).position.set(x * 0.06, 0.015, 0.06);
+    }
+  }
+  let teddyState = null;
   pino.group.position.copy(SPOTS.house);
 
   // ---------------------------------------------------------------- overlays
@@ -1421,6 +1445,22 @@ function buildWorld() {
       pts.setXYZ(0, hand.x, hand.y, hand.z); pts.setXYZ(1, kite.position.x, kite.position.y - 0.6, kite.position.z); pts.needsUpdate = true;
     }
 
+    // the penguin teddy: tucked under his wing, hugged close, or sitting where he left it
+    if (teddyState) {
+      teddy.visible = true;
+      if (teddyState.holding) {
+        if (teddy.parent !== g) g.add(teddy);
+        const hugging = /hug my penguin/.test(state.doing) && !state.path.length;
+        if (hugging) { teddy.position.set(0.16, 0.1, 0.5); teddy.rotation.set(0, 0.35, Math.sin(t * 2) * 0.15); } // held out front, rocking gently
+        else { teddy.position.set(0.33, 0.28 + (walking ? Math.abs(Math.sin(t * 13)) * 0.03 : 0), 0.12); teddy.rotation.set(0, -0.6, -0.25); }
+        teddy.scale.setScalar(0.85);
+      } else {
+        if (teddy.parent !== scene) scene.add(teddy);
+        const at = TEDDY_SPOTS[teddyState.place] || TEDDY_SPOTS.park;
+        teddy.position.copy(at); teddy.rotation.set(0, 0.4, 0); teddy.scale.setScalar(1.25);
+      }
+    } else teddy.visible = false;
+
     // swings: one sways in the breeze; Pino rides the other when he's swinging
     const riding = /swing/.test(state.doing) && !state.path.length;
     swings[0].pivot.rotation.x += ((riding ? Math.sin(t * 2.3) * 0.6 : Math.sin(t * 0.9) * 0.05) - swings[0].pivot.rotation.x) * Math.min(1, dt * 4);
@@ -1526,6 +1566,7 @@ function buildWorld() {
     setMusic: (on) => (musicOn = on),
     setGallery,
     setWeather,
+    setTeddy: (t) => (teddyState = t),
     enterMuseum, exitMuseum, enterRoom, viewMode: () => view.mode, inRoom: () => !!state.room && state.room === view.mode, room: () => state.room,
     loadMuseum: (list) => {
       list.forEach((e) => (exhibitByName[e.name] = e.id));
@@ -1595,7 +1636,7 @@ function snacksTexture() {
 // ================================================================ UI + DATA
 const BADGES = [[/reading nook/, "🛋️"], [/sleep|nap/, "💤"], [/drawing manual/, "🖌️"], [/read/, "📖"], [/journal/, "✏️"], [/draw/, "🎨"], [/seed bar/, "🍫"], [/crisps/, "🥨"], [/juice/, "🧃"],
   [/leaf/, "🍂"], [/ducks/, "🦆"], [/bench|sit/, "💭"], [/window/, "🪟"], [/tidy/, "🧹"], [/talked/, "💬"], [/petted/, "❤️"], [/treat/, "🍪"], [/reflect/, "🌙"], [/walked/, "👣"], [/swing/, "🎠"], [/telescope/, "🔭"], [/toy train/, "🚂"], [/birdbath/, "💦"], [/kite/, "🪁"], [/given/, "🎁"], [/gramophone|next song/, "🎶"], [/dance/, "💃"], [/hung my drawing|art on the walls|hang/, "🖼️"],
-  [/exhibit|museum/, "🏛️"], [/snow-kiwi|soft snow/, "☃️"], [/snowflakes|snow fall/, "❄️"], [/frozen pond/, "⛸️"], [/puddles|rain on the roof/, "🌧️"], [/shelter/, "🌳"], [/spring flowers/, "🌷"], [/paddle/, "💦"]];
+  [/exhibit|museum/, "🏛️"], [/penguin teddy/, "🐧"], [/snow-kiwi|soft snow/, "☃️"], [/snowflakes|snow fall/, "❄️"], [/frozen pond/, "⛸️"], [/puddles|rain on the roof/, "🌧️"], [/shelter/, "🌳"], [/spring flowers/, "🌷"], [/paddle/, "💦"]];
 let latest = null, first = true, speaking = 0, followOn = false;
 
 // ---- who you are: a random id this browser keeps, plus the name you tell Pino
@@ -1737,6 +1778,7 @@ function render(s) {
   if (world) { world.setOwned(s.owned || []); world.setGallery(s.galleryWall || []); }
   renderWeather(s);
   renderMuseum(s);
+  if (world) world.setTeddy(s.teddy || null);
   syncMusic(s.music || { on: false });
   renderGive(s);
   list("friends", s.friends || [], (f) => {
@@ -1998,7 +2040,7 @@ setInterval(async () => {
 }, 60_000);
 
 // ---- give tab
-const KINDS = [["artbook", "Art books (he learns to draw from them)"], ["holiday", "Holiday books 🎄🎃🦃🐣"], ["book", "Books for his library"], ["song", "Records for his gramophone"], ["treat", "Treats (eaten right away)"], ["snack", "New snacks for the vending machine"], ["thing", "Things for his town"]];
+const KINDS = [["toy", "Toys (free!)"], ["artbook", "Art books (he learns to draw from them)"], ["holiday", "Holiday books 🎄🎃🦃🐣"], ["book", "Books for his library"], ["song", "Records for his gramophone"], ["treat", "Treats (eaten right away)"], ["snack", "New snacks for the vending machine"], ["thing", "Things for his town"]];
 let giveSig = "";
 function renderGive(s) {
   const avail = s.giftsAvailable || [];
@@ -2011,15 +2053,16 @@ function renderGive(s) {
     box.append(el("div", "gkind", label));
     const grid = el("div", "gifts");
     for (const g of items) {
-      const card = el("div", "gift"), btn = el("button", null, `Give · 🌱 ${g.price}`); btn.type = "button";
+      const label = g.price ? `Give · 🌱 ${g.price}` : "Give · Free";
+      const card = el("div", "gift"), btn = el("button", null, label); btn.type = "button";
       if (mySeeds < g.price) { btn.disabled = true; btn.title = `You need 🌱 ${g.price}`; }
-      card.append(el("span", "em", g.emoji), el("b", null, g.name.replace(/^(a |an |the book |the art book |the holiday book |the record )/, "").replace(/ for the vending machine$/, "")), el("small", null, g.desc), btn);
+      card.append(el("span", "em", g.emoji), el("b", null, g.name.replace(/^(a |an |the book |the art book |the holiday book |the record )/, "").replace(/^./, (c) => c.toUpperCase()).replace(/ for the vending machine$/, "")), el("small", null, g.desc), btn);
       btn.onclick = async () => {
         btn.disabled = true; btn.textContent = "Giving…";
         const j = await post("/api/give", { id: g.id });
         if (typeof j.seeds === "number") setSeeds(j.seeds);
         if (j.ok) { toast(j.reaction); card.remove(); if (world) { g.kind === "treat" || g.kind === "snack" ? world.treat() : world.pet(); } setTimeout(refresh, 1500); }
-        else { toast(j.error || "That didn't work. Try again."); btn.disabled = false; btn.textContent = `Give · 🌱 ${g.price}`; if (j.error && /already/.test(j.error)) { card.remove(); } }
+        else { toast(j.error || "That didn't work. Try again."); btn.disabled = false; btn.textContent = label; if (j.error && /already/.test(j.error)) { card.remove(); } }
       };
       grid.append(card);
     }

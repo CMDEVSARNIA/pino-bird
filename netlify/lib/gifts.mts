@@ -6,7 +6,7 @@ import { SONGS } from "./music.mts";
 type Fx = { food?: number; energy?: number; joy?: number; kind?: "journal" | "drawing" };
 export type Gift = {
   id: string;
-  kind: "book" | "artbook" | "holiday" | "treat" | "snack" | "thing" | "song";
+  kind: "book" | "artbook" | "holiday" | "treat" | "snack" | "thing" | "song" | "toy";
   price: number;       // in seeds
   name: string;        // "a telescope"
   emoji: string;
@@ -18,7 +18,7 @@ export type Gift = {
   book?: string;       // books: slug
   song?: string;       // songs: id
 };
-export const PRICES = { treat: 10, song: 20, snack: 25, book: 30, holiday: 30, artbook: 40, thing: 50 } as const;
+export const PRICES = { treat: 10, song: 20, snack: 25, book: 30, holiday: 30, artbook: 40, toy: 0, thing: 50 } as const;
 export const QUICK_TREAT_PRICE = 2;
 
 const TREATS: Omit<Gift, "price">[] = [
@@ -61,6 +61,12 @@ const SONG_GIFTS: Gift[] = SONGS.filter((s) => s.gift).map((s) => ({
   desc: `${s.title} by ${s.by}. A new record for his gramophone.`, song: s.id,
 }));
 
-export const GIFTS: Gift[] = ([...BOOK_GIFTS, ...SONG_GIFTS, ...TREATS, ...SNACKS, ...THINGS] as (Omit<Gift, "price"> & { price?: number })[])
+// Toys he can carry around: he picks them up, hugs them and puts them down wherever he likes
+export const TEDDY_ID = "toy-penguin";
+const TOYS: Omit<Gift, "price">[] = [
+  { id: TEDDY_ID, kind: "toy", name: "a penguin teddy", emoji: "🐧", desc: "A soft little penguin to cuddle. Pino can pick it up and carry it anywhere. Free!" },
+];
+
+export const GIFTS: Gift[] = ([...TOYS, ...BOOK_GIFTS, ...SONG_GIFTS, ...TREATS, ...SNACKS, ...THINGS] as (Omit<Gift, "price"> & { price?: number })[])
   .map((g) => ({ ...g, price: g.price ?? PRICES[g.kind] }));
 export const GIFT_BY_ID: Record<string, Gift> = Object.fromEntries(GIFTS.map((g) => [g.id, g]));

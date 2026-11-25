@@ -40,8 +40,9 @@ export default async (req: Request, context: Context) => {
 
   if (req.method === "GET" && pathname === "/api/state") {
     const meId = url.searchParams.get("who") ?? "";
-    const [s, unread, chats, claimed, people, mePerson] = await Promise.all([loadState(), countNotes(), recentChats(14), claimedGiftIds(), peopleIndex(),
+    let [s, unread, chats, claimed, people, mePerson] = await Promise.all([loadState(), countNotes(), recentChats(14), claimedGiftIds(), peopleIndex(),
       /^[a-z0-9-]{8,64}$/i.test(meId) ? getPerson(meId) : Promise.resolve(null)]);
+    mePerson = await grantSeeds(mePerson, people, now);
     const gone = new Set([...claimed, ...(s.gifts?.received ?? [])]);
     return json({
       ...publicView(s, unread, now, chats.map(({ at, you, pino, name, react }) => ({ at, you, pino, name, react }))),
@@ -213,4 +214,21 @@ async function museumImage(id: string) {
     console.log(`Museum picture ${id} failed:`, (e as Error).message);
     return new Response("Picture unavailable", { status: 502, headers: { "Cache-Control": "no-store" } });
   }
+}
+
+// One-off top-ups the owner asked for. Each is paid once, ever, to the visitor with that
+// name who has visited most (so a newcomer can't claim it by typing the same name).
+const GRANTS = [{ key: "grants/2026-11-25-christian-300", name: "christian", seeds: 300 }];
+async function grantSeeds(me: Person | null, people: Record<string, { name: string; visits: number }>, now: number) {
+  if (!me) return me;
+  for (const g of GRANTS) {
+    if (me.name.trim().toLowerCase() !== g.name) continue;
+    const top = Object.entries(people).filter(([, p]) => (p.name ?? "").trim().toLowerCase() === g.name).sort((a, b) => b[1].visits - a[1].visits)[0];
+    if (top?.[0] !== me.id) continue;
+    const r = await store().setJSON(g.key, { at: now, id: me.id }, { onlyIfNew: true });
+    if (!r.modified) continue;
+    me = (await meet({ id: me.id, name: me.name }, (p) => { p.seeds = seedsOf(p) + g.seeds; })) ?? me;
+    console.log(`Granted ${g.seeds} seeds to ${me.name} (${me.id})`);
+  }
+  return me;
 }

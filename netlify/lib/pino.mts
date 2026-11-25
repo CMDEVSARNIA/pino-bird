@@ -1,7 +1,7 @@
 // The bird's world and mind. Pure logic - no storage here, so it's easy to test.
 
 import { BOOKS } from "./library.mts";
-import { GIFT_BY_ID } from "./gifts.mts";
+import { GIFT_BY_ID, TEDDY_ID } from "./gifts.mts";
 import { SONG_BY_ID, nextSong, randomSong, silence, songsOwned, type Music } from "./music.mts";
 import { recall } from "./memory.mts";
 import { frozenPond, outdoorFeeling, season, snowy, weatherDrain, weatherLine, wet, type Weather } from "./weather.mts";
@@ -114,6 +114,7 @@ export type State = {
   weather?: Weather;                             // the real weather in Sarnia, checked every 15 minutes
   lastSaw?: string | null;                       // museum exhibit he just looked at (he reacts next moment)
   museumLog?: { t: string; id: string; name: string; reaction: string }[];
+  teddy?: { holding: boolean; place: string };   // his penguin teddy: in his wing, or left somewhere in town
   wants: Want[];                                 // what he wants right now, in his own words
   pastWants: Want[];                             // wishes he's let go of or moved on from
   conversations: { t: string; visitor: string; reply: string }[];
@@ -222,6 +223,13 @@ export function activitiesAt(s: State, place: string): Record<string, Effects> {
       acts["shelter under the big tree"] = { energy: 2, joy: 2 };
     }
   }
+  // the penguin teddy: pick it up where he left it, hug it while carrying it, put it down anywhere
+  if (s.teddy) {
+    if (s.teddy.holding) {
+      acts["hug my penguin teddy"] = { joy: 8, energy: 1 };
+      acts["put my penguin teddy down here"] = { joy: 1 };
+    } else if (s.teddy.place === place) acts["pick up my penguin teddy"] = { joy: 4 };
+  }
   if (place === "house") {
     if (wet(w)) acts["listen to the rain on the roof"] = { energy: 6, joy: 5 };
     if (w?.kind === "snow") acts["watch the snow fall from the window"] = { joy: 7, energy: 2 };
@@ -301,6 +309,7 @@ export function townDescription(s: State) {
     `- Your art gallery: ${(s.galleryWall ?? []).length ? `${s.galleryWall.length} of your drawings hang on the walls (${s.galleryWall.map((d) => `"${d.title ?? "untitled"}"`).join(", ")})` : `empty frames waiting for your drawings`}. You can hang any drawing you've finished.`,
     `- The museum: a grand domed building full of real treasures - famous paintings (like The Starry Night and the Mona Lisa), a T. rex skeleton, a giant moa skeleton, the Rosetta Stone, an Egyptian mummy, the Wright brothers' airplane, a moon rock, a Saturn V rocket and more. You've looked at ${new Set((s.museumLog ?? []).map((m) => m.id)).size} of its ${EXHIBITS.length} exhibits.`,
     `- The weather in town right now: ${weatherLine(s.weather, Date.now())}`,
+    ...(s.teddy ? [`- Your penguin teddy: ${s.teddy.holding ? "you're carrying it with you right now" : `you left it at the ${PLACES[s.teddy.place]?.label ?? s.teddy.place}`}. You can pick it up, hug it, and put it down wherever you like.`] : []),
     `- The park: a big tree, ${season(Date.now()).name === "autumn" ? "a leaf pile, " : ""}a bench, a swing set, a pond${frozenPond(s.weather) ? " (frozen over - the ducks have gone)" : " with ducks"}, and your gramophone - a wind-up record player with ${records} records (${playing})${extras("park").length ? `; plus ${extras("park").join(", ")}` : ""}.`,
   ].join("\n");
 }
@@ -513,6 +522,8 @@ export function applyChoice(
       action = `${action} - now playing "${song.title}" by ${song.by}`;
     }
 
+    if (s.teddy && action === "pick up my penguin teddy") s.teddy = { holding: true, place: here };
+    if (s.teddy && action === "put my penguin teddy down here") s.teddy = { holding: false, place: here };
     const exhibit = exhibitFromAction(action);
     if (exhibit) s.lastSaw = exhibit.id;
     if (kind === "journal" && note) s.journal.push({ t, text: note });
@@ -618,9 +629,11 @@ export function applyVisits(s: State, visits: Visit[], now: number) {
     s.gifts.log.push({ t, id: g.id, name: g.name, emoji: g.emoji, from: whoName(v) });
     s.gifts.log = s.gifts.log.slice(-200);
     if (g.kind === "song" && g.song) s.music = { on: true, song: g.song, since: now };
+    if (g.id === TEDDY_ID) s.teddy = { holding: true, place: s.place }; // straight into his wings
     const what = g.kind === "book" || g.kind === "holiday" ? `${g.name} for my library shelf`
       : g.kind === "artbook" ? `${g.name} - a drawing manual to learn from`
       : g.kind === "song" ? `${g.name} - it's playing on my gramophone right now!`
+      : g.kind === "toy" ? `${g.name} - I'm holding it in my wings right now`
       : g.kind === "snack" ? `${g.name} - now I can "${g.activity}"`
       : g.kind === "thing" ? `${g.name} at the ${PLACES[g.place!]?.label} - now I can "${g.activity}"` : g.name;
     remember(`was given ${what} by ${whoName(v)}`,
@@ -714,6 +727,7 @@ export function publicView(s: State, unread: number, now: number, chats: { at: n
     weather: s.weather ? { kind: s.weather.kind, desc: s.weather.desc, temp: s.weather.temp, wind: s.weather.wind, snow: s.weather.snow, day: s.weather.day, at: s.weather.at } : null,
     season: season(now), pond: { frozen: frozenPond(s.weather) },
     museumLog: (s.museumLog ?? []).slice(-40),
+    teddy: s.teddy ?? null,
     exhibit: s.place === "museum" ? exhibitFromAction(s.doing)?.id ?? null : null,
   };
 }
