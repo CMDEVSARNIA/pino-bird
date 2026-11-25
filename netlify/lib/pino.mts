@@ -211,13 +211,20 @@ export function decisionPrompt(s: State, opts: Option[], notes: Note[], now: num
   const { weekday } = localTime(now);
   const night = isNight(now) ? "night time - it's dark and most creatures are asleep" : "daytime";
   const numbered = opts.map((o, i) => `${i + 1}. ${o.label}`).join("\n");
+  // keep his inner voice fresh: show how recent thoughts began so he doesn't fall into a rut
+  const openers = s.memories.filter((m) => m.brain !== "visitor" && m.thought).slice(-6)
+    .map((m) => `"${m.thought.split(/\s+/).slice(0, 5).join(" ")}..."`);
+  const voice = "\nAbout your thought: don't recap your needs or list what you've done today. Say what's actually on your mind " +
+    "right now - something you notice, wonder about, remember, want, or a little joke or feeling about this exact moment. " +
+    "1-2 short sentences in your own voice." +
+    (openers.length ? ` Your recent thoughts started like ${openers.join(", ")} - start this one a different way.` : "") + "\n";
   return (
     `It is ${weekday}, ${clockStr(s, now)} (${night}). You are at the ${PLACES[s.place].label}: ${PLACES[s.place].desc}.\n\n` +
     `How you feel right now:\n${feel}\n${bored}${note}${reading}\n` +
     `What happened recently (oldest first):\n${history}\n\n` +
-    `What you could do next:\n${numbered}\n\n` +
+    `What you could do next:\n${numbered}\n${voice}\n` +
     "Pick ONE option. Reply with JSON exactly like this:\n" +
-    '{"thought": "one or two sentences, first person, about how you feel and why you chose this", ' +
+    '{"thought": "what is on your mind, first person, 1-2 short sentences", ' +
     '"choice": <option number>, ' +
     '"note": "only when writing in your journal, drawing (describe the picture you want to draw), or replying to a visitor - otherwise an empty string"}'
   );
