@@ -1237,7 +1237,7 @@ function buildWorld() {
     x.fillStyle = g; x.fillRect(0, 0, 64, 64); return new THREE.CanvasTexture(c);
   })();
   const lampPost = M(0x2f4a3a), lamps = [];
-  [[1.0, -4.2], [-1.0, -5.6], [1.2, -0.9], [-2.2, 1.0], [2.4, 0.9], [0.3, 6.6]].forEach(([lx, lz], i) => {
+  [[1.0, -4.2], [-1.0, -5.6], [-2.2, 1.0], [0.3, 6.6]].forEach(([lx, lz], i) => {
     const lp = new THREE.Group(); lp.position.set(lx, 0, lz); scene.add(lp);
     add(new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.2, 0.2, 8), lampPost), lp).position.y = 0.1;
     add(new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.07, 2.5, 8), lampPost), lp).position.y = 1.3;
