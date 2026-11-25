@@ -76,7 +76,7 @@ async function moment(s: State, start: number) {
 
   try {
     if (reflecting) {
-      const { text } = await ask(identityPrompt(s), reflectionPrompt(s), timeLeft());
+      const { text } = await ask(identityPrompt(s), reflectionPrompt(s), timeLeft(), 1000);
       applyReflection(s, parseJSON(text), now);
       const last = s.memories.at(-1)!;
       s.memories.push({ ...last, place: s.place, action: "reflected on life", thought: s.insights.at(-1)?.text ?? last.thought,

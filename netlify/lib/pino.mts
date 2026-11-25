@@ -71,6 +71,7 @@ export type Memory = {
 };
 export type Note = { key: string; text: string; at: number };
 export type Drawing = { t: string; text: string; title?: string; svg?: string };
+export type Want = { t: string; want: string; why: string; size?: string };
 export type State = {
   born: number; tick: number; place: string;
   needs: Record<Need, number>;
@@ -83,6 +84,8 @@ export type State = {
   lastRead: { slug: string; page: number } | null; // what he just read (he reacts next moment)
   readingLog: { t: string; slug: string; title: string; page: number; of: number; reaction: string }[];
   pendingDrawing: number | null;                 // index of a drawing he still has to put on paper
+  wants: Want[];                                 // what he wants right now, in his own words
+  pastWants: Want[];                             // wishes he's let go of or moved on from
   conversations: { t: string; visitor: string; reply: string }[];
   tried: Record<string, number>;
   thought: string; doing: string;
@@ -95,7 +98,7 @@ export function newState(now: number): State {
     needs: { food: 70, energy: 80, joy: 50 },
     personality: "I'm new here and I don't know what I like yet. I want to find out.",
     insights: [], memories: [], journal: [], drawings: [], conversations: [], tried: {},
-    books: {}, lastRead: null, readingLog: [], pendingDrawing: null,
+    books: {}, lastRead: null, readingLog: [], pendingDrawing: null, wants: [], pastWants: [],
     thought: "Where am I? It's cosy here...", doing: "waking up for the first time",
     last_error: "", last_tick_at: 0,
   };
@@ -188,6 +191,8 @@ export function identityPrompt(s: State) {
     "",
     `Things you have realised about yourself:\n${insights}`,
     "",
+    `Things you want right now:\n${s.wants.map((w) => `- ${w.want}`).join("\n") || "- (you haven't worked that out yet)"}`,
+    "",
     "Always reply with ONLY a JSON object and no other text.",
   ].join("\n");
 }
@@ -235,10 +240,15 @@ export function reflectionPrompt(s: State) {
   return (
     `Look back over what you've done lately:\n${recent}\n\n` +
     `Your current self-description:\n${s.personality}\n\n` +
+    `What you wanted last time:\n${s.wants.map((w) => `- ${w.want} (because ${w.why})`).join("\n") || "- (nothing yet)"}\n\n` +
     "Think about what made you feel good or bad, what bored you, and what you're curious to try next. " +
+    "Then think about what you WANT - anything at all, big or small, possible or impossible: something for your town, " +
+    "something to do, something to learn, a thing, a friend, a feeling. Be honest and specific; keep old wants if you still want them. " +
+    "Tell the visitors who read this what you want and why, in your own voice.\n" +
     "Reply with JSON exactly like this:\n" +
     '{"insights": ["a short realisation about yourself", "another one"], ' +
-    '"personality": "your updated self-description: 3-5 sentences, first person, including things you like and dislike"}'
+    '"personality": "your updated self-description: 3-5 sentences, first person, including things you like and dislike", ' +
+    '"wants": [{"want": "what you want, in a few words", "why": "why you want it, one sentence", "size": "tiny, medium or huge"}]}'
   );
 }
 
@@ -373,6 +383,20 @@ export function applyReflection(s: State, reply: any, now: number) {
   s.insights = s.insights.slice(-60);
   const p = reply?.personality;
   if (typeof p === "string" && p.length > 20 && p.length < 1500) s.personality = p.trim();
+  if (Array.isArray(reply?.wants)) {
+    const fresh: Want[] = reply.wants.slice(0, 5)
+      .filter((w: any) => typeof w?.want === "string" && w.want.trim())
+      .map((w: any) => {
+        const want = w.want.trim().slice(0, 140);
+        const old = s.wants.find((o) => o.want.toLowerCase() === want.toLowerCase());
+        return { t: old?.t ?? t, want, why: String(w.why ?? "").trim().slice(0, 300), size: typeof w.size === "string" ? w.size.slice(0, 12) : undefined };
+      });
+    if (fresh.length) {
+      const gone = s.wants.filter((o) => !fresh.some((f) => f.want.toLowerCase() === o.want.toLowerCase()));
+      s.pastWants = [...s.pastWants, ...gone].slice(-50);
+      s.wants = fresh;
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -437,6 +461,7 @@ export function publicView(s: State, unread: number, now: number, chats: { at: n
     drawings: s.drawings.slice(-40), conversations: s.conversations.slice(-30),
     books: Object.values(BOOKS).map((b) => ({ slug: b.slug, title: b.title, author: b.author, year: b.year, pages: b.pages.length, read: s.books[b.slug] ?? 0 })),
     readingLog: s.readingLog.slice(-40),
+    wants: s.wants, pastWants: s.pastWants.slice(-15),
     unread, tick: s.tick, last_error: s.last_error, last_tick_at: s.last_tick_at, pace: paceMinutes(s, now),
     places: Object.fromEntries(Object.entries(PLACES).map(([k, p]) => [k, p.label])),
   };
