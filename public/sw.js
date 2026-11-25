@@ -1,8 +1,8 @@
 // Pino's Town service worker: makes the app installable and opens instantly.
 // Pages: network first (so updates arrive), falling back to the last copy if offline.
 // Pino's live data (/api) is never cached.
-const CACHE = "pino-shell-v1";
-const SHELL = ["/", "/manifest.webmanifest", "/icons/icon-192.png", "/icons/icon-512.png"];
+const CACHE = "pino-shell-v2";
+const SHELL = ["/", "/manifest.json", "/icons/icon-192.png", "/icons/icon-512.png"];
 
 self.addEventListener("install", (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
