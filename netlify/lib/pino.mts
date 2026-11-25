@@ -380,7 +380,8 @@ export function decisionPrompt(s: State, opts: Option[], notes: Note[], now: num
         : "Let your thought be your honest reaction to what you just read (and you can keep reading if you want).\n");
   }
   const { weekday } = localTime(now);
-  const night = isNight(now) ? "night time - it's dark and most creatures are asleep" : "daytime";
+  const night = isNight(now) ? "night time - it's dark and most creatures are asleep"
+    : s.weather && !s.weather.day ? "evening - the sun has set, it's dark out and the streetlights are glowing" : "daytime";
   const numbered = opts.map((o, i) => `${i + 1}. ${o.label}`).join("\n");
   const cue = [s.thought, PLACES[s.place].label, s.doing, s.lastRead ? BOOKS[s.lastRead.slug]?.title : "",
     notes[0]?.text ?? "", s.music?.on ? SONG_BY_ID[s.music.song]?.title : "", ...(s.wants ?? []).map((w) => w.want)].join(" ");

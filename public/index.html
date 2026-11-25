@@ -1230,6 +1230,28 @@ function buildWorld() {
   moon.position.set(-30, 32, -45); scene.add(moon);
   const houseLight = new THREE.PointLight(0xffc861, 0, 7, 1.5); houseLight.position.set(-4.7, 1.3, -3.2); scene.add(houseLight);
 
+  // ---- streetlights: they flicker on one by one when it gets dark (real sunset in Sarnia), and off at sunrise
+  const glowTex = (() => {
+    const c = Object.assign(document.createElement("canvas"), { width: 64, height: 64 }), x = c.getContext("2d");
+    const g = x.createRadialGradient(32, 32, 0, 32, 32, 32); g.addColorStop(0, "rgba(255,220,140,1)"); g.addColorStop(0.35, "rgba(255,200,110,.45)"); g.addColorStop(1, "rgba(255,190,100,0)");
+    x.fillStyle = g; x.fillRect(0, 0, 64, 64); return new THREE.CanvasTexture(c);
+  })();
+  const lampPost = M(0x2f4a3a), lamps = [];
+  [[1.0, -4.2], [-1.0, -5.6], [1.2, -0.9], [-2.2, 1.0], [2.4, 0.9], [0.3, 6.6]].forEach(([lx, lz], i) => {
+    const lp = new THREE.Group(); lp.position.set(lx, 0, lz); scene.add(lp);
+    add(new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.2, 0.2, 8), lampPost), lp).position.y = 0.1;
+    add(new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.07, 2.5, 8), lampPost), lp).position.y = 1.3;
+    add(new THREE.Mesh(new THREE.ConeGeometry(0.24, 0.22, 6), lampPost), lp).position.y = 2.82;
+    const bulb = add(new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.1, 0.32, 6), new THREE.MeshStandardMaterial({ color: 0xf4ead0, emissive: 0xffc861, emissiveIntensity: 0, roughness: 0.4 })), lp, { cast: false });
+    bulb.position.y = 2.56;
+    add(new THREE.Mesh(new THREE.SphereGeometry(0.05, 6, 6), lampPost), lp).position.y = 2.98;
+    const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending }));
+    halo.position.y = 2.56; halo.scale.setScalar(1.6); lp.add(halo);
+    const pool = add(new THREE.Mesh(new THREE.CircleGeometry(1.9, 24).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ map: glowTex, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending })), lp, { cast: false });
+    pool.position.y = 0.035;
+    lamps.push({ bulb, halo, pool, on: 0, at: 0.35 + i * 0.07, flicker: 0 });
+  });
+
   // ================================================================ PINO
   const pino = makeKiwi(M); pino.group.scale.setScalar(1.45); scene.add(pino.group);
 
@@ -1591,6 +1613,14 @@ function buildWorld() {
     inWindowMats.forEach((m) => m.color.lerpColors(wx.sky, NIGHT, f));
     windowMat.emissiveIntensity = f * 1.6; screenMat.emissiveIntensity = 0.25 + f * 1.2;
     vmLight.intensity = f * 5; houseLight.intensity = f * 4; stars.material.opacity = f; moon.material.opacity = f;
+    // streetlights switch on one after another as it gets dark, with a little flicker as each one warms up
+    for (const L of lamps) {
+      const want = f > L.at ? 1 : 0;
+      if (want && !L.on) { L.on = 1; L.flicker = 0.9; } else if (!want && L.on && f < L.at - 0.05) L.on = 0;
+      let lvl = L.on;
+      if (L.flicker > 0) { L.flicker -= dt; lvl = Math.random() < 0.5 ? 0.15 : 1; }
+      L.bulb.material.emissiveIntensity = lvl * 2.2; L.halo.material.opacity = lvl * 0.9; L.pool.material.opacity = lvl * 0.55;
+    }
 
     // camera follow
     // follow him around town and the museum hall; the house and library are small enough to see at a glance
@@ -1827,7 +1857,7 @@ function render(s) {
   $("banner").hidden = !s.last_error; $("banner").textContent = s.last_error || "";
 
   if (world) {
-    world.setNight(!!s.night);
+    world.setNight(!!s.night || s.weather?.day === false); // it gets dark at the real sunset in Sarnia
     world.setActivity(s.place, s.doing, first);
     if (Date.now() > speaking) {
       const b = BADGES.find(([re]) => re.test(s.doing));
