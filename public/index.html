@@ -210,6 +210,8 @@
   .meedit { margin-top: 10px; background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 10px 12px; }
   .meedit[hidden] { display: none; }
   .meedit .me { margin-top: 0; }
+  .melink { flex-basis: 100%; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; border-top: 1px dashed var(--line); padding-top: 8px; margin-top: 4px; }
+  .melink small { flex-basis: 100%; font-size: 12px; line-height: 1.4; }
   .meedit p { margin: 8px 0 0; font-size: 12px; color: var(--muted); line-height: 1.4; }
 
   .tabs { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; overflow: visible; }
@@ -956,6 +958,23 @@ function renderMe(editing = false) {
     const change = el("button", null, "change"); change.type = "button"; change.onclick = () => renderMe(true);
     box.append(document.createTextNode("Pino knows you as "), el("b", null, me.name), change);
   }
+  // Same visitor on another device or in the Android app: copy your code here, paste it there
+  const link = el("div", "melink");
+  const copy = el("button", null, "Copy my code"); copy.type = "button";
+  copy.onclick = async () => {
+    try { await navigator.clipboard.writeText(me.id); copy.textContent = "Copied ✓"; }
+    catch { prompt("Your Pino code:", me.id); }
+  };
+  const code = Object.assign(document.createElement("input"), { placeholder: "Paste code", autocomplete: "off", spellcheck: false });
+  const use = el("button", null, "Use"); use.type = "button";
+  use.onclick = () => {
+    const v = code.value.trim();
+    if (!/^[a-z0-9-]{8,64}$/i.test(v)) { code.value = ""; code.placeholder = "That code doesn't look right"; return; }
+    try { localStorage.setItem("pinoVisitor", v); localStorage.removeItem("pinoName"); localStorage.removeItem("pinoSeeds"); } catch {}
+    location.reload();
+  };
+  link.append(el("small", null, "Using Pino on another phone or in the app? Copy your code here and paste it there, so Pino knows it's you."), copy, code, use);
+  box.append(link);
 }
 renderMe();
 const pending = []; // chat lines sent this visit, before the server lists them
@@ -1005,6 +1024,7 @@ function renderChat() {
 function render(s) {
   latest = s;
   if (s.me) setSeeds(s.me.seeds);
+  if (s.me && s.me.name && !me.name) { me.name = s.me.name; try { localStorage.setItem("pinoName", me.name); } catch {} renderMe(); }
   checkVersion(s.version);
   $("name").textContent = `${s.name}'s Town`; document.title = `${s.name}'s Town`;
   const last = [...s.memories].reverse().find((m) => m.brain !== "visitor");
@@ -1147,7 +1167,7 @@ $("updateBtn").addEventListener("click", () => location.reload());
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
 (function installPrompt() {
   const standalone = matchMedia("(display-mode: standalone)").matches || navigator.standalone;
-  if (standalone) return; // already opened from the home screen
+  if (standalone || /PinoApp/.test(navigator.userAgent)) return; // already opened from the home screen or the Android app
   const tip = $("installTip"), how = $("installHow"), go = $("installGo"), btn = $("installBtn");
   let dismissed = false; try { dismissed = localStorage.getItem("pinoInstallDismissed") === "1"; } catch {}
   const ua = navigator.userAgent;
@@ -1174,8 +1194,8 @@ if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").cat
       go.hidden = true;
     } else {
       how.textContent = android
-        ? "In Chrome, tap ⋮ (top right) → “Add to Home screen” → “Install”. If you don't see it, make sure you're in Chrome itself, not another app."
-        : "Open your browser menu (⋮ or ⋯) and choose “Install app” or “Add to Home screen”.";
+        ? "In Chrome, tap ⋮ (top right) → “Install and create shortcut” (older Chrome calls it “Add to Home screen”) → “Install”. If you don't see it, make sure you're in Chrome itself, not another app."
+        : "Open your browser menu (⋮ or ⋯) and choose “Install app”, “Install and create shortcut” or “Add to Home screen”.";
       go.hidden = true;
     }
     tip.hidden = false;
@@ -1243,7 +1263,7 @@ setInterval(async () => {
 }, 60_000);
 
 // ---- give tab
-const KINDS = [["artbook", "Art books (he learns to draw from them)"], ["book", "Books for his library"], ["song", "Records for his gramophone"], ["treat", "Treats (eaten right away)"], ["snack", "New snacks for the vending machine"], ["thing", "Things for his town"]];
+const KINDS = [["artbook", "Art books (he learns to draw from them)"], ["holiday", "Holiday books 🎄🎃🦃🐣"], ["book", "Books for his library"], ["song", "Records for his gramophone"], ["treat", "Treats (eaten right away)"], ["snack", "New snacks for the vending machine"], ["thing", "Things for his town"]];
 let giveSig = "";
 function renderGive(s) {
   const avail = s.giftsAvailable || [];
@@ -1258,7 +1278,7 @@ function renderGive(s) {
     for (const g of items) {
       const card = el("div", "gift"), btn = el("button", null, `Give · 🌱 ${g.price}`); btn.type = "button";
       if (mySeeds < g.price) { btn.disabled = true; btn.title = `You need 🌱 ${g.price}`; }
-      card.append(el("span", "em", g.emoji), el("b", null, g.name.replace(/^(a |an |the book |the art book |the record )/, "").replace(/ for the vending machine$/, "")), el("small", null, g.desc), btn);
+      card.append(el("span", "em", g.emoji), el("b", null, g.name.replace(/^(a |an |the book |the art book |the holiday book |the record )/, "").replace(/ for the vending machine$/, "")), el("small", null, g.desc), btn);
       btn.onclick = async () => {
         btn.disabled = true; btn.textContent = "Giving…";
         const j = await post("/api/give", { id: g.id });

@@ -40,6 +40,20 @@ ART_BOOKS = [
     (30325, "elements-of-drawing", "The Elements of Drawing", "John Ruskin", 1857),
     (14264, "practice-of-drawing", "The Practice and Science of Drawing", "Harold Speed", 1913),
 ]
+# Holiday books visitors can give him: (id, slug, title, author, year, emoji of the holiday)
+HOLIDAY_BOOKS = [
+    (37216, "holidays-happy-days", "Holidays & Happy-Days", "Hamish Hendry", 1901, "🎉"),
+    (46, "christmas-carol", "A Christmas Carol", "Charles Dickens", 1843, "🎄"),
+    (17135, "night-before-christmas", "A Visit from St. Nicholas", "Clement Clarke Moore", 1823, "🎅"),
+    (22519, "christmas-every-day", "Christmas Every Day and Other Stories", "William Dean Howells", 1892, "🎁"),
+    (7256, "gift-of-the-magi", "The Gift of the Magi", "O. Henry", 1905, "⭐"),
+    (41, "sleepy-hollow", "The Legend of Sleepy Hollow", "Washington Irving", 1820, "🎃"),
+    (17145, "halloween-merryvale", "Hallowe'en at Merryvale", "Alice Hale Burnett", 1916, "🦇"),
+    (27567, "old-fashioned-thanksgiving", "An Old-Fashioned Thanksgiving", "Louisa May Alcott", 1882, "🦃"),
+    (64307, "emerald-story-book", "The Emerald Story Book: Spring and Easter", "Ada M. & Eleanor L. Skinner", 1915, "🐣"),
+    (38775, "first-easter", "The First Easter", "J. H. Willard", 1899, "✝️"),
+]
+HOLIDAY = {b[1]: b[5] for b in HOLIDAY_BOOKS}
 PAGE = 1300  # characters per page
 OPENING = {  # where each story really begins (skips contents pages and front matter)
     "peter-rabbit": "upon a time there were four little Rabbits",
@@ -69,6 +83,16 @@ OPENING = {  # where each story really begins (skips contents pages and front ma
     "blackboard-drawing": "Upon entering a schoolroom the teacher finds the blackboards bare",
     "elements-of-drawing": "It may perhaps be thought, that in prefacing a manual of drawing",
     "practice-of-drawing": "Permit me in the first place to anticipate the disappointment",
+    "holidays-happy-days": "Little children are usually snug in bed when the first holiday",
+    "christmas-carol": "Marley was dead: to begin with",
+    "night-before-christmas": "Amid the many celebrations last Christmas Eve",
+    "christmas-every-day": "The little girl came into her papa's study",
+    "gift-of-the-magi": "One dollar and eighty-seven cents",
+    "sleepy-hollow": "In the bosom of one of those spacious coves",
+    "halloween-merryvale": "Hallowe'en mean, Father",
+    "old-fashioned-thanksgiving": "Sixty years ago, up among the New Hampshire hills",
+    "emerald-story-book": "dew-pearled",
+    "first-easter": "In the story of The First Easter, as in the story",
 }
 
 
@@ -102,16 +126,19 @@ def paginate(paras):
 
 
 catalog = []
-for gid, slug, title, author, year in BOOKS + GIFT_BOOKS + ART_BOOKS:
+for gid, slug, title, author, year in BOOKS + GIFT_BOOKS + ART_BOOKS + [b[:5] for b in HOLIDAY_BOOKS]:
     paras = clean((RAW / f"{gid}.txt").read_text(encoding="utf-8", errors="replace"))
     marker = OPENING[slug].lower()
     hit = next((i for i, p in enumerate(paras) if marker in re.sub(r"\s+", " ", p).lower()), None)
     if hit is None: print("!! opening not found for", slug); sys.exit(1)
     paras = paras[hit:]
+    if slug in HOLIDAY:  # drop publisher adverts after the last page
+        end = next((i for i, p in enumerate(paras) if re.fullmatch(r"THE END\.?", p.strip())), None)
+        if end is not None: paras = paras[:end + 1]
     if slug == "velveteen-rabbit" and paras[0].startswith("HERE was"):  # restore the drop-cap letter
         paras[0] = "There was" + paras[0][len("HERE was"):]
     pages = paginate(paras)
     (OUT / f"{slug}.json").write_text(json.dumps({"slug": slug, "title": title, "author": author, "year": year, "pages": pages}, ensure_ascii=False))
-    catalog.append({"slug": slug, "title": title, "author": author, "year": year, "pages": len(pages), "gift": (gid, slug, title, author, year) in GIFT_BOOKS + ART_BOOKS, "art": (gid, slug, title, author, year) in ART_BOOKS})
+    catalog.append({"slug": slug, "title": title, "author": author, "year": year, "pages": len(pages), "gift": (gid, slug, title, author, year) in GIFT_BOOKS + ART_BOOKS or slug in HOLIDAY, "art": (gid, slug, title, author, year) in ART_BOOKS, "holiday": HOLIDAY.get(slug, "")})
     print(f"{title:38} {len(pages):4} pages | first: {pages[0][:70]!r}")
 (OUT / "catalog.json").write_text(json.dumps(catalog, indent=1, ensure_ascii=False))

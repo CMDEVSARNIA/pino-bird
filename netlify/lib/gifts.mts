@@ -6,7 +6,7 @@ import { SONGS } from "./music.mts";
 type Fx = { food?: number; energy?: number; joy?: number; kind?: "journal" | "drawing" };
 export type Gift = {
   id: string;
-  kind: "book" | "artbook" | "treat" | "snack" | "thing" | "song";
+  kind: "book" | "artbook" | "holiday" | "treat" | "snack" | "thing" | "song";
   price: number;       // in seeds
   name: string;        // "a telescope"
   emoji: string;
@@ -18,7 +18,7 @@ export type Gift = {
   book?: string;       // books: slug
   song?: string;       // songs: id
 };
-export const PRICES = { treat: 10, song: 20, snack: 25, book: 30, artbook: 40, thing: 50 } as const;
+export const PRICES = { treat: 10, song: 20, snack: 25, book: 30, holiday: 30, artbook: 40, thing: 50 } as const;
 export const QUICK_TREAT_PRICE = 2;
 
 const TREATS: Omit<Gift, "price">[] = [
@@ -49,8 +49,9 @@ const THINGS: Omit<Gift, "price">[] = [
 ];
 
 const BOOK_GIFTS: Gift[] = Object.values(BOOKS).filter((b) => b.gift).map((b) => ({
-  id: `book-${b.slug}`, kind: b.art ? "artbook" : "book", name: `the ${b.art ? "art book" : "book"} "${b.title}"`, emoji: b.art ? "🖌️" : "📕",
-  price: b.art ? PRICES.artbook : PRICES.book,
+  id: `book-${b.slug}`, kind: b.art ? "artbook" : b.holiday ? "holiday" : "book",
+  name: `the ${b.art ? "art book" : b.holiday ? "holiday book" : "book"} "${b.title}"`, emoji: b.art ? "🖌️" : b.holiday || "📕",
+  price: b.art ? PRICES.artbook : b.holiday ? PRICES.holiday : PRICES.book,
   desc: b.art ? `${b.title} by ${b.author} (${b.year}). A drawing manual: Pino studies it and his drawings improve.`
               : `${b.title} by ${b.author} (${b.year}). Goes on his library shelf.`, book: b.slug,
 }));

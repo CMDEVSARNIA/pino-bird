@@ -558,7 +558,7 @@ export function applyVisits(s: State, visits: Visit[], now: number) {
     s.gifts.log.push({ t, id: g.id, name: g.name, emoji: g.emoji, from: whoName(v) });
     s.gifts.log = s.gifts.log.slice(-200);
     if (g.kind === "song" && g.song) s.music = { on: true, song: g.song, since: now };
-    const what = g.kind === "book" ? `${g.name} for my library shelf`
+    const what = g.kind === "book" || g.kind === "holiday" ? `${g.name} for my library shelf`
       : g.kind === "artbook" ? `${g.name} - a drawing manual to learn from`
       : g.kind === "song" ? `${g.name} - it's playing on my gramophone right now!`
       : g.kind === "snack" ? `${g.name} - now I can "${g.activity}"`
@@ -671,7 +671,7 @@ function bookOptions(s: State): Option[] {
     const where = read === 0 ? "a book you've never opened"
       : read >= b.pages.length ? "you've finished it; read it again from the start"
       : `continue from page ${read + 1} of ${b.pages.length}`;
-    return { type: "read" as const, name: b.slug, label: `${b.art ? "study the drawing manual" : "read"} "${b.title}" by ${b.author} (${where})` };
+    return { type: "read" as const, name: b.slug, label: `${b.art ? "study the drawing manual" : b.holiday ? `read the holiday book ${b.holiday}` : "read"} "${b.title}" by ${b.author} (${where})` };
   });
 }
 

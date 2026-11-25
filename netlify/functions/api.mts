@@ -43,7 +43,7 @@ export default async (req: Request, context: Context) => {
       ...publicView(s, unread, now, chats.map(({ at, you, pino, name, react }) => ({ at, you, pino, name, react }))),
       version: context?.deploy?.id ?? "",
       giftsAvailable: GIFTS.filter((g) => !gone.has(g.id)).map(({ id, kind, name, emoji, desc, price }) => ({ id, kind, name, emoji, desc, price })),
-      me: { seeds: seedsOf(mePerson), earned: mePerson?.earned ?? null, rules: EARN, treatPrice: QUICK_TREAT_PRICE },
+      me: { name: mePerson?.name ?? null, seeds: seedsOf(mePerson), earned: mePerson?.earned ?? null, rules: EARN, treatPrice: QUICK_TREAT_PRICE },
       friends: Object.values(people).filter((p) => p.visits > 0).sort((a, b) => b.lastSeen - a.lastSeen).slice(0, 30)
         .map(({ name, visits, note, lastSeen }) => ({ name, visits, note, lastSeen })),
     });
@@ -117,6 +117,7 @@ export default async (req: Request, context: Context) => {
     const after = await meet(who, (p) => { p.gave = [...p.gave, gift.name].slice(-20); p.seeds = seedsOf(p) - gift.price; });
     const reaction = gift.kind === "treat" ? `Pino's eyes go wide at ${gift.name}. He'll dig in any second!`
       : gift.kind === "book" ? `Pino hugs ${gift.name} and carries it off to his library shelf.`
+      : gift.kind === "holiday" ? `Pino tucks ${gift.name} under his wing and hurries to the library. ${gift.emoji}`
       : gift.kind === "artbook" ? `Pino flips through ${gift.name} with wide eyes. He's going to practise everything in it!`
       : gift.kind === "snack" ? `Pino watches a brand new button appear on the vending machine. ${gift.emoji}`
       : gift.kind === "song" ? `Pino puts ${gift.name} on his gramophone straight away! 💿`

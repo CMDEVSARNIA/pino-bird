@@ -6,7 +6,8 @@
   "year": 1902,
   "pages": 5,
   "gift": false,
-  "art": false
+  "art": false,
+  "holiday": ""
  },
  {
   "slug": "benjamin-bunny",
@@ -15,7 +16,8 @@
   "year": 1904,
   "pages": 5,
   "gift": false,
-  "art": false
+  "art": false,
+  "holiday": ""
  },
  {
   "slug": "jemima-puddle-duck",
@@ -24,7 +26,8 @@
   "year": 1908,
   "pages": 6,
   "gift": false,
-  "art": false
+  "art": false,
+  "holiday": ""
  },
  {
   "slug": "velveteen-rabbit",
@@ -33,7 +36,8 @@
   "year": 1922,
   "pages": 19,
   "gift": false,
-  "art": false
+  "art": false,
+  "holiday": ""
  },
  {
   "slug": "alice",
@@ -42,7 +46,8 @@
   "year": 1865,
   "pages": 128,
   "gift": false,
-  "art": false
+  "art": false,
+  "holiday": ""
  },
  {
   "slug": "wind-in-the-willows",
@@ -51,7 +56,8 @@
   "year": 1908,
   "pages": 305,
   "gift": false,
-  "art": false
+  "art": false,
+  "holiday": ""
  },
  {
   "slug": "wizard-of-oz",
@@ -60,7 +66,8 @@
   "year": 1900,
   "pages": 184,
   "gift": false,
-  "art": false
+  "art": false,
+  "holiday": ""
  },
  {
   "slug": "andersen",
@@ -69,7 +76,8 @@
   "year": 1835,
   "pages": 274,
   "gift": false,
-  "art": false
+  "art": false,
+  "holiday": ""
  },
  {
   "slug": "grimm",
@@ -78,7 +86,8 @@
   "year": 1812,
   "pages": 467,
   "gift": false,
-  "art": false
+  "art": false,
+  "holiday": ""
  },
  {
   "slug": "secret-garden",
@@ -87,7 +96,8 @@
   "year": 1911,
   "pages": 382,
   "gift": false,
-  "art": false
+  "art": false,
+  "holiday": ""
  },
  {
   "slug": "pinocchio",
@@ -96,7 +106,8 @@
   "year": 1883,
   "pages": 180,
   "gift": true,
-  "art": false
+  "art": false,
+  "holiday": ""
  },
  {
   "slug": "railway-children",
@@ -105,7 +116,8 @@
   "year": 1906,
   "pages": 280,
   "gift": true,
-  "art": false
+  "art": false,
+  "holiday": ""
  },
  {
   "slug": "anne-of-green-gables",
@@ -114,7 +126,8 @@
   "year": 1908,
   "pages": 502,
   "gift": true,
-  "art": false
+  "art": false,
+  "holiday": ""
  },
  {
   "slug": "heidi",
@@ -123,7 +136,8 @@
   "year": 1881,
   "pages": 437,
   "gift": true,
-  "art": false
+  "art": false,
+  "holiday": ""
  },
  {
   "slug": "black-beauty",
@@ -132,7 +146,8 @@
   "year": 1877,
   "pages": 272,
   "gift": true,
-  "art": false
+  "art": false,
+  "holiday": ""
  },
  {
   "slug": "looking-glass",
@@ -141,7 +156,8 @@
   "year": 1871,
   "pages": 137,
   "gift": true,
-  "art": false
+  "art": false,
+  "holiday": ""
  },
  {
   "slug": "princess-and-goblin",
@@ -150,7 +166,8 @@
   "year": 1872,
   "pages": 241,
   "gift": true,
-  "art": false
+  "art": false,
+  "holiday": ""
  },
  {
   "slug": "happy-prince",
@@ -159,7 +176,8 @@
   "year": 1888,
   "pages": 77,
   "gift": true,
-  "art": false
+  "art": false,
+  "holiday": ""
  },
  {
   "slug": "jungle-book",
@@ -168,7 +186,8 @@
   "year": 1894,
   "pages": 241,
   "gift": true,
-  "art": false
+  "art": false,
+  "holiday": ""
  },
  {
   "slug": "tom-kitten",
@@ -177,7 +196,8 @@
   "year": 1907,
   "pages": 4,
   "gift": true,
-  "art": false
+  "art": false,
+  "holiday": ""
  },
  {
   "slug": "miss-moppet",
@@ -186,7 +206,8 @@
   "year": 1906,
   "pages": 1,
   "gift": true,
-  "art": false
+  "art": false,
+  "holiday": ""
  },
  {
   "slug": "blackboard-drawing",
@@ -195,7 +216,8 @@
   "year": 1908,
   "pages": 16,
   "gift": true,
-  "art": true
+  "art": true,
+  "holiday": ""
  },
  {
   "slug": "elements-of-drawing",
@@ -204,7 +226,8 @@
   "year": 1857,
   "pages": 318,
   "gift": true,
-  "art": true
+  "art": true,
+  "holiday": ""
  },
  {
   "slug": "practice-of-drawing",
@@ -213,6 +236,107 @@
   "year": 1913,
   "pages": 387,
   "gift": true,
-  "art": true
+  "art": true,
+  "holiday": ""
+ },
+ {
+  "slug": "holidays-happy-days",
+  "title": "Holidays & Happy-Days",
+  "author": "Hamish Hendry",
+  "year": 1901,
+  "pages": 84,
+  "gift": true,
+  "art": false,
+  "holiday": "🎉"
+ },
+ {
+  "slug": "christmas-carol",
+  "title": "A Christmas Carol",
+  "author": "Charles Dickens",
+  "year": 1843,
+  "pages": 141,
+  "gift": true,
+  "art": false,
+  "holiday": "🎄"
+ },
+ {
+  "slug": "night-before-christmas",
+  "title": "A Visit from St. Nicholas",
+  "author": "Clement Clarke Moore",
+  "year": 1823,
+  "pages": 5,
+  "gift": true,
+  "art": false,
+  "holiday": "🎅"
+ },
+ {
+  "slug": "christmas-every-day",
+  "title": "Christmas Every Day and Other Stories",
+  "author": "William Dean Howells",
+  "year": 1892,
+  "pages": 90,
+  "gift": true,
+  "art": false,
+  "holiday": "🎁"
+ },
+ {
+  "slug": "gift-of-the-magi",
+  "title": "The Gift of the Magi",
+  "author": "O. Henry",
+  "year": 1905,
+  "pages": 10,
+  "gift": true,
+  "art": false,
+  "holiday": "⭐"
+ },
+ {
+  "slug": "sleepy-hollow",
+  "title": "The Legend of Sleepy Hollow",
+  "author": "Washington Irving",
+  "year": 1820,
+  "pages": 67,
+  "gift": true,
+  "art": false,
+  "holiday": "🎃"
+ },
+ {
+  "slug": "halloween-merryvale",
+  "title": "Hallowe'en at Merryvale",
+  "author": "Alice Hale Burnett",
+  "year": 1916,
+  "pages": 24,
+  "gift": true,
+  "art": false,
+  "holiday": "🦇"
+ },
+ {
+  "slug": "old-fashioned-thanksgiving",
+  "title": "An Old-Fashioned Thanksgiving",
+  "author": "Louisa May Alcott",
+  "year": 1882,
+  "pages": 258,
+  "gift": true,
+  "art": false,
+  "holiday": "🦃"
+ },
+ {
+  "slug": "emerald-story-book",
+  "title": "The Emerald Story Book: Spring and Easter",
+  "author": "Ada M. & Eleanor L. Skinner",
+  "year": 1915,
+  "pages": 299,
+  "gift": true,
+  "art": false,
+  "holiday": "🐣"
+ },
+ {
+  "slug": "first-easter",
+  "title": "The First Easter",
+  "author": "J. H. Willard",
+  "year": 1899,
+  "pages": 18,
+  "gift": true,
+  "art": false,
+  "holiday": "✝️"
  }
 ]
