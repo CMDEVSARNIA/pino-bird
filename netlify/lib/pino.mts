@@ -3,6 +3,7 @@
 import { BOOKS } from "./library.mts";
 import { GIFT_BY_ID } from "./gifts.mts";
 import { SONG_BY_ID, nextSong, randomSong, silence, songsOwned, type Music } from "./music.mts";
+import { recall } from "./memory.mts";
 
 export const NAME = "Pino";
 export const SPECIES = "kiwi bird";
@@ -283,6 +284,9 @@ export function decisionPrompt(s: State, opts: Option[], notes: Note[], now: num
   const { weekday } = localTime(now);
   const night = isNight(now) ? "night time - it's dark and most creatures are asleep" : "daytime";
   const numbered = opts.map((o, i) => `${i + 1}. ${o.label}`).join("\n");
+  const cue = [s.thought, PLACES[s.place].label, s.doing, s.lastRead ? BOOKS[s.lastRead.slug]?.title : "",
+    notes[0]?.text ?? "", s.music?.on ? SONG_BY_ID[s.music.song]?.title : "", ...(s.wants ?? []).map((w) => w.want)].join(" ");
+  const remembered = recall(s, cue, 3);
   // keep his inner voice fresh: show how recent thoughts began so he doesn't fall into a rut
   const openers = s.memories.filter((m) => m.brain !== "visitor" && m.thought).slice(-6)
     .map((m) => `"${m.thought.split(/\s+/).slice(0, 5).join(" ")}..."`);
@@ -295,6 +299,7 @@ export function decisionPrompt(s: State, opts: Option[], notes: Note[], now: num
     `How you feel right now:\n${feel}\n${bored}${note}${reading}\n` +
     (friends ? `Visitors you know:\n${friends}\n\n` : "") +
     `What happened recently (oldest first):\n${history}\n\n` +
+    (remembered ? `Older memories that come to mind:\n${remembered}\n\n` : "") +
     `What you could do next:\n${numbered}\n${voice}\n` +
     "Pick ONE option. Reply with JSON exactly like this:\n" +
     '{"thought": "what is on your mind, first person, 1-2 short sentences", ' +
@@ -434,7 +439,7 @@ export function applyChoice(
   for (const n of NEEDS) s.needs[n] = clamp(s.needs[n] + decay[n] * scale);
 
   s.memories.push({ t, place: here, action, thought, note, deltas, first, bored, brain });
-  s.memories = s.memories.slice(-400);
+  s.memories = s.memories.slice(-1500);
   s.journal = s.journal.slice(-150);
   if (s.drawings.length > 150) {
     const cut = s.drawings.length - 150;
@@ -527,7 +532,7 @@ export function applyVisits(s: State, visits: Visit[], now: number) {
   for (const v of visits.filter((x) => x.type === "talk").slice(-5)) {
     remember(`talked with ${whoName(v)}`, `They said "${(v.text ?? "").slice(0, 160)}" and I said "${(v.reply ?? "").slice(0, 160)}"`, { joy: 5 });
   }
-  s.memories = s.memories.slice(-400);
+  s.memories = s.memories.slice(-1500);
 }
 
 export type Person = {
@@ -578,6 +583,7 @@ export function talkPrompt(s: State, chats: { you: string; pino: string }[], tex
     `currently "${s.doing}". You feel: ${feel}.\n\n` +
     `What you've been up to:\n${recentLife}\n\n` +
     `${describePerson(person, now)}\n\n` +
+    ((() => { const r = recall(s, `${text} ${person?.name ?? ""}`, 4, 6); return r ? `Memories that come to mind as they speak:\n${r}\n(You can bring these up naturally, with roughly when they happened.)\n\n` : ""; })()) +
     `Your conversation with them so far:\n${convo}\n\n` +
     `${who} says: "${text}"\n\n` +
     `Answer as ${NAME} the ${SPECIES}: in character, warm and a bit quirky, 1-3 short sentences, ` +
