@@ -103,6 +103,22 @@
   h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); margin: 6px 0; }
   .you { color: var(--muted); }
   .pino { margin-top: 3px; padding-left: 10px; border-left: 3px solid var(--accent); }
+  .gallery { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  .art { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 8px; cursor: pointer; text-align: left; font: inherit; color: inherit; }
+  .art img, .art .sketch { width: 100%; aspect-ratio: 1; display: block; border-radius: 8px; background: #fffdf6; object-fit: contain; }
+  .art .sketch { display: grid; place-items: center; padding: 10px; font-size: 12px; color: var(--muted); font-style: italic; text-align: center;
+    background: repeating-linear-gradient(0deg, #fffdf6 0 18px, #eef3f8 18px 19px); }
+  .art b { display: block; font-size: 13px; margin-top: 6px; }
+  .art span { display: block; font-size: 11px; color: var(--muted); }
+  .viewer { position: fixed; inset: 0; background: rgba(20,18,15,.85); display: grid; place-items: center; padding: 20px; z-index: 50; }
+  .viewer[hidden] { display: none; }
+  .viewer figure { margin: 0; max-width: min(92vw, 560px); background: #fff; border-radius: 16px; padding: 12px; }
+  .viewer img { width: 100%; aspect-ratio: 1; display: block; background: #fffdf6; border-radius: 10px; }
+  .viewer figcaption { font-size: 14px; line-height: 1.45; margin-top: 10px; }
+  .bookrow { display: grid; grid-template-columns: 1fr 80px; gap: 4px 10px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
+  .bookrow:last-child { border-bottom: 0; }
+  .bookrow small { color: var(--muted); grid-column: 1 / -1; font-size: 12px; }
+  .bookrow .bar > i { background: #7a9e5a; }
   .badge { background: var(--accent); color: #fff; border-radius: 999px; font-size: 11px; padding: 1px 6px; margin-left: 4px; }
   .badge[hidden] { display: none; }
   .noteform { display: grid; gap: 8px; margin-bottom: 8px; }
@@ -152,13 +168,23 @@
     <button class="tab" role="tab" data-tab="diary">Diary</button>
     <button class="tab" role="tab" data-tab="journal">Journal</button>
     <button class="tab" role="tab" data-tab="drawings">Drawings</button>
+    <button class="tab" role="tab" data-tab="books">Books</button>
     <button class="tab" role="tab" data-tab="notes">Notes<span class="badge" id="unread" hidden></span></button>
     <button class="tab" role="tab" data-tab="mind">Mind</button>
   </div>
   <div class="card panel" id="p-chat"><ul class="list" id="chat"></ul></div>
   <div class="card panel" id="p-diary" hidden><ul class="list" id="diary"></ul></div>
   <div class="card panel" id="p-journal" hidden><ul class="list" id="journal"></ul></div>
-  <div class="card panel" id="p-drawings" hidden><ul class="list" id="drawings"></ul></div>
+  <div class="card panel" id="p-drawings" hidden><div class="gallery" id="drawings"></div></div>
+  <div class="card panel" id="p-books" hidden>
+    <h3>His bookshelf</h3>
+    <div id="shelf"></div>
+    <h3 style="margin-top:14px">What he thought while reading</h3>
+    <ul class="list" id="reading"></ul>
+  </div>
+  <div class="viewer" id="viewer" hidden>
+    <figure><img id="viewerImg" alt=""><figcaption id="viewerCap"></figcaption></figure>
+  </div>
   <div class="card panel" id="p-notes" hidden>
     <form class="noteform" id="noteForm">
       <textarea id="noteText" maxlength="300" placeholder="Leave Pino a note… he'll find it and write back in his own time."></textarea>
@@ -285,10 +311,6 @@ function buildWorld() {
   for (const x of [-0.95, 0.95]) add(box(0.6, 0.6, 0.08, windowMat), house).position.set(x, 1.25, 1.32);
   add(box(0.05, 0.6, 0.1, M(0xf2c9a0)), house).position.set(-0.95, 1.25, 1.35);
   add(box(0.05, 0.6, 0.1, M(0xf2c9a0)), house).position.set(0.95, 1.25, 1.35);
-  // Pino's outdoor sleeping nest-cushion
-  const bed = new THREE.Group(); bed.position.set(-6.4, 0, -2.9); scene.add(bed);
-  add(new THREE.Mesh(new THREE.TorusGeometry(0.42, 0.16, 6, 14).rotateX(Math.PI / 2), M(0xb5835a)), bed).position.y = 0.14;
-  add(new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, 0.1, 14), M(0xe7a7b8)), bed).position.y = 0.08;
 
   // ---- LIBRARY
   const lib = new THREE.Group(); lib.position.set(5, 0, -5.4); scene.add(lib);
@@ -344,13 +366,17 @@ function buildWorld() {
   // spots where Pino stands at each place, what he faces, and extra spots for some activities
   const SPOTS = { house: V(-5, 0, -2.4), library: V(5, 0, -2.5), vending: V(3.9, 0, 4.7), park: V(-4.3, 0, 4.9) };
   const LOOK = { house: V(-5, 0, -4), library: V(5, 0, -4), vending: V(5.0, 0, 3.4), park: V(-2.4, 0, 3.6) };
+  // [activity, where he goes, what he faces, building he disappears into]
+  const HOUSE_DOOR = V(-5, 0, -3.75), LIB_DOOR = V(5, 0, -3.65);
   const ACT = [
-    [/^sleep/, V(-6.4, 0.1, -2.9), V(-6.4, 0, 0)],
+    [/^sleep|tidy|window/, HOUSE_DOOR, V(-5, 0, -6), "house"],
+    [/read|journal|draw/, LIB_DOOR, V(5, 0, -6), "library"],
     [/leaf/, V(-5.3, 0, 4.7), V(-6.0, 0, 4.4)],
     [/ducks/, V(-3.6, 0, 5.0), V(-2.4, 0, 3.6)],
     [/bench|sit and think/, V(-3.4, 0.52, 6.6), V(-2.4, 0, 3.6)],
-    [/window/, V(-5.95, 0, -3.75), V(-5.95, 0, -5)],
   ];
+  const INSIDE_ANCHOR = { house: V(-5, 2.4, -3.7), library: V(5, 2.9, -3.6) };
+  const CHIMNEY = V(-4.1, 4.0, -5.5);
   for (const k of Object.keys(SPOTS)) strip(JUNCTION, SPOTS[k]);
   strip(SPOTS.house, V(-5, 0, -3.9), 0.9); strip(SPOTS.library, V(5, 0, -3.8), 0.9);
 
@@ -395,7 +421,7 @@ function buildWorld() {
 
   // ---------------------------------------------------------------- movement
   const state = { path: [], look: null, doing: "", place: "house", hop: 0, happy: 0, sleeping: false, follow: false, nightF: 0, night: false,
-    base: SPOTS.house.clone(), nextWander: 4, wandering: false };
+    base: SPOTS.house.clone(), nextWander: 4, wandering: false, indoor: null, vis: 1 };
   function setActivity(place, doing, instant) {
     const act = ACT.find(([re]) => re.test(doing));
     const target = act ? act[1] : SPOTS[place];
@@ -408,6 +434,8 @@ function buildWorld() {
       if (place !== state.place && pino.group.position.distanceTo(JUNCTION) > 6) state.path.unshift(SPOTS[state.place].clone());
     }
     state.look = look; state.place = place; state.doing = doing; state.base = target.clone(); state.wandering = false;
+    state.indoor = act?.[3] || null;
+    if (instant && state.indoor) state.vis = 0;
     state.sleeping = /^sleep/.test(doing);
   }
 
@@ -426,7 +454,10 @@ function buildWorld() {
     if (!down || Math.hypot(e.clientX - down.x, e.clientY - down.y) > 8 || performance.now() - down.t > 500) return;
     const r = renderer.domElement.getBoundingClientRect();
     ray.setFromCamera(new THREE.Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1), camera);
-    if (ray.intersectObject(pino.group, true).length) onPet(false);
+    if (pino.group.visible && ray.intersectObject(pino.group, true).length) onPet(false);
+    else if (state.indoor && !state.path.length && ray.intersectObject(state.indoor === "house" ? house : lib, true).length) {
+      window.dispatchEvent(new CustomEvent("pino:knock", { detail: state.indoor }));
+    }
   });
 
   // ---------------------------------------------------------------- loop
@@ -438,7 +469,7 @@ function buildWorld() {
 
     // between decisions, potter about near where he is so he always feels alive
     if (!state.path.length && t > state.nextWander) {
-      const still = state.sleeping || state.base.y > 0.05 || /window/.test(state.doing);
+      const still = state.sleeping || state.indoor || state.base.y > 0.05;
       if (!still) {
         if (state.wandering) { state.path = [state.base.clone()]; state.wandering = false; }
         else {
@@ -470,6 +501,11 @@ function buildWorld() {
     let dA = lookAngle - g.rotation.y; dA = Math.atan2(Math.sin(dA), Math.cos(dA));
     g.rotation.y += dA * Math.min(1, dt * 6);
 
+    // going inside: shrink away at the door, pop back out when leaving
+    const inside = !!state.indoor && !state.path.length;
+    state.vis += ((inside ? 0 : 1) - state.vis) * Math.min(1, dt * (inside ? 3 : 6));
+    g.visible = state.vis > 0.03; g.scale.setScalar(1.45 * Math.max(0.03, state.vis));
+
     // body language
     const sleeping = state.sleeping && !walking;
     const d = state.doing;
@@ -495,7 +531,7 @@ function buildWorld() {
     if (state.happy > 0) state.happy -= dt;
 
     // particles: zzz while sleeping, hearts when petted
-    if (sleeping && Math.random() < dt * 0.9) spawn(zTex, g.position.clone().add(V(0.2, 0.8, 0)), { vy: 0.45, life: 2.6, size: 0.35, spread: 0.1 });
+    if (sleeping && Math.random() < dt * 0.9) spawn(zTex, inside ? CHIMNEY.clone() : g.position.clone().add(V(0.2, 0.8, 0)), { vy: 0.45, life: 2.6, size: inside ? 0.5 : 0.35, spread: 0.1 });
     for (let i = particles.length - 1; i >= 0; i--) {
       const p = particles[i]; p.age += dt; p.s.position.y += p.vy * dt; p.s.position.x += Math.sin(p.age * 3) * dt * 0.2;
       p.s.material.opacity = 1 - p.age / p.life; p.s.scale.setScalar(p.size * (0.7 + p.age / p.life * 0.6));
@@ -541,7 +577,8 @@ function buildWorld() {
       } else div.style.transform = `translate(${x}px, ${y}px) translate(-50%, -50%)`;
     };
     labels.forEach(({ d, p }) => place(d, p));
-    pino.head.getWorldPosition(headPos); headPos.y += 0.75;
+    if (inside) headPos.copy(INSIDE_ANCHOR[state.indoor]);
+    else { pino.head.getWorldPosition(headPos); headPos.y += 0.75; }
     place(bubble, headPos);
   });
 
@@ -557,6 +594,7 @@ function buildWorld() {
     setFollow: (on) => (state.follow = on),
     pet: () => onPet(true),
     treat: () => { dropTreat(); state.happy = 1.5; },
+    isInside: () => !!state.indoor && !state.path.length,
     bubble,
   };
 }
@@ -683,7 +721,7 @@ function render(s) {
 
   $("doing").textContent = `${s.doing.charAt(0).toUpperCase() + s.doing.slice(1)} · ${s.places[s.place] || s.place}`;
   $("thought").textContent = s.thought ? `“${s.thought}”` : "";
-  const pace = s.pace === 1 ? "every minute (he's new here!)" : "about every 5 minutes";
+  const pace = s.pace < 1 ? "about twice a minute (he's new here!)" : "about every 5 minutes";
   $("heartbeat").textContent = s.last_tick_at ? `Last moment ${ago(s.last_tick_at)} · he decides something new ${pace}` : "His first moment happens within a minute.";
 
   const needs = $("needs"); needs.replaceChildren();
@@ -699,13 +737,53 @@ function render(s) {
     li.append(meta, el("strong", null, m.action), document.createTextNode(` — ${m.thought}`)); return li;
   }, "Nothing yet. His life is just beginning.");
   list("journal", s.journal, (j) => { const li = el("li"); li.append(el("span", "meta", j.t), document.createTextNode(j.text)); return li; }, "He hasn't written anything yet.");
-  list("drawings", s.drawings, (d) => { const li = el("li"); li.append(el("span", "meta", `🎨 ${d.t}`), document.createTextNode(d.text)); return li; }, "No drawings yet.");
+  renderGallery(s.drawings || []);
+  renderBooks(s);
   list("convos", s.conversations || [], (c) => {
     const li = el("li"); li.append(el("span", "meta", c.t), el("div", "you", `You: ${c.visitor}`), el("div", "pino", `${s.name}: ${c.reply}`)); return li;
   }, s.unread ? "Your note is waiting in his mailbox. He'll answer when he gets to it." : "No notes yet. Leave him one!");
   $("unread").hidden = !s.unread; $("unread").textContent = s.unread;
   $("personality").textContent = s.personality;
   list("insights", s.insights, (i) => { const li = el("li"); li.append(el("span", "meta", i.t), document.createTextNode(i.text)); return li; }, "He reflects about once an hour.");
+}
+
+// ---- drawings gallery (his own SVG pictures, shown as images so nothing in them can run)
+const svgUrl = (svg) => `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+let gallerySig = "";
+function renderGallery(drawings) {
+  const sig = drawings.map((d) => d.t + (d.svg ? "✓" : "")).join("|");
+  if (sig === gallerySig) return; gallerySig = sig;
+  const g = $("drawings"); g.replaceChildren();
+  if (!drawings.length) { g.append(el("div", "empty", "No drawings yet. He draws at the library when he feels like it.")); return; }
+  for (const d of drawings.slice().reverse()) {
+    const card = el("button", "art"); card.type = "button";
+    if (d.svg) { const img = new Image(); img.alt = d.title || d.text; img.src = svgUrl(d.svg); img.loading = "lazy"; card.append(img); }
+    else card.append(el("div", "sketch", "✏️ still drawing… “" + d.text + "”"));
+    card.append(el("b", null, d.title || "Untitled"), el("span", null, d.t));
+    card.addEventListener("click", () => {
+      if (!d.svg) return;
+      $("viewerImg").src = svgUrl(d.svg); $("viewerImg").alt = d.title || d.text;
+      $("viewerCap").textContent = `${d.title || "Untitled"} · ${d.t} — “${d.text}”`;
+      $("viewer").hidden = false;
+    });
+    g.append(card);
+  }
+}
+$("viewer").addEventListener("click", () => ($("viewer").hidden = true));
+
+// ---- bookshelf
+function renderBooks(s) {
+  const shelf = $("shelf"); shelf.replaceChildren();
+  for (const b of (s.books || []).slice().sort((a, b) => (b.read > 0) - (a.read > 0) || a.title.localeCompare(b.title))) {
+    const row = el("div", "bookrow"), bar = el("div", "bar"), fill = el("i");
+    fill.style.width = `${Math.min(100, (b.read / b.pages) * 100)}%`; bar.append(fill);
+    const status = b.read === 0 ? "not opened yet" : b.read >= b.pages ? "finished! 🎉" : `page ${b.read} of ${b.pages}`;
+    row.append(el("span", null, b.title), bar, el("small", null, `${b.author} (${b.year}) · ${status}`));
+    shelf.append(row);
+  }
+  list("reading", s.readingLog || [], (r) => {
+    const li = el("li"); li.append(el("span", "meta", `📖 ${r.t} · ${r.title}, page ${r.page} of ${r.of}`), document.createTextNode(r.reaction)); return li;
+  }, "He hasn't read anything yet. The books are in the library.");
 }
 
 async function refresh() {
@@ -727,6 +805,11 @@ let lastPet = 0;
 window.addEventListener("pino:pet", async () => {
   if (Date.now() - lastPet < 1500) return; lastPet = Date.now();
   const j = await post("/api/pet"); if (j.reaction) toast(j.reaction);
+});
+// knock on his door while he's inside
+window.addEventListener("pino:knock", (e) => {
+  const what = latest ? latest.doing : "busy";
+  toast(e.detail === "house" ? `Knock knock! Pino is inside (${what}). He'll come out when he's ready.` : `Shh! Pino is inside the library (${what}).`);
 });
 // treat
 $("treatBtn").addEventListener("click", async () => {
@@ -774,8 +857,8 @@ document.querySelectorAll(".tab").forEach((t) => t.addEventListener("click", () 
   document.querySelectorAll(".panel").forEach((p) => (p.hidden = p.id !== `p-${t.dataset.tab}`));
 }));
 
-refresh();
-setInterval(refresh, 15000);
+// check in more often while he's thinking fast
+(function poll() { refresh().finally(() => setTimeout(poll, latest && latest.pace < 1 ? 6000 : 15000)); })();
 document.addEventListener("visibilitychange", () => { if (!document.hidden) refresh(); });
 </script>
 </body>

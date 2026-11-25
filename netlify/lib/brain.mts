@@ -11,7 +11,9 @@ export function hasBrain() {
   return !!(Netlify.env.get("ANTHROPIC_API_KEY") || Netlify.env.get("OPENAI_API_KEY"));
 }
 
-const timeout = () => AbortSignal.timeout(20_000);
+let timeoutMs = 20_000;
+let maxTokens = 500;
+const timeout = () => AbortSignal.timeout(timeoutMs);
 
 async function askClaude(key: string, system: string, user: string) {
   const chosen = Netlify.env.get("ANTHROPIC_MODEL");
@@ -20,7 +22,7 @@ async function askClaude(key: string, system: string, user: string) {
     const r = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-api-key": key, "anthropic-version": "2023-06-01" },
-      body: JSON.stringify({ model, max_tokens: 500, system, messages: [{ role: "user", content: user }] }),
+      body: JSON.stringify({ model, max_tokens: maxTokens, system, messages: [{ role: "user", content: user }] }),
       signal: timeout(),
     });
     if (r.ok) {
@@ -61,7 +63,9 @@ async function askOpenAI(key: string, system: string, user: string) {
   throw new Error(lastErr || "No OpenAI model worked");
 }
 
-export async function ask(system: string, user: string): Promise<{ text: string; model: string }> {
+export async function ask(system: string, user: string, maxMs = 20_000, tokens = 500): Promise<{ text: string; model: string }> {
+  timeoutMs = maxMs;
+  maxTokens = tokens;
   const claude = Netlify.env.get("ANTHROPIC_API_KEY");
   if (claude) return askClaude(claude, system, user);
   const openai = Netlify.env.get("OPENAI_API_KEY");

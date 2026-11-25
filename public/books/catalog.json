@@ -1,0 +1,72 @@
+[
+ {
+  "slug": "peter-rabbit",
+  "title": "The Tale of Peter Rabbit",
+  "author": "Beatrix Potter",
+  "year": 1902,
+  "pages": 5
+ },
+ {
+  "slug": "benjamin-bunny",
+  "title": "The Tale of Benjamin Bunny",
+  "author": "Beatrix Potter",
+  "year": 1904,
+  "pages": 5
+ },
+ {
+  "slug": "jemima-puddle-duck",
+  "title": "The Tale of Jemima Puddle-Duck",
+  "author": "Beatrix Potter",
+  "year": 1908,
+  "pages": 6
+ },
+ {
+  "slug": "velveteen-rabbit",
+  "title": "The Velveteen Rabbit",
+  "author": "Margery Williams",
+  "year": 1922,
+  "pages": 19
+ },
+ {
+  "slug": "alice",
+  "title": "Alice's Adventures in Wonderland",
+  "author": "Lewis Carroll",
+  "year": 1865,
+  "pages": 128
+ },
+ {
+  "slug": "wind-in-the-willows",
+  "title": "The Wind in the Willows",
+  "author": "Kenneth Grahame",
+  "year": 1908,
+  "pages": 305
+ },
+ {
+  "slug": "wizard-of-oz",
+  "title": "The Wonderful Wizard of Oz",
+  "author": "L. Frank Baum",
+  "year": 1900,
+  "pages": 184
+ },
+ {
+  "slug": "andersen",
+  "title": "Andersen's Fairy Tales",
+  "author": "Hans Christian Andersen",
+  "year": 1835,
+  "pages": 275
+ },
+ {
+  "slug": "grimm",
+  "title": "Grimms' Fairy Tales",
+  "author": "The Brothers Grimm",
+  "year": 1812,
+  "pages": 467
+ },
+ {
+  "slug": "secret-garden",
+  "title": "The Secret Garden",
+  "author": "Frances Hodgson Burnett",
+  "year": 1911,
+  "pages": 382
+ }
+]

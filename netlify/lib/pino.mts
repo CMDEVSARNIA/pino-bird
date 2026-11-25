@@ -1,13 +1,16 @@
 // The bird's world and mind. Pure logic - no storage here, so it's easy to test.
 
+import { BOOKS } from "./library.mts";
+
 export const NAME = "Pino";
 export const SPECIES = "kiwi bird";
 export const TZ = "America/Toronto"; // day and night follow real Toronto time
 export const REFLECT_EVERY = 12;     // reflects every 12 decisions
-export const FAST_HOURS = 3;         // for his first 3 hours he thinks every minute, then every 5
+export const FAST_HOURS = 3;         // for his first 3 hours he thinks about twice a minute, then every 5 minutes
 
+// Minutes between his decisions right now
 export function paceMinutes(s: { born: number }, now: number) {
-  return now - s.born < FAST_HOURS * 3_600_000 ? 1 : 5;
+  return now - s.born < FAST_HOURS * 3_600_000 ? 0.5 : 5;
 }
 
 export type Need = "food" | "energy" | "joy";
@@ -35,7 +38,6 @@ export const PLACES: Record<string, Place> = {
     label: "library",
     desc: "the town library, quiet and warm, full of old books and a big wooden drawing table",
     activities: {
-      "read a book": { joy: 8, energy: -2 },
       "write in my journal": { joy: 6, energy: -2, kind: "journal" },
       "draw a picture": { joy: 10, energy: -5, kind: "drawing" },
     },
@@ -68,6 +70,7 @@ export type Memory = {
   deltas: Partial<Record<Need, number>>; first: boolean; bored: boolean; brain: string;
 };
 export type Note = { key: string; text: string; at: number };
+export type Drawing = { t: string; text: string; title?: string; svg?: string };
 export type State = {
   born: number; tick: number; place: string;
   needs: Record<Need, number>;
@@ -75,7 +78,11 @@ export type State = {
   insights: { t: string; text: string }[];
   memories: Memory[];
   journal: { t: string; text: string }[];
-  drawings: { t: string; text: string }[];
+  drawings: Drawing[];
+  books: Record<string, number>;                // pages read in each book
+  lastRead: { slug: string; page: number } | null; // what he just read (he reacts next moment)
+  readingLog: { t: string; slug: string; title: string; page: number; of: number; reaction: string }[];
+  pendingDrawing: number | null;                 // index of a drawing he still has to put on paper
   conversations: { t: string; visitor: string; reply: string }[];
   tried: Record<string, number>;
   thought: string; doing: string;
@@ -88,6 +95,7 @@ export function newState(now: number): State {
     needs: { food: 70, energy: 80, joy: 50 },
     personality: "I'm new here and I don't know what I like yet. I want to find out.",
     insights: [], memories: [], journal: [], drawings: [], conversations: [], tried: {},
+    books: {}, lastRead: null, readingLog: [], pendingDrawing: null,
     thought: "Where am I? It's cosy here...", doing: "waking up for the first time",
     last_error: "", last_tick_at: 0,
   };
@@ -149,7 +157,7 @@ export function parseJSON(text: string): any {
 // ---------------------------------------------------------------------------
 // Options and prompts
 // ---------------------------------------------------------------------------
-export type Option = { type: "do" | "go" | "reply" | "rest"; name: string; label: string };
+export type Option = { type: "do" | "go" | "reply" | "rest" | "read"; name: string; label: string };
 
 export function buildOptions(s: State, notes: Note[]): Option[] {
   const here = s.place;
@@ -162,6 +170,7 @@ export function buildOptions(s: State, notes: Note[]): Option[] {
   if (notes.length) {
     opts.push({ type: "reply", name: "reply to a visitor's note", label: 'reply to the visitor\'s note (write your reply in "note")' });
   }
+  if (here === "library") opts.push(...bookOptions(s));
   opts.push({ type: "rest", name: "sit and think", label: "just sit and think for a while" });
   return opts;
 }
@@ -193,18 +202,24 @@ export function decisionPrompt(s: State, opts: Option[], notes: Note[], now: num
     if (recent.filter((x) => x === top).length >= 3) bored = `\nYou've done "${top}" a lot lately and it's starting to feel boring.\n`;
   }
   const note = notes.length ? `\nSomeone visited and left you a note: "${notes[0].text}"\n` : "";
+  let reading = "";
+  if (s.lastRead && BOOKS[s.lastRead.slug]) {
+    const b = BOOKS[s.lastRead.slug];
+    reading = `\nYou just read page ${s.lastRead.page} of ${b.pages.length} of "${b.title}" by ${b.author}:\n"""\n${b.pages[s.lastRead.page - 1]}\n"""\n` +
+      "Let your thought be your honest reaction to what you just read (and you can keep reading if you want).\n";
+  }
   const { weekday } = localTime(now);
   const night = isNight(now) ? "night time - it's dark and most creatures are asleep" : "daytime";
   const numbered = opts.map((o, i) => `${i + 1}. ${o.label}`).join("\n");
   return (
     `It is ${weekday}, ${clockStr(s, now)} (${night}). You are at the ${PLACES[s.place].label}: ${PLACES[s.place].desc}.\n\n` +
-    `How you feel right now:\n${feel}\n${bored}${note}\n` +
+    `How you feel right now:\n${feel}\n${bored}${note}${reading}\n` +
     `What happened recently (oldest first):\n${history}\n\n` +
     `What you could do next:\n${numbered}\n\n` +
     "Pick ONE option. Reply with JSON exactly like this:\n" +
     '{"thought": "one or two sentences, first person, about how you feel and why you chose this", ' +
     '"choice": <option number>, ' +
-    '"note": "only when writing in your journal, drawing (describe the picture you draw), or replying to a visitor - otherwise an empty string"}'
+    '"note": "only when writing in your journal, drawing (describe the picture you want to draw), or replying to a visitor - otherwise an empty string"}'
   );
 }
 
@@ -257,7 +272,26 @@ export function applyChoice(
   let action: string;
   note = (note || "").trim().slice(0, 600);
 
-  if (opt.type === "go") {
+  // his reaction to what he read last moment goes on the bookshelf
+  if (s.lastRead && BOOKS[s.lastRead.slug]) {
+    const b = BOOKS[s.lastRead.slug];
+    s.readingLog.push({ t, slug: b.slug, title: b.title, page: s.lastRead.page, of: b.pages.length, reaction: thought });
+    s.readingLog = s.readingLog.slice(-200);
+  }
+  s.lastRead = null;
+
+  if (opt.type === "read" && BOOKS[opt.name]) {
+    const b = BOOKS[opt.name];
+    const done = s.books[b.slug] ?? 0;
+    const page = done >= b.pages.length ? 1 : done + 1; // finished books start over
+    s.books[b.slug] = page;
+    s.lastRead = { slug: b.slug, page };
+    first = !s.tried[`read ${b.slug}`];
+    s.tried[`read ${b.slug}`] = (s.tried[`read ${b.slug}`] ?? 0) + 1;
+    deltas = { joy: 6 + (first ? 6 : 0) + (page === b.pages.length ? 10 : 0), energy: -1 };
+    action = `read "${b.title}" (page ${page} of ${b.pages.length})`;
+    note = "";
+  } else if (opt.type === "go") {
     s.place = opt.name;
     deltas = { energy: -2 };
     action = `walked to the ${PLACES[opt.name].label}`;
@@ -283,7 +317,10 @@ export function applyChoice(
     deltas = eff as Partial<Record<Need, number>>;
 
     if (kind === "journal" && note) s.journal.push({ t, text: note });
-    if (kind === "drawing" && note) s.drawings.push({ t, text: note });
+    if (kind === "drawing") {
+      s.drawings.push({ t, text: note || "a picture I didn't describe" });
+      s.pendingDrawing = s.drawings.length - 1;
+    }
     if (opt.type === "reply" && answeredNote) {
       s.conversations.push({ t, visitor: answeredNote.text, reply: note || "(looked at the note for a long time, then nodded)" });
     }
@@ -301,7 +338,11 @@ export function applyChoice(
   s.memories.push({ t, place: here, action, thought, note, deltas, first, bored, brain });
   s.memories = s.memories.slice(-400);
   s.journal = s.journal.slice(-150);
-  s.drawings = s.drawings.slice(-150);
+  if (s.drawings.length > 150) {
+    const cut = s.drawings.length - 150;
+    s.drawings = s.drawings.slice(cut);
+    if (s.pendingDrawing !== null) s.pendingDrawing = s.pendingDrawing >= cut ? s.pendingDrawing - cut : null;
+  }
   s.conversations = s.conversations.slice(-150);
   s.thought = thought;
   s.doing = action;
@@ -386,8 +427,60 @@ export function publicView(s: State, unread: number, now: number, chats: { at: n
     place: s.place, needs: s.needs, thought: s.thought, doing: s.doing,
     personality: s.personality, insights: s.insights.slice(-20),
     memories: s.memories.slice(-40), journal: s.journal.slice(-30),
-    drawings: s.drawings.slice(-30), conversations: s.conversations.slice(-30),
+    drawings: s.drawings.slice(-40), conversations: s.conversations.slice(-30),
+    books: Object.values(BOOKS).map((b) => ({ slug: b.slug, title: b.title, author: b.author, year: b.year, pages: b.pages.length, read: s.books[b.slug] ?? 0 })),
+    readingLog: s.readingLog.slice(-40),
     unread, tick: s.tick, last_error: s.last_error, last_tick_at: s.last_tick_at, pace: paceMinutes(s, now),
     places: Object.fromEntries(Object.entries(PLACES).map(([k, p]) => [k, p.label])),
   };
+}
+
+// ---------------------------------------------------------------------------
+// The bookshelf
+// ---------------------------------------------------------------------------
+function bookOptions(s: State): Option[] {
+  const all = Object.values(BOOKS);
+  const reading = all.filter((b) => (s.books[b.slug] ?? 0) > 0 && (s.books[b.slug] ?? 0) < b.pages.length);
+  const unread = all.filter((b) => !s.books[b.slug]);
+  const finished = all.filter((b) => (s.books[b.slug] ?? 0) >= b.pages.length);
+  // keep the list short: books he's in the middle of, plus a few he hasn't opened
+  const shuffled = unread.sort(() => Math.random() - 0.5).slice(0, Math.max(2, 4 - reading.length));
+  const reread = finished.sort(() => Math.random() - 0.5).slice(0, 1);
+  return [...reading.slice(0, 3), ...shuffled, ...reread].map((b) => {
+    const read = s.books[b.slug] ?? 0;
+    const where = read === 0 ? "a book you've never opened"
+      : read >= b.pages.length ? "you've finished it; read it again from the start"
+      : `continue from page ${read + 1} of ${b.pages.length}`;
+    return { type: "read" as const, name: b.slug, label: `read "${b.title}" by ${b.author} (${where})` };
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Drawing: Pino puts his idea on paper himself, as an SVG picture
+// ---------------------------------------------------------------------------
+export function drawingPrompt(d: Drawing) {
+  return (
+    `You decided to draw this: "${d.text}"\n\n` +
+    "Now draw it. It's your picture and you have complete freedom: what's in it, the style, the colours, " +
+    "the composition, whether it's neat or scribbly, realistic or strange - all up to you. " +
+    'Draw it as an SVG image with viewBox="0 0 300 300" using shapes, paths and colours (no text needed unless you want it, ' +
+    "no external images or scripts). Give it a title.\n" +
+    'Reply with JSON exactly like this: {"title": "your title", "svg": "<svg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 300 300\'>...</svg>"}'
+  );
+}
+
+// Only technical safety limits: keep drawing markup, drop anything that could run code or load from elsewhere.
+export function sanitizeSvg(raw: unknown): string | null {
+  if (typeof raw !== "string") return null;
+  const m = raw.match(/<svg[\s\S]*<\/svg>/i);
+  if (!m) return null;
+  let svg = m[0];
+  if (svg.length > 20_000) return null;
+  svg = svg
+    .replace(/<(script|foreignObject|iframe|image|audio|video|object|embed)[\s\S]*?(<\/\1>|\/>)/gi, "")
+    .replace(/\son\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, "")
+    .replace(/(href|xlink:href)\s*=\s*("|')(?!#)[^"']*\2/gi, "")
+    .replace(/url\(\s*(['"]?)(?!#)[^)]*\)/gi, "none");
+  if (!/xmlns=/.test(svg.slice(0, 200))) svg = svg.replace(/<svg/i, '<svg xmlns="http://www.w3.org/2000/svg"');
+  return svg;
 }

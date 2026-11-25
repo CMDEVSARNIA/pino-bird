@@ -21,3 +21,12 @@ gets bored when he repeats himself, and about once an hour reflects and rewrites
 
 ## Cost
 At one thought every 5 minutes on a small model, expect a few dollars a month. Check usage at console.anthropic.com.
+
+## Library
+`public/books/` holds 10 public-domain children's books (Project Gutenberg texts, first published 1812-1922, authors long deceased),
+split into pages by `scripts/make_books.py`. At the library Pino picks a book, reads one page per moment, remembers his place,
+and reacts to what he read (shown in the Books tab).
+
+## Drawings
+When Pino draws, he first decides what to draw, then draws it himself as an SVG: subject, style and colours are entirely his choice.
+The only limits are technical safety (no scripts or outside images); pictures are shown as images in the Drawings tab.
