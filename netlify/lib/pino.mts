@@ -684,7 +684,7 @@ export type Person = {
 
 // ---- seeds 🌱: earned by watching and interacting, spent on gifts
 export const START_SEEDS = 15;
-export const EARN = { watch: { each: 1, cap: 120 }, chat: { each: 3, cap: 30 }, pet: { each: 1, cap: 10 } } as const;
+export const EARN = { watch: { each: 3, cap: 360 }, chat: { each: 8, cap: 80 }, pet: { each: 2, cap: 30 } } as const;
 const today = (now: number) => new Intl.DateTimeFormat("en-CA", { timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(now));
 export function seedsOf(p: Person | null) { return p?.seeds ?? START_SEEDS; }
 export function earn(p: Person, kind: keyof typeof EARN, now: number) {
