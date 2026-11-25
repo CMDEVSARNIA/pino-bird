@@ -3,7 +3,7 @@ import {
   applyChoice, applyReflection, buildOptions, decisionPrompt, identityPrompt, instinct,
   parseJSON, readChoice, reflectionPrompt, REFLECT_EVERY,
 } from "../lib/pino.mts";
-import { ask, NoBrain } from "../lib/brain.mts";
+import { ask, hasBrain, NoBrain } from "../lib/brain.mts";
 import { deleteNote, listNotes, loadState, saveState } from "../lib/store.mts";
 
 // Pino's heartbeat: every 5 minutes he either decides what to do next,
@@ -13,7 +13,7 @@ export default async () => {
   const s = await loadState();
   s.last_tick_at = now;
 
-  const reflecting = !!Netlify.env.get("OPENAI_API_KEY") && s.tick > 0 && s.tick % REFLECT_EVERY === 0 && s.memories.length >= 6
+  const reflecting = hasBrain() && s.tick > 0 && s.tick % REFLECT_EVERY === 0 && s.memories.length >= 6
     && !s.memories.at(-1)?.action.startsWith("reflected");
 
   try {
