@@ -417,7 +417,7 @@ function buildWorld() {
   controls.minDistance = 5; controls.maxDistance = 38;
   controls.maxPolarAngle = 1.38; controls.minPolarAngle = 0.25;
   controls.enablePan = false;
-  controls.target.set(0, 0.5, 1.6);
+  controls.target.set(0, 0.5, 0.9);
 
   // lights
   const hemi = new THREE.HemisphereLight(0xffffff, 0x6f9a55, 1.15);
@@ -475,7 +475,7 @@ function buildWorld() {
   add(new THREE.Mesh(new THREE.CylinderGeometry(1.3, 1.3, 0.03, 24), sand), scene, { cast: false, receive: true }).position.set(0, 0.016, 0.6);
 
   // ---- HOUSE
-  const house = new THREE.Group(); house.position.set(-4.6, 0, -5.2); scene.add(house);
+  const house = new THREE.Group(); house.position.set(-4.7, 0, -5.0); scene.add(house);
   add(box(3.2, 2, 2.6, M(0xf2c9a0)), house).position.y = 1;
   const roof = add(new THREE.Mesh(new THREE.ConeGeometry(2.6, 1.7, 4), M(0xc8643b)), house);
   roof.position.y = 2.85; roof.rotation.y = Math.PI / 4; roof.scale.set(1.0, 1, 0.82);
@@ -487,7 +487,7 @@ function buildWorld() {
   add(box(0.05, 0.6, 0.1, M(0xf2c9a0)), house).position.set(0.95, 1.25, 1.35);
 
   // ---- LIBRARY
-  const lib = new THREE.Group(); lib.position.set(4.4, 0, -5.4); scene.add(lib);
+  const lib = new THREE.Group(); lib.position.set(4.8, 0, -5.2); scene.add(lib);
   add(box(4.8, 0.25, 3.3, M(0xcfc6b5)), lib, { receive: true }).position.y = 0.12;
   add(box(4.4, 2.4, 2.8, M(0xe8e1d3)), lib).position.y = 1.45;
   const tri = new THREE.Shape(); tri.moveTo(-2.6, 0); tri.lineTo(2.6, 0); tri.lineTo(0, 1.1); tri.lineTo(-2.6, 0);
@@ -500,7 +500,7 @@ function buildWorld() {
   add(new THREE.Mesh(new THREE.PlaneGeometry(2.2, 0.42), new THREE.MeshBasicMaterial({ map: textTexture("LIBRARY", "#5b4a3a", "#f6efe2", 512, 96) })), lib).position.set(0, 2.38, 1.43);
 
   // ---- VENDING MACHINE
-  const vm = new THREE.Group(); vm.position.set(-1.5, 0, -5.3); scene.add(vm);
+  const vm = new THREE.Group(); vm.position.set(-2.3, 0, -2.6); vm.rotation.y = 0.65; scene.add(vm);
   add(box(1.2, 2.1, 0.85, M(0xd24b4b)), vm).position.y = 1.05;
   const screenTex = snacksTexture();
   const screenMat = new THREE.MeshStandardMaterial({ map: screenTex, emissive: 0xffffff, emissiveMap: screenTex, emissiveIntensity: 0.25, roughness: 0.4 });
@@ -512,7 +512,7 @@ function buildWorld() {
 
   // ---- PARK
   const park = new THREE.Group(); scene.add(park);
-  const tree = new THREE.Group(); tree.position.set(-5.8, 0, 1.6); park.add(tree);
+  const tree = new THREE.Group(); tree.position.set(-5.0, 0, 1.9); park.add(tree);
   add(new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.35, 2, 7), trunkMat), tree).position.y = 1;
   const leafMat = M(0x5fae5a);
   const treeLeaves = [];
@@ -523,15 +523,15 @@ function buildWorld() {
   [[0.5, 2.3, 0.2, 0.6], [-0.5, 2.4, -0.1, -0.7], [0.1, 2.7, 0.4, 0.15], [0.2, 2.5, -0.5, -0.2]].forEach(([x, y, z, rz]) => {
     const b = add(new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.09, 1.3, 5), trunkMat), branches); b.position.set(x, y, z); b.rotation.set(z * 0.8, 0, rz);
   });
-  const pile = new THREE.Group(); pile.position.set(-5.0, 0, 2.9); park.add(pile);
+  const pile = new THREE.Group(); pile.position.set(-3.6, 0, 3.4); park.add(pile);
   const leafCols = [0xe08a3c, 0xd2602f, 0xf0b44a];
   for (let i = 0; i < 22; i++) {
     const l = add(new THREE.Mesh(new THREE.IcosahedronGeometry(0.16, 0), M(leafCols[i % 3])), pile, { cast: false });
     const a = Math.random() * 6.28, r = Math.random() * 0.6;
     l.position.set(Math.cos(a) * r, 0.08 + Math.random() * 0.25 * (1 - r), Math.sin(a) * r); l.scale.y = 0.4;
   }
-  const POND = V(-3.9, 0, 6.2);
-  const bench = new THREE.Group(); bench.position.set(-1.6, 0, 5.4); bench.rotation.y = -1.35; park.add(bench);
+  const POND = V(-3.0, 0, 8.0);
+  const bench = new THREE.Group(); bench.position.set(-0.6, 0, 7.4); bench.rotation.y = -1.45; park.add(bench);
   const wood = M(0xc58b4d);
   add(box(1.8, 0.1, 0.5, wood), bench).position.set(0, 0.5, 0);
   add(box(1.8, 0.4, 0.08, wood), bench).position.set(0, 0.85, -0.25);
@@ -545,7 +545,7 @@ function buildWorld() {
   add(new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.14, 5).rotateX(Math.PI / 2), M(0xf2a23c)), duck).position.set(0, 0.2, 0.38);
 
   // ---- MUSEUM (outside): a domed hall at the back of town
-  const MUS = V(0.55, 0, -9.6);
+  const MUS = V(0, 0, -10.2);
   const mus = new THREE.Group(); mus.position.copy(MUS); scene.add(mus);
   const stone = M(0xeadfc6), sandstone = M(0xd8c7a3), marble = M(0xf6f0e2);
   add(box(5.8, 0.3, 4.0, sandstone), mus, { receive: true }).position.y = 0.15;
@@ -567,7 +567,7 @@ function buildWorld() {
     const em = add(new THREE.Mesh(new THREE.PlaneGeometry(0.34, 0.34), new THREE.MeshBasicMaterial({ map: emojiTexture(e), transparent: true })), mus, { cast: false });
     em.position.set(x, 2.35, 1.98);
   });
-  const MUSEUM_DOOR = V(0.55, 0, -7.25);
+  const MUSEUM_DOOR = V(0, 0, -7.85);
 
   // ---- MUSEUM (inside): a big hall far from town; the camera visits it, and so does Pino
   const ROOM = V(0, 0, -80);
@@ -789,11 +789,11 @@ function buildWorld() {
   snow.visible = false; snow.frustumCulled = false; scene.add(snow);
   // puddles and a little snow-kiwi he can build
   const puddles = new THREE.Group(); scene.add(puddles); puddles.visible = false;
-  [[-1.2, 2.6, 0.5], [-2.2, 1.2, 0.35], [1.6, 2.2, 0.4], [-0.6, -1.6, 0.3], [2.6, -1.2, 0.35]].forEach(([x, z, r]) => {
+  [[-1.0, 2.8, 0.5], [-2.0, 1.6, 0.35], [1.4, 2.4, 0.4], [-0.9, -1.0, 0.3], [1.0, -4.0, 0.35], [0.8, 6.0, 0.45]].forEach(([x, z, r]) => {
     const pd = add(new THREE.Mesh(new THREE.CircleGeometry(r, 16).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0x8fa9bc, roughness: 0.05, metalness: 0.2 })), puddles, { cast: false });
     pd.position.set(x, 0.04, z); pd.scale.set(1.3, 1, 0.8);
   });
-  const snowKiwi = new THREE.Group(); snowKiwi.position.set(-2.2, 0, 1.5); scene.add(snowKiwi); snowKiwi.visible = false;
+  const snowKiwi = new THREE.Group(); snowKiwi.position.set(-1.5, 0, 4.4); scene.add(snowKiwi); snowKiwi.visible = false;
   const snowMat = M(0xf7fbfd);
   add(new THREE.Mesh(new THREE.IcosahedronGeometry(0.42, 1), snowMat), snowKiwi).position.y = 0.38;
   add(new THREE.Mesh(new THREE.IcosahedronGeometry(0.22, 1), snowMat), snowKiwi).position.set(0, 0.78, 0.25);
@@ -850,37 +850,37 @@ function buildWorld() {
   }
 
   // spots where Pino stands at each place, what he faces, and extra spots for some activities
-  const SPOTS = { house: V(-4.6, 0, -2.4), library: V(4.4, 0, -2.5), vending: V(-1.5, 0, -3.85), park: V(-3.0, 0, 3.2), gallery: V(3.96, 0, 3.73), museum: V(0.55, 0, -6.4) };
-  const LOOK = { house: V(-4.6, 0, -4), library: V(4.4, 0, -4), vending: V(-1.5, 0, -5.3), park: POND, gallery: V(4.4, 0, 2.3), museum: MUS };
+  const SPOTS = { house: V(-4.7, 0, -2.2), library: V(4.8, 0, -2.3), vending: V(-1.45, 0, -1.55), park: V(-2.4, 0, 4.6), gallery: V(4.16, 0, 3.73), museum: V(0, 0, -7.0) };
+  const LOOK = { house: V(-4.7, 0, -3.8), library: V(4.8, 0, -3.8), vending: V(-2.3, 0, -2.6), park: POND, gallery: V(4.6, 0, 2.3), museum: MUS };
   // [activity, where he goes, what he faces, building he disappears into]
-  const HOUSE_DOOR = V(-4.6, 0, -3.75), LIB_DOOR = V(4.4, 0, -3.65);
+  const HOUSE_DOOR = V(-4.7, 0, -3.55), LIB_DOOR = V(4.8, 0, -3.45);
   const ACT = [
-    [/^sleep|tidy|window|blanket|rain on the roof/, HOUSE_DOOR, V(-5, 0, -6), "house"],
-    [/read|journal|draw|paint|studied|study|nook/, LIB_DOOR, V(4.4, 0, -6), "library"],
-    [/telescope/, V(-2.7, 0, -1.85), V(-2.7, 0, -3.6)],
-    [/toy train/, V(2.2, 0, 6.1), V(0.9, 0, 6.5)],
-    [/birdbath/, V(1.9, 0, 3.7), V(1.9, 0, 4.5)],
-    [/kite/, V(0, 0, 4.4), V(-3, 0, 2)],
-    [/swing/, V(3.95, 0, 6.9), V(3.95, 0, 12)],
-    [/gramophone|next song/, V(-5.0, 0, 4.7), V(-5.9, 0, 4.3)],
-    [/dance/, V(-4.5, 0, 3.9), V(-4.5, 0, 12)],
-    [/leaf/, V(-4.3, 0, 3.4), V(-5.0, 0, 2.9)],
-    [/ducks/, V(-2.5, 0, 5.0), POND],
-    [/snow-kiwi|flop down in the soft snow|snowflakes/, V(-2.3, 0, 2.3), V(-2.2, 0, 1.5)],
-    [/frozen pond/, V(-3.9, 0.04, 6.2), V(-3.9, 0, 9)],
-    [/puddles/, V(-1.0, 0, 2.7), V(-1.2, 0, 2.6)],
-    [/shelter under/, V(-5.2, 0, 2.2), V(-3, 0, 3.5)],
+    [/^sleep|tidy|window|blanket|rain on the roof/, HOUSE_DOOR, V(-5.1, 0, -5.8), "house"],
+    [/read|journal|draw|paint|studied|study|nook/, LIB_DOOR, V(4.8, 0, -5.8), "library"],
+    [/telescope/, V(2.0, 0, -1.6), V(2.0, 0, -3.4)],
+    [/toy train/, V(2.7, 0, 9.0), V(1.2, 0, 9.6)],
+    [/birdbath/, V(1.9, 0, 4.4), V(1.9, 0, 5.2)],
+    [/kite/, V(-0.4, 0, 5.0), V(-3, 0, 3.5)],
+    [/swing/, V(3.75, 0, 8.4), V(3.75, 0, 14)],
+    [/gramophone|next song/, V(-4.6, 0, 5.9), V(-5.5, 0, 5.5)],
+    [/dance/, V(-3.7, 0, 5.4), V(-3.7, 0, 14)],
+    [/leaf/, V(-2.9, 0, 3.9), V(-3.6, 0, 3.4)],
+    [/ducks/, V(-1.6, 0, 6.6), POND],
+    [/snow-kiwi|flop down in the soft snow|snowflakes/, V(-1.6, 0, 5.2), V(-1.5, 0, 4.4)],
+    [/frozen pond/, V(-3.0, 0.04, 8.0), V(-3.0, 0, 11)],
+    [/puddles/, V(-1.0, 0, 2.9), V(-1.2, 0, 2.8)],
+    [/shelter under/, V(-4.2, 0, 2.6), V(-2, 0, 4.2)],
     [/spring flowers/, V(-1.6, 0, 1.4), V(-1.6, 0, 0)],
-    [/paddle my feet/, V(-2.7, 0, 5.6), POND],
-    [/bench|sit and think/, V(-1.6, 0.52, 5.4), POND],
+    [/paddle my feet/, V(-1.9, 0, 7.2), POND],
+    [/bench|sit and think/, V(-0.6, 0.52, 7.4), POND],
   ];
-  const INSIDE_ANCHOR = { house: V(-4.6, 2.4, -3.7), library: V(4.4, 2.9, -3.6), museum: V(0.55, 4.3, -7.4) };
-  const CHIMNEY = V(-3.7, 4.0, -5.5);
+  const INSIDE_ANCHOR = { house: V(-4.7, 2.4, -3.5), library: V(4.8, 2.9, -3.4), museum: V(0, 4.3, -8.0) };
+  const CHIMNEY = V(-3.8, 4.0, -5.3);
   for (const k of Object.keys(SPOTS)) strip(JUNCTION, SPOTS[k]);
-  strip(SPOTS.house, V(-4.6, 0, -3.9), 0.9); strip(SPOTS.library, V(4.4, 0, -3.8), 0.9); strip(SPOTS.museum, MUSEUM_DOOR, 1.2);
+  strip(SPOTS.house, V(-4.7, 0, -3.7), 0.9); strip(SPOTS.library, V(4.8, 0, -3.6), 0.9); strip(SPOTS.museum, MUSEUM_DOOR, 1.2);
 
   // ---- Pino's art gallery: six frames that show the drawings he chose to hang
-  const gal = new THREE.Group(); gal.position.set(4.4, 0, 2.3); gal.rotation.y = -0.3; scene.add(gal);
+  const gal = new THREE.Group(); gal.position.set(4.6, 0, 2.3); gal.rotation.y = -0.3; scene.add(gal);
   add(box(3.1, 0.14, 2.0, M(0xd9d2c3)), gal, { receive: true }).position.y = 0.07;
   add(box(2.9, 2.3, 0.18, M(0xf4efe4)), gal).position.set(0, 1.29, -0.82);
   add(box(3.3, 0.16, 1.1, M(0x7a9e8a)), gal).position.set(0, 2.55, -0.4);   // short roof, so the art stays in view
@@ -912,7 +912,7 @@ function buildWorld() {
   }
 
   // ---- the gramophone in the park
-  const gram = new THREE.Group(); gram.position.set(-5.9, 0, 4.3); gram.rotation.y = 0.9; scene.add(gram);
+  const gram = new THREE.Group(); gram.position.set(-5.5, 0, 5.5); gram.rotation.y = 0.9; scene.add(gram);
   add(box(0.7, 0.35, 0.6, M(0x8b5a3c)), gram).position.y = 0.45;
   for (const [x, z] of [[-0.28, -0.22], [0.28, -0.22], [-0.28, 0.22], [0.28, 0.22]]) add(box(0.06, 0.28, 0.06, M(0x5a3a24)), gram).position.set(x, 0.14, z);
   const platter = add(new THREE.Mesh(new THREE.CylinderGeometry(0.26, 0.26, 0.03, 20), M(0x1d1a16)), gram); platter.position.y = 0.64;
@@ -924,7 +924,7 @@ function buildWorld() {
   let musicOn = false;
 
   // ---- swing set in the park (two swings that really swing)
-  const swingSet = new THREE.Group(); swingSet.position.set(4.4, 0, 6.3); scene.add(swingSet);
+  const swingSet = new THREE.Group(); swingSet.position.set(4.2, 0, 7.8); scene.add(swingSet);
   const frameMat = M(0x3f7fbf), ropeMat = M(0x8a7a66), seatMat = M(0xd2604b);
   for (const x of [-1.2, 1.2]) for (const z of [-0.55, 0.55]) {
     const leg = add(new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 2.5, 6), frameMat), swingSet);
@@ -941,19 +941,19 @@ function buildWorld() {
 
   // ---- gifts that appear in the town once someone gives them
   const props = {};
-  const tele = new THREE.Group(); tele.position.set(-2.7, 0, -2.6); scene.add(tele);
+  const tele = new THREE.Group(); tele.position.set(2.0, 0, -2.4); scene.add(tele);
   for (const a of [0, 2.1, 4.2]) {
     const leg = add(new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 1.15, 5), M(0x6b5a4a)), tele);
     leg.position.set(Math.cos(a) * 0.2, 0.55, Math.sin(a) * 0.2); leg.rotation.set(Math.sin(a) * 0.35, 0, -Math.cos(a) * 0.35);
   }
   const tube = add(new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.13, 1.0, 10), M(0x2f5d8a)), tele); tube.position.set(0, 1.2, -0.1); tube.rotation.x = -0.9;
   props["thing-telescope"] = tele;
-  const trainSet = new THREE.Group(); trainSet.position.set(0.9, 0, 6.5); trainSet.scale.setScalar(0.85); scene.add(trainSet);
+  const trainSet = new THREE.Group(); trainSet.position.set(1.2, 0, 9.6); trainSet.scale.setScalar(0.85); scene.add(trainSet);
   add(new THREE.Mesh(new THREE.TorusGeometry(1.1, 0.06, 4, 40).rotateX(Math.PI / 2), M(0x7a6a5a)), trainSet, { cast: false }).position.y = 0.04;
   const cars = [0xc0392b, 0x2980b9, 0xf1c40f].map((c, i) => add(box(0.32, 0.22, 0.2, M(c)), trainSet));
   const chimneyPuff = add(new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.05, 0.14, 6), M(0x333333)), cars[0]); chimneyPuff.position.set(0.08, 0.17, 0);
   props["thing-train"] = trainSet;
-  const bath = new THREE.Group(); bath.position.set(1.9, 0, 4.5); scene.add(bath);
+  const bath = new THREE.Group(); bath.position.set(1.9, 0, 5.2); scene.add(bath);
   add(new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.18, 0.7, 8), M(0xb9b3a8)), bath).position.y = 0.35;
   add(new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.35, 0.18, 14), M(0xc9c3b8)), bath).position.y = 0.78;
   add(new THREE.Mesh(new THREE.CircleGeometry(0.47, 16).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0x7cc4e4, roughness: 0.1 })), bath, { cast: false }).position.y = 0.875;
@@ -974,14 +974,14 @@ function buildWorld() {
   scene.add(stars);
   const moon = new THREE.Mesh(new THREE.SphereGeometry(2.5, 16, 16), new THREE.MeshBasicMaterial({ color: 0xf4f1dc, fog: false, transparent: true, opacity: 0 }));
   moon.position.set(-30, 32, -45); scene.add(moon);
-  const houseLight = new THREE.PointLight(0xffc861, 0, 7, 1.5); houseLight.position.set(-4.6, 1.3, -3.4); scene.add(houseLight);
+  const houseLight = new THREE.PointLight(0xffc861, 0, 7, 1.5); houseLight.position.set(-4.7, 1.3, -3.2); scene.add(houseLight);
 
   // ================================================================ PINO
   const pino = makeKiwi(M); pino.group.scale.setScalar(1.45); scene.add(pino.group);
   pino.group.position.copy(SPOTS.house);
 
   // ---------------------------------------------------------------- overlays
-  const labels = [["home", V(-4.6, 4.2, -5.2)], ["library", V(4.4, 4.1, -5.4)], ["snacks", V(-1.5, 2.75, -5.3)], ["park", V(-5.8, 4.1, 1.6)], ["gallery", V(4.4, 3.0, 2.3)], ["museum", V(0.55, 6.0, -9.6)]].map(([t, p]) => {
+  const labels = [["home", V(-4.7, 4.2, -5.0)], ["library", V(4.8, 4.1, -5.2)], ["snacks", V(-2.3, 2.75, -2.6)], ["park", V(-5.0, 4.1, 1.9)], ["gallery", V(4.6, 3.0, 2.3)], ["museum", V(0, 6.0, -10.2)]].map(([t, p]) => {
     const d = el("div", "ov label", t); stage.append(d); return { d, p };
   });
   const bubble = el("div", "ov bubble thought"); bubble.hidden = true; stage.append(bubble);
@@ -1023,7 +1023,7 @@ function buildWorld() {
       if (state.doing !== doing) {
         const spot = roomSpot(doing);
         state.path = spot.pos.distanceTo(pino.group.position) > 0.05 ? [spot.pos.clone().setY(0)] : [];
-        state.look = spot.look; state.base = spot.pos.clone(); state.doing = doing; state.wandering = false;
+        state.look = spot.look; state.base = spot.pos.clone(); state.doing = doing; state.wandering = false; state.glance = null;
         state.sleeping = /^sleep|nap/.test(doing);
       }
       return;
@@ -1067,8 +1067,9 @@ function buildWorld() {
   function resize() {
     const w = stage.clientWidth, h = stage.clientHeight;
     renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix();
-    const dist = w / h < 0.9 ? 26.5 : w / h < 1.3 ? 23 : 19;
-    if (!resize.done) { camera.position.set(0, dist * 0.62, dist * 0.78); resize.done = true; }
+    // portrait phones look down more steeply, so the town's depth fills the tall screen
+    const portrait = w / h < 0.9, dist = portrait ? 29 : w / h < 1.3 ? 24 : 20;
+    if (!resize.done) { const tg = controls.target; camera.position.set(tg.x, tg.y + dist * (portrait ? 0.74 : 0.62), tg.z + dist * (portrait ? 0.67 : 0.78)); resize.done = true; }
   }
   new ResizeObserver(resize).observe(stage); resize();
 
@@ -1099,6 +1100,26 @@ function buildWorld() {
     const g = pino.group;
 
     // between decisions, potter about near where he is so he always feels alive
+    if (!state.path.length && t > state.nextWander && state.inRoom && !state.sleeping) {
+      // in the museum he roams the hall freely, stopping to peer at whatever catches his eye
+      if (state.wandering && Math.random() < 0.35) { state.path = [state.base.clone()]; state.wandering = false; state.glance = null; }
+      else {
+        let p = null;
+        for (let k = 0; k < 16 && !p; k++) {
+          const c = ROOM.clone().add(V((Math.random() - 0.5) * 14, 0, -4.4 + Math.random() * 10.8));
+          const clear = Object.entries(exhibitGroups).every(([id, e]) => e.look.distanceTo(c) > (id === "trex" ? 3.2 : id === "flyer" ? 0.6 : 1.6))
+            && c.distanceTo(ROOM.clone().add(V(0, 0, 2.2))) > 1.5;
+          if (clear) p = c;
+        }
+        if (p) {
+          state.path = [p]; state.wandering = true;
+          const near = Object.values(exhibitGroups).sort((a, b) => a.look.distanceTo(p) - b.look.distanceTo(p))[0];
+          state.glance = near ? near.look : null;
+          if (Math.random() < 0.25) state.hop = 0.6;
+        }
+      }
+      state.nextWander = t + (state.wandering ? 6 + Math.random() * 6 : 9 + Math.random() * 8);
+    }
     if (!state.path.length && t > state.nextWander) {
       const still = state.sleeping || state.indoor || state.base.y > 0.05 || /swing|dance|gramophone|next song/.test(state.doing);
       if (!still) {
@@ -1133,6 +1154,8 @@ function buildWorld() {
         g.position.addScaledVector(tmp.normalize(), step);
         lookAngle = Math.atan2(tmp.x, tmp.z);
       }
+    } else if (state.wandering && state.glance) {
+      tmp.copy(state.glance).sub(g.position); lookAngle = Math.atan2(tmp.x, tmp.z);
     } else if (state.look && !state.wandering) {
       tmp.copy(state.look).sub(g.position); lookAngle = Math.atan2(tmp.x, tmp.z);
     }
@@ -1192,7 +1215,7 @@ function buildWorld() {
     const flying = /kite/.test(state.doing) && !state.path.length && owned.has("thing-kite");
     kite.visible = kiteString.visible = flying;
     if (flying) {
-      kite.position.set(-3 + Math.sin(t * 0.7) * 1.2, 5 + Math.sin(t * 1.3) * 0.5, 2 + Math.cos(t * 0.5) * 0.6);
+      kite.position.set(-2.4 + Math.sin(t * 0.7) * 1.2, 5.5 + Math.sin(t * 1.3) * 0.5, 3.5 + Math.cos(t * 0.5) * 0.6);
       kite.rotation.z = Math.sin(t * 1.1) * 0.4;
       const pts = kiteString.geometry.attributes.position; const hand = g.position.clone().add(V(0, 0.8, 0));
       pts.setXYZ(0, hand.x, hand.y, hand.z); pts.setXYZ(1, kite.position.x, kite.position.y - 0.6, kite.position.z); pts.needsUpdate = true;
