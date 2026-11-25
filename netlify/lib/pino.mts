@@ -204,6 +204,9 @@ export function buildOptions(s: State, notes: Note[]): Option[] {
     opts.push({ type: "reply", name: "reply to a visitor's note", label: 'reply to the visitor\'s note (write your reply in "note")' });
   }
   if (here === "library") opts.push(...bookOptions(s));
+  if (here !== "house" && s.needs.energy < 45) {
+    opts.push({ type: "do", name: "take a nap right here", label: `take a nap right here at the ${PLACES[here].label} (your bed at home is cosier)` });
+  }
   opts.push({ type: "rest", name: "sit and think", label: "just sit and think for a while" });
   return opts;
 }
@@ -231,7 +234,11 @@ export function decisionPrompt(s: State, opts: Option[], notes: Note[], now: num
   const feel = NEEDS.map((n) => `- ${n}: ${s.needs[n]}/100 (${describe(n, s.needs[n])})`).join("\n");
   const history = s.memories.slice(-8).map(memoryLine).join("\n") || "- (you just woke up for the very first time)";
   const recent = s.memories.slice(-5).map((m) => m.action).filter((a) => !a.startsWith("sleep"));
-  let bored = "";
+  const e = s.needs.energy;
+  const tired = e < 15 ? "\nYou are EXHAUSTED. Your eyes keep closing and everything feels heavy. You really need to sleep now - anything else will feel awful.\n"
+    : e < 30 ? "\nYou're very tired. Your body is asking for sleep (your bed is at home, or you could nap where you are).\n"
+    : isNight(now) && e < 70 ? "\nIt's late and you're getting sleepy.\n" : "";
+  let bored = tired;
   if (recent.length) {
     const top = recent.reduce((a, b) => (recent.filter((x) => x === a).length >= recent.filter((x) => x === b).length ? a : b));
     if (recent.filter((x) => x === top).length >= 3) bored = `\nYou've done "${top}" a lot lately and it's starting to feel boring.\n`;
@@ -288,7 +295,9 @@ export function instinct(s: State, opts: Option[], now: number): { idx: number; 
   const pick = (pred: (o: Option) => boolean) => opts.findIndex(pred);
   let idx = -1, thought = "";
   if (s.needs.energy < 30 || (isNight(now) && s.needs.energy < 85)) {
-    idx = s.place === "house" ? pick((o) => o.name.startsWith("sleep")) : pick((o) => o.type === "go" && o.name === "house");
+    idx = s.place === "house" ? pick((o) => o.name.startsWith("sleep"))
+      : s.needs.energy < 20 ? pick((o) => o.name === "take a nap right here") : pick((o) => o.type === "go" && o.name === "house");
+    if (idx < 0) idx = pick((o) => o.type === "go" && o.name === "house");
     thought = "So sleepy... I want my bed.";
   } else if (s.needs.food < 35) {
     idx = s.place === "vending" ? pick((o) => o.type === "do") : pick((o) => o.type === "go" && o.name === "vending");
@@ -347,13 +356,13 @@ export function applyChoice(
   } else {
     action = opt.name;
     let eff: Effects;
-    if (opt.type === "do") eff = { ...(activitiesAt(s, here)[action] ?? {}) };
+    if (opt.type === "do") eff = action === "take a nap right here" ? { energy: 9 } : { ...(activitiesAt(s, here)[action] ?? {}) };
     else if (opt.type === "reply") eff = { joy: 10, energy: -2 };
     else eff = { energy: 3, joy: 1 };
     const kind = eff.kind;
     delete eff.kind;
 
-    const isSleep = action.startsWith("sleep");
+    const isSleep = action.startsWith("sleep") || action.includes("nap");
     const repeats = s.memories.slice(-6).filter((m) => m.action === action).length;
     if (!isSleep) {
       if ((eff.joy ?? 0) > 0) eff.joy = Math.round(eff.joy! * Math.max(0, 1 - 0.4 * repeats));
@@ -380,7 +389,7 @@ export function applyChoice(
   const night = isNight(now);
   const scale = Math.min(2, Math.max(0.2, minutes / 5));
   const decay: Record<Need, number> = { food: -1, energy: night ? -1.5 : -1, joy: -1 };
-  if (action.startsWith("sleep")) decay.energy = 0;
+  if (action.startsWith("sleep") || action.includes("nap")) decay.energy = 0;
   for (const n of NEEDS) s.needs[n] = clamp(s.needs[n] + decay[n] * scale);
 
   s.memories.push({ t, place: here, action, thought, note, deltas, first, bored, brain });
@@ -603,4 +612,9 @@ export function sanitizeSvg(raw: unknown): string | null {
     .replace(/url\(\s*(['"]?)(?!#)[^)]*\)/gi, "none");
   if (!/xmlns=/.test(svg.slice(0, 200))) svg = svg.replace(/<svg/i, '<svg xmlns="http://www.w3.org/2000/svg"');
   return svg;
+}
+
+// When he runs completely out of energy he can't help it: he dozes off wherever he is.
+export function mustSleep(s: State) {
+  return s.needs.energy <= 6;
 }

@@ -2,7 +2,7 @@ import type { Config, Context } from "@netlify/functions";
 import {
   applyChoice, applyReflection, buildOptions, decisionPrompt, identityPrompt, instinct,
   parseJSON, readChoice, reflectionPrompt, REFLECT_EVERY, applyVisits, paceMinutes, type State,
-  drawingPrompt, sanitizeSvg, artSkill,
+  drawingPrompt, sanitizeSvg, artSkill, mustSleep,
 } from "../lib/pino.mts";
 import { ask, hasBrain, NoBrain } from "../lib/brain.mts";
 import { acquireLock, deleteKeys, deleteNote, listEvents, listNotes, loadState, peopleIndex, releaseLock, saveState } from "../lib/store.mts";
@@ -92,6 +92,16 @@ async function moment(s: State, start: number) {
     const opts = buildOptions(s, notes);
     let idx = -1, thought = "", note = "", brain = "instinct";
 
+    if (mustSleep(s)) {
+      // too exhausted to decide anything: he nods off right where he is
+      const nap = s.place === "house" ? opts.find((o) => o.name.startsWith("sleep")) : opts.find((o) => o.name === "take a nap right here");
+      if (nap) {
+        applyChoice(s, nap, "Can't... keep... eyes... open... zzz", "", now, "instinct", undefined, minutes);
+        await persist();
+        console.log(`Pino fell asleep at the ${s.place}`);
+        return;
+      }
+    }
     try {
       const friends = await friendsSummary(now);
       const { text, model } = await ask(identityPrompt(s), decisionPrompt(s, opts, notes, now, friends), timeLeft(), 1000);
