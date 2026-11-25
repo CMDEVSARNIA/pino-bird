@@ -1,6 +1,7 @@
 // The bird's world and mind. Pure logic - no storage here, so it's easy to test.
 
 import { BOOKS } from "./library.mts";
+import { GIFT_BY_ID } from "./gifts.mts";
 
 export const NAME = "Pino";
 export const SPECIES = "kiwi bird";
@@ -53,8 +54,9 @@ export const PLACES: Record<string, Place> = {
   },
   park: {
     label: "park",
-    desc: "a small park with a big tree, a bench and a pond where ducks paddle about",
+    desc: "a small park with a big tree, a bench, a swing set and a pond where ducks paddle about",
     activities: {
+      "swing on the swings": { joy: 14, energy: -5 },
       "play in the leaf pile": { joy: 12, energy: -7 },
       "watch the ducks": { joy: 6, energy: 3 },
       "sit on the bench": { joy: 3, energy: 5 },
@@ -85,6 +87,7 @@ export type State = {
   readingLog: { t: string; slug: string; title: string; page: number; of: number; reaction: string }[];
   pendingDrawing: number | null;                 // index of a drawing he still has to put on paper
   art: { drawn: number; lessons: string[] };     // how practised he is, and notes-to-self after each drawing
+  gifts: { received: string[]; log: { t: string; id: string; name: string; emoji: string; from: string }[] };
   wants: Want[];                                 // what he wants right now, in his own words
   pastWants: Want[];                             // wishes he's let go of or moved on from
   conversations: { t: string; visitor: string; reply: string }[];
@@ -100,6 +103,7 @@ export function newState(now: number): State {
     personality: "I'm new here and I don't know what I like yet. I want to find out.",
     insights: [], memories: [], journal: [], drawings: [], conversations: [], tried: {},
     books: {}, lastRead: null, readingLog: [], pendingDrawing: null, wants: [], pastWants: [], art: { drawn: 0, lessons: [] },
+    gifts: { received: [], log: [] },
     thought: "Where am I? It's cosy here...", doing: "waking up for the first time",
     last_error: "", last_tick_at: 0,
   };
@@ -161,11 +165,26 @@ export function parseJSON(text: string): any {
 // ---------------------------------------------------------------------------
 // Options and prompts
 // ---------------------------------------------------------------------------
+// What he can do at a place: the town's basics plus anything visitors have given him
+export function activitiesAt(s: State, place: string): Record<string, Effects> {
+  const acts: Record<string, Effects> = { ...PLACES[place].activities };
+  for (const id of s.gifts?.received ?? []) {
+    const g = GIFT_BY_ID[id];
+    if (g?.place === place && g.activity) acts[g.activity] = { ...(g.fx ?? {}) };
+  }
+  return acts;
+}
+
+export function hasBook(s: State, slug: string) {
+  const b = BOOKS[slug];
+  return !!b && (!b.gift || (s.gifts?.received ?? []).includes(`book-${slug}`));
+}
+
 export type Option = { type: "do" | "go" | "reply" | "rest" | "read"; name: string; label: string };
 
 export function buildOptions(s: State, notes: Note[]): Option[] {
   const here = s.place;
-  const opts: Option[] = Object.keys(PLACES[here].activities).map((a) => ({
+  const opts: Option[] = Object.keys(activitiesAt(s, here)).map((a) => ({
     type: "do", name: a, label: `${a} (here at the ${PLACES[here].label})`,
   }));
   for (const [k, p] of Object.entries(PLACES)) {
@@ -198,7 +217,7 @@ export function identityPrompt(s: State) {
   ].join("\n");
 }
 
-export function decisionPrompt(s: State, opts: Option[], notes: Note[], now: number) {
+export function decisionPrompt(s: State, opts: Option[], notes: Note[], now: number, friends = "") {
   const feel = NEEDS.map((n) => `- ${n}: ${s.needs[n]}/100 (${describe(n, s.needs[n])})`).join("\n");
   const history = s.memories.slice(-8).map(memoryLine).join("\n") || "- (you just woke up for the very first time)";
   const recent = s.memories.slice(-5).map((m) => m.action).filter((a) => !a.startsWith("sleep"));
@@ -227,6 +246,7 @@ export function decisionPrompt(s: State, opts: Option[], notes: Note[], now: num
   return (
     `It is ${weekday}, ${clockStr(s, now)} (${night}). You are at the ${PLACES[s.place].label}: ${PLACES[s.place].desc}.\n\n` +
     `How you feel right now:\n${feel}\n${bored}${note}${reading}\n` +
+    (friends ? `Visitors you know:\n${friends}\n\n` : "") +
     `What happened recently (oldest first):\n${history}\n\n` +
     `What you could do next:\n${numbered}\n${voice}\n` +
     "Pick ONE option. Reply with JSON exactly like this:\n" +
@@ -317,7 +337,7 @@ export function applyChoice(
   } else {
     action = opt.name;
     let eff: Effects;
-    if (opt.type === "do") eff = { ...PLACES[here].activities[action] };
+    if (opt.type === "do") eff = { ...(activitiesAt(s, here)[action] ?? {}) };
     else if (opt.type === "reply") eff = { joy: 10, energy: -2 };
     else eff = { energy: 3, joy: 1 };
     const kind = eff.kind;
@@ -403,7 +423,8 @@ export function applyReflection(s: State, reply: any, now: number) {
 // ---------------------------------------------------------------------------
 // Visitors: pets, treats and conversations
 // ---------------------------------------------------------------------------
-type Visit = { type: "pet" | "treat" | "talk"; at: number; text?: string; reply?: string };
+type Visit = { type: "pet" | "treat" | "talk" | "gift"; at: number; text?: string; reply?: string; id?: string; who?: { id: string; name: string } };
+const whoName = (v: Visit) => v.who?.name || "a visitor";
 
 // Folds what visitors did since the last tick into Pino's needs and memories.
 export function applyVisits(s: State, visits: Visit[], now: number) {
@@ -415,38 +436,76 @@ export function applyVisits(s: State, visits: Visit[], now: number) {
     s.memories.push({ ...base, action, thought, deltas });
   };
 
-  const pets = visits.filter((v) => v.type === "pet").length;
-  if (pets) {
-    remember(pets === 1 ? "was petted by a visitor" : `was petted ${pets} times by visitors`,
-      pets > 4 ? "So many pats! My feathers are all fluffed up." : "Someone gave me a gentle pat. That was nice.",
-      { joy: Math.min(15, 4 * pets) });
+  const names = (vs: Visit[]) => [...new Set(vs.map(whoName))].join(" and ");
+  const pets = visits.filter((v) => v.type === "pet");
+  if (pets.length) {
+    remember(`was petted by ${names(pets)}` + (pets.length > 1 ? ` (${pets.length} pats)` : ""),
+      pets.length > 4 ? "So many pats! My feathers are all fluffed up." : "A gentle pat. That was nice.",
+      { joy: Math.min(15, 4 * pets.length) });
   }
-  const treats = visits.filter((v) => v.type === "treat").length;
-  if (treats) {
-    remember(treats === 1 ? "was given a treat by a visitor" : `was given ${treats} treats by visitors`,
-      "A visitor dropped me a snack. Crunchy!",
-      { food: Math.min(40, 12 * treats), joy: Math.min(9, 3 * treats) });
+  const treats = visits.filter((v) => v.type === "treat");
+  if (treats.length) {
+    remember(`was given ${treats.length === 1 ? "a treat" : `${treats.length} treats`} by ${names(treats)}`,
+      "A snack dropped from the sky. Crunchy!",
+      { food: Math.min(40, 12 * treats.length), joy: Math.min(9, 3 * treats.length) });
+  }
+  for (const v of visits.filter((x) => x.type === "gift")) {
+    const g = v.id ? GIFT_BY_ID[v.id] : undefined;
+    if (!g || s.gifts.received.includes(g.id)) continue;
+    s.gifts.received.push(g.id);
+    s.gifts.log.push({ t, id: g.id, name: g.name, emoji: g.emoji, from: whoName(v) });
+    s.gifts.log = s.gifts.log.slice(-200);
+    const what = g.kind === "book" ? `${g.name} for my library shelf`
+      : g.kind === "snack" ? `${g.name} - now I can "${g.activity}"`
+      : g.kind === "thing" ? `${g.name} at the ${PLACES[g.place!]?.label} - now I can "${g.activity}"` : g.name;
+    remember(`was given ${what} by ${whoName(v)}`,
+      g.kind === "treat" ? `${whoName(v)} gave me ${g.name}! I gobbled it right up.` : `${whoName(v)} gave me ${g.name}! I can't wait to try it.`,
+      g.kind === "treat" ? { ...(g.effects ?? {}) } : { joy: 15 });
   }
   for (const v of visits.filter((x) => x.type === "talk").slice(-5)) {
-    remember("talked with a visitor", `They said "${(v.text ?? "").slice(0, 160)}" and I said "${(v.reply ?? "").slice(0, 160)}"`, { joy: 5 });
+    remember(`talked with ${whoName(v)}`, `They said "${(v.text ?? "").slice(0, 160)}" and I said "${(v.reply ?? "").slice(0, 160)}"`, { joy: 5 });
   }
   s.memories = s.memories.slice(-400);
 }
 
-export function talkPrompt(s: State, chats: { you: string; pino: string }[], text: string, now: number) {
+export type Person = {
+  id: string; name: string; firstMet: number; lastSeen: number; visits: number; chats: number;
+  facts: string[]; gave: string[]; pets: number;
+};
+
+export function describePerson(p: Person | null, now: number) {
+  if (!p || (p.chats === 0 && p.pets === 0 && p.gave.length === 0)) {
+    return "You have NEVER met this visitor before - this is the very first time. You might want to ask their name or say hello properly.";
+  }
+  const days = Math.floor((now - p.firstMet) / 86_400_000);
+  const since = Math.round((now - p.lastSeen) / 60_000);
+  return [
+    `You know this visitor${p.name ? `: ${p.name}` : " (you don't know their name yet)"}.`,
+    `You first met ${days === 0 ? "today" : `${days} day${days === 1 ? "" : "s"} ago`}; they've visited ${p.visits} time${p.visits === 1 ? "" : "s"} and you've chatted ${p.chats} times.`,
+    since > 60 ? `It's been a while since you last saw them (${Math.round(since / 60)} hours).` : "",
+    p.gave.length ? `They have given you: ${p.gave.join(", ")}.` : "",
+    p.facts.length ? `Things you remember about them:\n${p.facts.map((f) => `- ${f}`).join("\n")}` : "",
+  ].filter(Boolean).join("\n");
+}
+
+export function talkPrompt(s: State, chats: { you: string; pino: string }[], text: string, now: number, person: Person | null = null) {
   const feel = NEEDS.map((n) => `${n} ${describe(n, s.needs[n])}`).join(", ");
   const recentLife = s.memories.slice(-6).map(memoryLine).join("\n") || "- (nothing yet)";
-  const convo = chats.slice(-6).map((c) => `Visitor: ${c.you}\n${NAME}: ${c.pino}`).join("\n") || "(this is the start of the conversation)";
+  const who = person?.name || "Visitor";
+  const convo = chats.slice(-6).map((c) => `${who}: ${c.you}\n${NAME}: ${c.pino}`).join("\n") || "(this is the start of the conversation)";
   return (
     `It is ${clockStr(s, now)} (${isNight(now) ? "night" : "day"}). You are at the ${PLACES[s.place].label}, ` +
     `currently "${s.doing}". You feel: ${feel}.\n\n` +
     `What you've been up to:\n${recentLife}\n\n` +
-    `A visitor has come to your town and is talking to you. Conversation so far:\n${convo}\n\n` +
-    `The visitor says: "${text}"\n\n` +
+    `${describePerson(person, now)}\n\n` +
+    `Your conversation with them so far:\n${convo}\n\n` +
+    `${who} says: "${text}"\n\n` +
     `Answer as ${NAME} the ${SPECIES}: in character, warm and a bit quirky, 1-3 short sentences, ` +
     "no emojis, never claim to be an assistant. You can mention what you're doing or how you feel. " +
     "If you're very sleepy you can be drowsy. If asked to do something you can't do in your town, say so in a bird-like way.\n" +
-    'Reply with JSON exactly like this: {"reply": "what you say", "mood": "one of happy, curious, shy, sleepy, grumpy, excited"}'
+    "Use their name now and then if you know it. If they tell you something worth remembering about themselves " +
+    "(their name, what they like, something happening in their life), put it in \"remember\" as a short note; otherwise leave it empty.\n" +
+    'Reply with JSON exactly like this: {"reply": "what you say", "mood": "one of happy, curious, shy, sleepy, grumpy, excited", "remember": "short note about them, or empty", "their_name": "their name if they told you, or empty"}'
   );
 }
 
@@ -460,9 +519,10 @@ export function publicView(s: State, unread: number, now: number, chats: { at: n
     personality: s.personality, insights: s.insights.slice(-20),
     memories: s.memories.slice(-40), journal: s.journal.slice(-30),
     drawings: s.drawings.slice(-40), conversations: s.conversations.slice(-30),
-    books: Object.values(BOOKS).map((b) => ({ slug: b.slug, title: b.title, author: b.author, year: b.year, pages: b.pages.length, read: s.books[b.slug] ?? 0 })),
+    books: Object.values(BOOKS).filter((b) => hasBook(s, b.slug)).map((b) => ({ slug: b.slug, title: b.title, author: b.author, year: b.year, pages: b.pages.length, read: s.books[b.slug] ?? 0 })),
     readingLog: s.readingLog.slice(-40),
     wants: s.wants, pastWants: s.pastWants.slice(-15),
+    gifts: (s.gifts?.log ?? []).slice(-40), owned: s.gifts?.received ?? [],
     unread, tick: s.tick, last_error: s.last_error, last_tick_at: s.last_tick_at, pace: paceMinutes(s, now),
     places: Object.fromEntries(Object.entries(PLACES).map(([k, p]) => [k, p.label])),
   };
@@ -472,7 +532,7 @@ export function publicView(s: State, unread: number, now: number, chats: { at: n
 // The bookshelf
 // ---------------------------------------------------------------------------
 function bookOptions(s: State): Option[] {
-  const all = Object.values(BOOKS);
+  const all = Object.values(BOOKS).filter((b) => hasBook(s, b.slug));
   const reading = all.filter((b) => (s.books[b.slug] ?? 0) > 0 && (s.books[b.slug] ?? 0) < b.pages.length);
   const unread = all.filter((b) => !s.books[b.slug]);
   const finished = all.filter((b) => (s.books[b.slug] ?? 0) >= b.pages.length);

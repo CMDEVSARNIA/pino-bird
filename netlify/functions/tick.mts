@@ -5,7 +5,7 @@ import {
   drawingPrompt, sanitizeSvg, artSkill,
 } from "../lib/pino.mts";
 import { ask, hasBrain, NoBrain } from "../lib/brain.mts";
-import { acquireLock, deleteKeys, deleteNote, listEvents, listNotes, loadState, releaseLock, saveState } from "../lib/store.mts";
+import { acquireLock, deleteKeys, deleteNote, listEvents, listNotes, loadState, peopleIndex, releaseLock, saveState } from "../lib/store.mts";
 
 // Pino's heartbeat. Netlify wakes this every minute (its shortest schedule).
 // While Pino is new (his first few hours) he lives two moments per wake-up,
@@ -93,7 +93,8 @@ async function moment(s: State, start: number) {
     let idx = -1, thought = "", note = "", brain = "instinct";
 
     try {
-      const { text, model } = await ask(identityPrompt(s), decisionPrompt(s, opts, notes, now), timeLeft());
+      const friends = await friendsSummary(now);
+      const { text, model } = await ask(identityPrompt(s), decisionPrompt(s, opts, notes, now, friends), timeLeft());
       ({ idx, thought, note } = readChoice(parseJSON(text), opts.length));
       if (idx < 0) console.log("Brain reply unreadable:", text.slice(0, 300));
       brain = model;
@@ -121,6 +122,19 @@ async function moment(s: State, start: number) {
     console.error(s.last_error);
     await persist();
   }
+}
+
+// A few lines about the visitors he knows, most recent first
+async function friendsSummary(now: number) {
+  try {
+    const idx = await peopleIndex();
+    return Object.values(idx).filter((p) => p.visits > 0).sort((a, b) => b.lastSeen - a.lastSeen).slice(0, 6)
+      .map((p) => {
+        const mins = Math.round((now - p.lastSeen) / 60_000);
+        const when = mins < 10 ? "here just now" : mins < 120 ? `${mins} min ago` : `${Math.round(mins / 60)} h ago`;
+        return `- ${p.name || "a visitor whose name you don't know"} (visited ${p.visits}x, last ${when})${p.note ? `: ${p.note}` : ""}`;
+      }).join("\n");
+  } catch { return ""; }
 }
 
 // Pino draws his picture himself: subject, style and colours are his choice.

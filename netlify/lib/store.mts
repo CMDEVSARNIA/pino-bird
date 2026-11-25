@@ -1,5 +1,5 @@
 import { getStore } from "@netlify/blobs";
-import { newState, type Note, type State } from "./pino.mts";
+import { newState, type Note, type Person, type State } from "./pino.mts";
 
 // Site-wide store. Only the scheduled "tick" function writes "state".
 // Everything visitors do (notes, pets, treats, chats) goes into its own key,
@@ -51,7 +51,8 @@ export async function deleteNote(key: string) {
 }
 
 // ---- events (pets, treats, chats) that Pino folds into his memory each tick ----
-export type VisitEvent = { type: "pet" | "treat" | "talk"; at: number; text?: string; reply?: string };
+export type Who = { id: string; name: string };
+export type VisitEvent = { type: "pet" | "treat" | "talk" | "gift"; at: number; text?: string; reply?: string; id?: string; who?: Who };
 export async function addEvent(e: VisitEvent) {
   await store().setJSON(newKey("events"), e);
 }
@@ -65,7 +66,7 @@ export async function deleteKeys(keys: string[]) {
 }
 
 // ---- chat log (kept separately so the page can show it instantly) ----
-export type Chat = { at: number; you: string; pino: string };
+export type Chat = { at: number; you: string; pino: string; who?: string; name?: string };
 export async function addChat(c: Chat) {
   await store().setJSON(newKey("chats"), c);
 }
@@ -91,4 +92,43 @@ export async function acquireLock(staleMs: number): Promise<boolean> {
 }
 export async function releaseLock() {
   await store().delete("lock");
+}
+
+// ---- gifts: each one can only be given once (onlyIfNew makes the claim atomic)
+export async function claimGift(id: string, who: Who) {
+  const r = await store().setJSON(`gifts/${id}`, { at: Date.now(), who }, { onlyIfNew: true });
+  return r.modified;
+}
+export async function claimedGiftIds() {
+  return (await listKeys("gifts")).map((k) => k.slice("gifts/".length));
+}
+
+// ---- people Pino has met (keyed by a random id the visitor's browser keeps)
+const safeId = (id: string) => /^[a-z0-9-]{8,64}$/i.test(id) ? id : null;
+export async function getPerson(id: string): Promise<Person | null> {
+  const k = safeId(id); if (!k) return null;
+  return (await store().get(`people/${k}`, { type: "json" })) as Person | null;
+}
+export async function savePerson(p: Person) {
+  const k = safeId(p.id); if (!k) return;
+  await store().setJSON(`people/${k}`, p);
+  // small index so the heartbeat can think about friends without reading every record
+  const idx = ((await store().get("people-index", { type: "json" })) as Record<string, { name: string; lastSeen: number; note: string; visits: number }> | null) ?? {};
+  idx[k] = { name: p.name, lastSeen: p.lastSeen, note: p.facts.at(-1) ?? (p.gave.length ? `gave me ${p.gave.at(-1)}` : ""), visits: p.visits };
+  await store().setJSON("people-index", idx);
+}
+export async function peopleIndex() {
+  return ((await store().get("people-index", { type: "json" })) as Record<string, { name: string; lastSeen: number; note: string; visits: number }> | null) ?? {};
+}
+// Touch (or create) a person whenever they do something
+export async function meet(who: Who | null, change: (p: Person) => void) {
+  if (!who || !safeId(who.id)) return null;
+  const now = Date.now();
+  const p: Person = (await getPerson(who.id)) ?? { id: who.id, name: "", firstMet: now, lastSeen: 0, visits: 0, chats: 0, facts: [], gave: [], pets: 0 };
+  if (who.name && who.name !== p.name) p.name = who.name;
+  if (now - p.lastSeen > 30 * 60_000) p.visits += 1; // a new visit after 30 quiet minutes
+  p.lastSeen = now;
+  change(p);
+  await savePerson(p);
+  return p;
 }

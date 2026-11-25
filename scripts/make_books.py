@@ -20,6 +20,20 @@ BOOKS = [  # id, slug, title, author, year first published
     (2591, "grimm", "Grimms' Fairy Tales", "The Brothers Grimm", 1812),
     (113, "secret-garden", "The Secret Garden", "Frances Hodgson Burnett", 1911),
 ]
+# Books visitors can give him (not on his shelf until someone does)
+GIFT_BOOKS = [
+    (500, "pinocchio", "The Adventures of Pinocchio", "Carlo Collodi", 1883),
+    (1874, "railway-children", "The Railway Children", "E. Nesbit", 1906),
+    (45, "anne-of-green-gables", "Anne of Green Gables", "L. M. Montgomery", 1908),
+    (1448, "heidi", "Heidi", "Johanna Spyri", 1881),
+    (271, "black-beauty", "Black Beauty", "Anna Sewell", 1877),
+    (12, "looking-glass", "Through the Looking-Glass", "Lewis Carroll", 1871),
+    (708, "princess-and-goblin", "The Princess and the Goblin", "George MacDonald", 1872),
+    (902, "happy-prince", "The Happy Prince and Other Tales", "Oscar Wilde", 1888),
+    (236, "jungle-book", "The Jungle Book", "Rudyard Kipling", 1894),
+    (14837, "tom-kitten", "The Tale of Tom Kitten", "Beatrix Potter", 1907),
+    (14848, "miss-moppet", "The Story of Miss Moppet", "Beatrix Potter", 1906),
+]
 PAGE = 1300  # characters per page
 OPENING = {  # where each story really begins (skips contents pages and front matter)
     "peter-rabbit": "upon a time there were four little Rabbits",
@@ -35,16 +49,27 @@ OPENING = {  # where each story really begins (skips contents pages and front ma
     "grimm": "A certain king had a beautiful garden",
     "peter-pan": "All children, except one, grow up",
     "secret-garden": "When Mary Lennox was sent to Misselthwaite Manor",
+    "pinocchio": "Once upon a time there was a piece of wood",
+    "railway-children": "They were not railway children to begin with",
+    "anne-of-green-gables": "Rachel Lynde lived just where the Avonlea main road",
+    "heidi": "From the old and pleasantly situated village of Mayenfeld",
+    "black-beauty": "The first place that I can well remember",
+    "looking-glass": "One thing was certain, that the WHITE kitten",
+    "princess-and-goblin": "There was once a little princess whose father was king",
+    "happy-prince": "above the city, on a tall column, stood the statue",
+    "jungle-book": "It was seven o'clock of a very warm evening in the Seeonee hills",
+    "tom-kitten": "Once upon a time there were three little kittens",
+    "miss-moppet": "This is a Pussy called Miss Moppet",
 }
 
 
 def clean(text: str) -> str:
     text = text.replace("\r\n", "\n")
     start = re.search(r"\*\*\* ?START OF (THIS|THE) PROJECT GUTENBERG[^\n]*\n", text)
-    end = re.search(r"\*\*\* ?END OF (THIS|THE) PROJECT GUTENBERG", text)
-    if not start or not end:
-        raise ValueError("markers missing")
-    body = text[start.end():end.start()]
+    end = re.search(r"\*\*\* ?END OF (THIS|THE) PROJECT GUTENBERG|End of (the |this )?Project Gutenberg", text[start.end() if start else 0:], re.I)
+    body = text[start.end() if start else 0:]
+    if end: body = body[:end.start()]
+    body = re.sub(r"\|(?=[A-Z])", "", body)  # stray drop-cap markers
     body = re.sub(r"\[Illustration[^\]]*\]", "", body, flags=re.S)
     body = re.sub(r"(?im)^.*(produced by|e-text prepared|transcriber'?s note|html version).*$", "", body)
     body = re.sub(r"[ \t]+", " ", body)
@@ -68,7 +93,7 @@ def paginate(paras):
 
 
 catalog = []
-for gid, slug, title, author, year in BOOKS:
+for gid, slug, title, author, year in BOOKS + GIFT_BOOKS:
     paras = clean((RAW / f"{gid}.txt").read_text(encoding="utf-8", errors="replace"))
     marker = OPENING[slug].lower()
     hit = next((i for i, p in enumerate(paras) if marker in re.sub(r"\s+", " ", p).lower()), None)
@@ -78,6 +103,6 @@ for gid, slug, title, author, year in BOOKS:
         paras[0] = "There was" + paras[0][len("HERE was"):]
     pages = paginate(paras)
     (OUT / f"{slug}.json").write_text(json.dumps({"slug": slug, "title": title, "author": author, "year": year, "pages": pages}, ensure_ascii=False))
-    catalog.append({"slug": slug, "title": title, "author": author, "year": year, "pages": len(pages)})
+    catalog.append({"slug": slug, "title": title, "author": author, "year": year, "pages": len(pages), "gift": (gid, slug, title, author, year) in GIFT_BOOKS})
     print(f"{title:38} {len(pages):4} pages | first: {pages[0][:70]!r}")
 (OUT / "catalog.json").write_text(json.dumps(catalog, indent=1, ensure_ascii=False))

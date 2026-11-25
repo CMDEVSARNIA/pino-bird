@@ -4,69 +4,167 @@
   "title": "The Tale of Peter Rabbit",
   "author": "Beatrix Potter",
   "year": 1902,
-  "pages": 5
+  "pages": 5,
+  "gift": false
  },
  {
   "slug": "benjamin-bunny",
   "title": "The Tale of Benjamin Bunny",
   "author": "Beatrix Potter",
   "year": 1904,
-  "pages": 5
+  "pages": 5,
+  "gift": false
  },
  {
   "slug": "jemima-puddle-duck",
   "title": "The Tale of Jemima Puddle-Duck",
   "author": "Beatrix Potter",
   "year": 1908,
-  "pages": 6
+  "pages": 6,
+  "gift": false
  },
  {
   "slug": "velveteen-rabbit",
   "title": "The Velveteen Rabbit",
   "author": "Margery Williams",
   "year": 1922,
-  "pages": 19
+  "pages": 19,
+  "gift": false
  },
  {
   "slug": "alice",
   "title": "Alice's Adventures in Wonderland",
   "author": "Lewis Carroll",
   "year": 1865,
-  "pages": 128
+  "pages": 128,
+  "gift": false
  },
  {
   "slug": "wind-in-the-willows",
   "title": "The Wind in the Willows",
   "author": "Kenneth Grahame",
   "year": 1908,
-  "pages": 305
+  "pages": 305,
+  "gift": false
  },
  {
   "slug": "wizard-of-oz",
   "title": "The Wonderful Wizard of Oz",
   "author": "L. Frank Baum",
   "year": 1900,
-  "pages": 184
+  "pages": 184,
+  "gift": false
  },
  {
   "slug": "andersen",
   "title": "Andersen's Fairy Tales",
   "author": "Hans Christian Andersen",
   "year": 1835,
-  "pages": 275
+  "pages": 274,
+  "gift": false
  },
  {
   "slug": "grimm",
   "title": "Grimms' Fairy Tales",
   "author": "The Brothers Grimm",
   "year": 1812,
-  "pages": 467
+  "pages": 467,
+  "gift": false
  },
  {
   "slug": "secret-garden",
   "title": "The Secret Garden",
   "author": "Frances Hodgson Burnett",
   "year": 1911,
-  "pages": 382
+  "pages": 382,
+  "gift": false
+ },
+ {
+  "slug": "pinocchio",
+  "title": "The Adventures of Pinocchio",
+  "author": "Carlo Collodi",
+  "year": 1883,
+  "pages": 180,
+  "gift": true
+ },
+ {
+  "slug": "railway-children",
+  "title": "The Railway Children",
+  "author": "E. Nesbit",
+  "year": 1906,
+  "pages": 280,
+  "gift": true
+ },
+ {
+  "slug": "anne-of-green-gables",
+  "title": "Anne of Green Gables",
+  "author": "L. M. Montgomery",
+  "year": 1908,
+  "pages": 502,
+  "gift": true
+ },
+ {
+  "slug": "heidi",
+  "title": "Heidi",
+  "author": "Johanna Spyri",
+  "year": 1881,
+  "pages": 437,
+  "gift": true
+ },
+ {
+  "slug": "black-beauty",
+  "title": "Black Beauty",
+  "author": "Anna Sewell",
+  "year": 1877,
+  "pages": 272,
+  "gift": true
+ },
+ {
+  "slug": "looking-glass",
+  "title": "Through the Looking-Glass",
+  "author": "Lewis Carroll",
+  "year": 1871,
+  "pages": 137,
+  "gift": true
+ },
+ {
+  "slug": "princess-and-goblin",
+  "title": "The Princess and the Goblin",
+  "author": "George MacDonald",
+  "year": 1872,
+  "pages": 241,
+  "gift": true
+ },
+ {
+  "slug": "happy-prince",
+  "title": "The Happy Prince and Other Tales",
+  "author": "Oscar Wilde",
+  "year": 1888,
+  "pages": 77,
+  "gift": true
+ },
+ {
+  "slug": "jungle-book",
+  "title": "The Jungle Book",
+  "author": "Rudyard Kipling",
+  "year": 1894,
+  "pages": 241,
+  "gift": true
+ },
+ {
+  "slug": "tom-kitten",
+  "title": "The Tale of Tom Kitten",
+  "author": "Beatrix Potter",
+  "year": 1907,
+  "pages": 4,
+  "gift": true
+ },
+ {
+  "slug": "miss-moppet",
+  "title": "The Story of Miss Moppet",
+  "author": "Beatrix Potter",
+  "year": 1906,
+  "pages": 1,
+  "gift": true
  }
 ]

@@ -125,6 +125,19 @@
   .bookrow:last-child { border-bottom: 0; }
   .bookrow small { color: var(--muted); grid-column: 1 / -1; font-size: 12px; }
   .bookrow .bar > i { background: #7a9e5a; }
+  .me { margin-top: 10px; font-size: 13px; color: var(--muted); display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .me b { color: var(--ink); }
+  .me input { flex: 1; min-width: 140px; border: 1px solid var(--line); border-radius: 999px; padding: 7px 12px; font: inherit; font-size: 15px; background: #fff; }
+  .me button { border: 1px solid var(--line); background: var(--card); border-radius: 999px; padding: 6px 12px; font: inherit; font-size: 13px; cursor: pointer; color: var(--ink); }
+  .givehint { font-size: 13px; color: var(--muted); margin: 0 0 10px; line-height: 1.4; }
+  .gkind { font-size: 12px; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); margin: 12px 0 6px; }
+  .gifts { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+  .gift { border: 1px solid var(--line); background: #fff; border-radius: 12px; padding: 10px; display: flex; flex-direction: column; gap: 4px; }
+  .gift .em { font-size: 26px; line-height: 1; }
+  .gift b { font-size: 14px; line-height: 1.25; }
+  .gift small { font-size: 12px; color: var(--muted); line-height: 1.35; flex: 1; }
+  .gift button { margin-top: 6px; border: 0; background: var(--accent); color: #fff; border-radius: 999px; padding: 7px 10px; font: inherit; font-weight: 800; font-size: 13px; cursor: pointer; }
+  .gift button:disabled { opacity: .5; }
   .want { border: 1px solid var(--line); background: #fff; border-radius: 12px; padding: 10px 12px; margin-bottom: 8px; }
   .want b { display: block; font-size: 16px; }
   .want p { margin: 4px 0 0; font-size: 14px; line-height: 1.45; font-style: italic; color: #4a463f; }
@@ -159,6 +172,7 @@
     </div>
   </div>
 
+  <div class="me" id="meBox"></div>
   <form class="talk" id="talkForm" autocomplete="off">
     <input id="talkText" maxlength="280" placeholder="Say something to Pino…" enterkeyhint="send">
     <button type="submit" id="talkBtn">Send</button>
@@ -183,7 +197,9 @@
     <button class="tab" role="tab" data-tab="journal">Journal</button>
     <button class="tab" role="tab" data-tab="drawings">Drawings</button>
     <button class="tab" role="tab" data-tab="books">Books</button>
+    <button class="tab" role="tab" data-tab="give">Give 🎁</button>
     <button class="tab" role="tab" data-tab="wants">Wants</button>
+    <button class="tab" role="tab" data-tab="friends">Friends</button>
     <button class="tab" role="tab" data-tab="notes">Notes<span class="badge" id="unread" hidden></span></button>
     <button class="tab" role="tab" data-tab="mind">Mind</button>
   </div>
@@ -196,6 +212,16 @@
     <div id="shelf"></div>
     <h3 style="margin-top:14px">What he thought while reading</h3>
     <ul class="list" id="reading"></ul>
+  </div>
+  <div class="card panel" id="p-give" hidden>
+    <p class="givehint">Every gift here is one of a kind. Once someone gives it, it's Pino's for good and disappears from this list.</p>
+    <div id="giveList"></div>
+    <h3 style="margin-top:14px">Gifts Pino has received</h3>
+    <ul class="list" id="giftLog"></ul>
+  </div>
+  <div class="card panel" id="p-friends" hidden>
+    <h3>Visitors Pino remembers</h3>
+    <ul class="list" id="friends"></ul>
   </div>
   <div class="card panel" id="p-wants" hidden>
     <h3>What Pino wants right now</h3>
@@ -390,8 +416,13 @@ function buildWorld() {
   // [activity, where he goes, what he faces, building he disappears into]
   const HOUSE_DOOR = V(-5, 0, -3.75), LIB_DOOR = V(5, 0, -3.65);
   const ACT = [
-    [/^sleep|tidy|window/, HOUSE_DOOR, V(-5, 0, -6), "house"],
-    [/read|journal|draw/, LIB_DOOR, V(5, 0, -6), "library"],
+    [/^sleep|tidy|window|blanket/, HOUSE_DOOR, V(-5, 0, -6), "house"],
+    [/read|journal|draw|paint/, LIB_DOOR, V(5, 0, -6), "library"],
+    [/telescope/, V(-2.9, 0, -2.85), V(-2.9, 0, -4.6)],
+    [/toy train/, V(-4.9, 0, 7.2), V(-6.4, 0, 7.4)],
+    [/birdbath/, V(-0.9, 0, 5.75), V(-0.9, 0, 6.6)],
+    [/kite/, V(-1.4, 0, 6.2), V(-3, 0, 2)],
+    [/swing/, V(1.15, 0, 7.6), V(1.15, 0, 12)],
     [/leaf/, V(-5.3, 0, 4.7), V(-6.0, 0, 4.4)],
     [/ducks/, V(-3.6, 0, 5.0), V(-2.4, 0, 3.6)],
     [/bench|sit and think/, V(-3.4, 0.52, 6.6), V(-2.4, 0, 3.6)],
@@ -400,6 +431,49 @@ function buildWorld() {
   const CHIMNEY = V(-4.1, 4.0, -5.5);
   for (const k of Object.keys(SPOTS)) strip(JUNCTION, SPOTS[k]);
   strip(SPOTS.house, V(-5, 0, -3.9), 0.9); strip(SPOTS.library, V(5, 0, -3.8), 0.9);
+
+  // ---- swing set in the park (two swings that really swing)
+  const swingSet = new THREE.Group(); swingSet.position.set(1.6, 0, 7.0); scene.add(swingSet);
+  const frameMat = M(0x3f7fbf), ropeMat = M(0x8a7a66), seatMat = M(0xd2604b);
+  for (const x of [-1.2, 1.2]) for (const z of [-0.55, 0.55]) {
+    const leg = add(new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 2.5, 6), frameMat), swingSet);
+    leg.position.set(x, 1.2, z * 0.5); leg.rotation.x = z > 0 ? -0.22 : 0.22;
+  }
+  const bar = add(new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 2.6, 8).rotateZ(Math.PI / 2), frameMat), swingSet); bar.position.y = 2.4;
+  const swings = [-0.45, 0.45].map((x) => {
+    const pivot = new THREE.Group(); pivot.position.set(x, 2.4, 0); swingSet.add(pivot);
+    for (const rx of [-0.2, 0.2]) { const rope = add(new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 1.85, 4), ropeMat), pivot, { cast: false }); rope.position.set(rx, -0.92, 0); }
+    const seat = add(box(0.5, 0.06, 0.24, seatMat), pivot); seat.position.y = -1.85;
+    return { pivot, seat };
+  });
+  const seatPos = new THREE.Vector3();
+
+  // ---- gifts that appear in the town once someone gives them
+  const props = {};
+  const tele = new THREE.Group(); tele.position.set(-2.9, 0, -3.6); scene.add(tele);
+  for (const a of [0, 2.1, 4.2]) {
+    const leg = add(new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 1.15, 5), M(0x6b5a4a)), tele);
+    leg.position.set(Math.cos(a) * 0.2, 0.55, Math.sin(a) * 0.2); leg.rotation.set(Math.sin(a) * 0.35, 0, -Math.cos(a) * 0.35);
+  }
+  const tube = add(new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.13, 1.0, 10), M(0x2f5d8a)), tele); tube.position.set(0, 1.2, -0.1); tube.rotation.x = -0.9;
+  props["thing-telescope"] = tele;
+  const trainSet = new THREE.Group(); trainSet.position.set(-6.4, 0, 7.4); scene.add(trainSet);
+  add(new THREE.Mesh(new THREE.TorusGeometry(1.1, 0.06, 4, 40).rotateX(Math.PI / 2), M(0x7a6a5a)), trainSet, { cast: false }).position.y = 0.04;
+  const cars = [0xc0392b, 0x2980b9, 0xf1c40f].map((c, i) => add(box(0.32, 0.22, 0.2, M(c)), trainSet));
+  const chimneyPuff = add(new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.05, 0.14, 6), M(0x333333)), cars[0]); chimneyPuff.position.set(0.08, 0.17, 0);
+  props["thing-train"] = trainSet;
+  const bath = new THREE.Group(); bath.position.set(-0.9, 0, 6.6); scene.add(bath);
+  add(new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.18, 0.7, 8), M(0xb9b3a8)), bath).position.y = 0.35;
+  add(new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.35, 0.18, 14), M(0xc9c3b8)), bath).position.y = 0.78;
+  add(new THREE.Mesh(new THREE.CircleGeometry(0.47, 16).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0x7cc4e4, roughness: 0.1 })), bath, { cast: false }).position.y = 0.875;
+  props["thing-birdbath"] = bath;
+  const kite = new THREE.Group(); scene.add(kite);
+  const kshape = new THREE.Shape(); kshape.moveTo(0, 0.6); kshape.lineTo(0.4, 0); kshape.lineTo(0, -0.8); kshape.lineTo(-0.4, 0); kshape.lineTo(0, 0.6);
+  add(new THREE.Mesh(new THREE.ShapeGeometry(kshape), new THREE.MeshStandardMaterial({ color: 0xe0473b, side: THREE.DoubleSide })), kite);
+  const kiteString = new THREE.Line(new THREE.BufferGeometry().setFromPoints([V(0, 0, 0), V(0, 1, 0)]), new THREE.LineBasicMaterial({ color: 0x555555 }));
+  scene.add(kiteString);
+  for (const p of Object.values(props)) p.visible = false;
+  kite.visible = false; kiteString.visible = false;
 
   // stars + glow lights
   const starGeo = new THREE.BufferGeometry(); const sp = [];
@@ -441,6 +515,7 @@ function buildWorld() {
   }
 
   // ---------------------------------------------------------------- movement
+  const owned = new Set();
   const state = { path: [], look: null, doing: "", place: "house", hop: 0, happy: 0, sleeping: false, follow: false, nightF: 0, night: false,
     base: SPOTS.house.clone(), nextWander: 4, wandering: false, indoor: null, vis: 1 };
   function setActivity(place, doing, instant) {
@@ -490,7 +565,7 @@ function buildWorld() {
 
     // between decisions, potter about near where he is so he always feels alive
     if (!state.path.length && t > state.nextWander) {
-      const still = state.sleeping || state.indoor || state.base.y > 0.05;
+      const still = state.sleeping || state.indoor || state.base.y > 0.05 || /swing/.test(state.doing);
       if (!still) {
         if (state.wandering) { state.path = [state.base.clone()]; state.wandering = false; }
         else {
@@ -517,7 +592,7 @@ function buildWorld() {
       tmp.copy(state.look).sub(g.position); lookAngle = Math.atan2(tmp.x, tmp.z);
     }
     // height: hop onto the bench / bed only once arrived
-    const targetY = state.path.length ? 0 : (ACT.find(([re]) => re.test(state.doing))?.[1].y ?? 0);
+    const targetY = state.path.length || /swing/.test(state.doing) ? 0 : (ACT.find(([re]) => re.test(state.doing))?.[1].y ?? 0);
     g.position.y += (targetY - g.position.y) * Math.min(1, dt * 8);
     let dA = lookAngle - g.rotation.y; dA = Math.atan2(Math.sin(dA), Math.cos(dA));
     g.rotation.y += dA * Math.min(1, dt * 6);
@@ -565,6 +640,28 @@ function buildWorld() {
       else { treat.eaten += dt; m.rotation.z = 0; if (treat.eaten > 0.6) m.scale.setScalar(Math.max(0.01, 1 - (treat.eaten - 0.6) / 1.6)); }
       if (treat.eaten > 2.2) { scene.remove(m); treat = null; }
     }
+    // gifts in motion: the toy train goes round, the kite flies while he's flying it
+    if (trainSet.visible) cars.forEach((c, i) => { const a = t * 0.9 - i * 0.36; c.position.set(Math.cos(a) * 1.1, 0.15, Math.sin(a) * 1.1); c.rotation.y = -a; });
+    const flying = /kite/.test(state.doing) && !state.path.length && owned.has("thing-kite");
+    kite.visible = kiteString.visible = flying;
+    if (flying) {
+      kite.position.set(-3 + Math.sin(t * 0.7) * 1.2, 5 + Math.sin(t * 1.3) * 0.5, 2 + Math.cos(t * 0.5) * 0.6);
+      kite.rotation.z = Math.sin(t * 1.1) * 0.4;
+      const pts = kiteString.geometry.attributes.position; const hand = g.position.clone().add(V(0, 0.8, 0));
+      pts.setXYZ(0, hand.x, hand.y, hand.z); pts.setXYZ(1, kite.position.x, kite.position.y - 0.6, kite.position.z); pts.needsUpdate = true;
+    }
+
+    // swings: one sways in the breeze; Pino rides the other when he's swinging
+    const riding = /swing/.test(state.doing) && !state.path.length;
+    swings[0].pivot.rotation.x += ((riding ? Math.sin(t * 2.3) * 0.6 : Math.sin(t * 0.9) * 0.05) - swings[0].pivot.rotation.x) * Math.min(1, dt * 4);
+    swings[1].pivot.rotation.x = Math.sin(t * 0.8 + 1) * 0.06;
+    if (riding) {
+      swings[0].seat.getWorldPosition(seatPos);
+      g.position.set(seatPos.x, seatPos.y - 0.02, seatPos.z);
+      g.rotation.y = 0;
+      pino.legs[0].rotation.x = pino.legs[1].rotation.x = -0.9 + Math.sin(t * 2.3) * 0.4; // kicking his legs
+    }
+
     // duck paddling
     const da = t * 0.35; duck.position.set(-2.4 + Math.cos(da) * 1.0, 0.1 + Math.sin(t * 3) * 0.015, 3.6 + Math.sin(da) * 1.0); duck.rotation.y = -da;
 
@@ -616,6 +713,7 @@ function buildWorld() {
     pet: () => onPet(true),
     treat: () => { dropTreat(); state.happy = 1.5; },
     isInside: () => !!state.indoor && !state.path.length,
+    setOwned: (ids) => { owned.clear(); ids.forEach((i) => owned.add(i)); for (const [id, p] of Object.entries(props)) p.visible = owned.has(id); },
     bubble,
   };
 }
@@ -677,8 +775,33 @@ function snacksTexture() {
 
 // ================================================================ UI + DATA
 const BADGES = [[/sleep/, "💤"], [/read/, "📖"], [/journal/, "✏️"], [/draw/, "🎨"], [/seed bar/, "🍫"], [/crisps/, "🥨"], [/juice/, "🧃"],
-  [/leaf/, "🍂"], [/ducks/, "🦆"], [/bench|sit/, "💭"], [/window/, "🪟"], [/tidy/, "🧹"], [/talked/, "💬"], [/petted/, "❤️"], [/treat/, "🍪"], [/reflect/, "🌙"], [/walked/, "👣"]];
+  [/leaf/, "🍂"], [/ducks/, "🦆"], [/bench|sit/, "💭"], [/window/, "🪟"], [/tidy/, "🧹"], [/talked/, "💬"], [/petted/, "❤️"], [/treat/, "🍪"], [/reflect/, "🌙"], [/walked/, "👣"], [/swing/, "🎠"], [/telescope/, "🔭"], [/toy train/, "🚂"], [/birdbath/, "💦"], [/kite/, "🪁"], [/given/, "🎁"]];
 let latest = null, first = true, speaking = 0, followOn = false;
+
+// ---- who you are: a random id this browser keeps, plus the name you tell Pino
+const me = (() => {
+  let id = "", name = "";
+  try { id = localStorage.getItem("pinoVisitor") || ""; name = localStorage.getItem("pinoName") || ""; } catch {}
+  if (!/^[a-z0-9-]{8,64}$/i.test(id)) {
+    id = (crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2) + Date.now().toString(36));
+    try { localStorage.setItem("pinoVisitor", id); } catch {}
+  }
+  return { id, name };
+})();
+function renderMe(editing = false) {
+  const box = $("meBox"); box.replaceChildren();
+  if (!me.name || editing) {
+    const input = Object.assign(document.createElement("input"), { placeholder: "Your name, so Pino remembers you", maxLength: 30, value: me.name });
+    const save = el("button", null, "Save"); save.type = "button";
+    save.onclick = () => { me.name = input.value.trim().slice(0, 30); try { localStorage.setItem("pinoName", me.name); } catch {} renderMe(); };
+    input.onkeydown = (e) => { if (e.key === "Enter") save.click(); };
+    box.append(input, save);
+  } else {
+    const change = el("button", null, "change"); change.type = "button"; change.onclick = () => renderMe(true);
+    box.append(document.createTextNode("Pino knows you as "), el("b", null, me.name), change);
+  }
+}
+renderMe();
 const pending = []; // chat lines sent this visit, before the server lists them
 
 function list(target, items, render, emptyText) {
@@ -715,7 +838,7 @@ function renderChat() {
   const all = [...serverChats, ...extra];
   list("chat", all, (c) => {
     const li = el("li");
-    li.append(el("span", "meta", new Date(c.at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })), el("div", "you", `You: ${c.you}`), el("div", "pino", `${s.name}: ${c.pino}`));
+    li.append(el("span", "meta", new Date(c.at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })), el("div", "you", `${c.name || "Someone"}: ${c.you}`), el("div", "pino", `${s.name}: ${c.pino}`));
     return li;
   }, "Say hi to Pino using the box under the town!");
 }
@@ -760,6 +883,14 @@ function render(s) {
   list("journal", s.journal, (j) => { const li = el("li"); li.append(el("span", "meta", j.t), document.createTextNode(j.text)); return li; }, "He hasn't written anything yet.");
   renderGallery(s.drawings || []);
   renderBooks(s);
+  if (world) world.setOwned(s.owned || []);
+  renderGive(s);
+  list("friends", s.friends || [], (f) => {
+    const li = el("li");
+    li.append(el("span", "meta", `${f.visits} visit${f.visits === 1 ? "" : "s"} · last seen ${ago(f.lastSeen)}`), el("strong", null, f.name || "A mystery visitor"));
+    if (f.note) li.append(document.createTextNode(` — ${f.note}`));
+    return li;
+  }, "No friends yet. Tell Pino your name and say hi!");
   const wantBox = $("wants"); wantBox.replaceChildren();
   if (!(s.wants || []).length) wantBox.append(el("div", "empty", "He hasn't figured out what he wants yet. He thinks about it whenever he reflects."));
   for (const w of s.wants || []) {
@@ -819,6 +950,35 @@ function renderGallery(drawings) {
 }
 $("viewer").addEventListener("click", () => ($("viewer").hidden = true));
 
+// ---- give tab
+const KINDS = [["book", "Books for his library"], ["treat", "Treats (eaten right away)"], ["snack", "New snacks for the vending machine"], ["thing", "Things for his town"]];
+let giveSig = "";
+function renderGive(s) {
+  const avail = s.giftsAvailable || [];
+  const sig = avail.map((g) => g.id).join("|") + "#" + (s.gifts || []).length;
+  if (sig === giveSig) return; giveSig = sig;
+  const box = $("giveList"); box.replaceChildren();
+  if (!avail.length) box.append(el("div", "empty", "Pino has been given everything! More gifts coming soon."));
+  for (const [kind, label] of KINDS) {
+    const items = avail.filter((g) => g.kind === kind); if (!items.length) continue;
+    box.append(el("div", "gkind", label));
+    const grid = el("div", "gifts");
+    for (const g of items) {
+      const card = el("div", "gift"), btn = el("button", null, "Give"); btn.type = "button";
+      card.append(el("span", "em", g.emoji), el("b", null, g.name.replace(/^(a |an |the book )/, "").replace(/ for the vending machine$/, "")), el("small", null, g.desc), btn);
+      btn.onclick = async () => {
+        btn.disabled = true; btn.textContent = "Giving…";
+        const j = await post("/api/give", { id: g.id });
+        if (j.ok) { toast(j.reaction); card.remove(); if (world) { g.kind === "treat" || g.kind === "snack" ? world.treat() : world.pet(); } setTimeout(refresh, 1500); }
+        else { toast(j.error || "That didn't work. Try again."); btn.disabled = false; btn.textContent = "Give"; if (j.error && /already/.test(j.error)) { card.remove(); } }
+      };
+      grid.append(card);
+    }
+    box.append(grid);
+  }
+  list("giftLog", s.gifts || [], (x) => { const li = el("li"); li.append(el("span", "meta", x.t), document.createTextNode(`${x.emoji} ${x.from} gave Pino ${x.name}`)); return li; }, "No gifts yet. Be the first!");
+}
+
 // ---- bookshelf
 function renderBooks(s) {
   const shelf = $("shelf"); shelf.replaceChildren();
@@ -843,7 +1003,7 @@ async function refresh() {
 }
 
 async function post(path, body) {
-  const r = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body || {}) });
+  const r = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...(body || {}), who: { id: me.id, name: me.name } }) });
   let j = {}; try { j = await r.json(); } catch {}
   return j;
 }
@@ -882,7 +1042,7 @@ $("talkForm").addEventListener("submit", async (e) => {
   const j = await post("/api/talk", { text });
   $("talkBtn").disabled = false;
   if (j.ok) {
-    pending.push({ at: Date.now(), you: text, pino: j.reply });
+    pending.push({ at: Date.now(), you: text, pino: j.reply, name: me.name || "You" });
     speaking = Date.now() + 14000; showBubble("speech", j.reply);
     box.replaceChildren(el("div", "you", `You: ${text}`), el("div", "pino", `${latest ? latest.name : "Pino"}: ${j.reply}`));
     if (world && /happy|excited/.test(j.mood || "")) world.pet();
