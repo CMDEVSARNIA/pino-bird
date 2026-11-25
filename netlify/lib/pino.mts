@@ -515,7 +515,7 @@ export function talkPrompt(s: State, chats: { you: string; pino: string }[], tex
     "If you're very sleepy you can be drowsy. If asked to do something you can't do in your town, say so in a bird-like way.\n" +
     "Use their name now and then if you know it. If they tell you something worth remembering about themselves " +
     "(their name, what they like, something happening in their life), put it in \"remember\" as a short note; otherwise leave it empty.\n" +
-    'Reply with JSON exactly like this: {"reply": "what you say", "mood": "one of happy, curious, shy, sleepy, grumpy, excited", "remember": "short note about them, or empty", "their_name": "their name if they told you, or empty"}'
+    'Reply with JSON exactly like this: {"reply": "what you say", "react": "one emoji that shows how their message made you feel", "mood": "one of happy, curious, shy, sleepy, grumpy, excited", "remember": "short note about them, or empty", "their_name": "their name if they told you, or empty"}'
   );
 }
 

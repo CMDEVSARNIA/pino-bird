@@ -66,7 +66,7 @@ export async function deleteKeys(keys: string[]) {
 }
 
 // ---- chat log (kept separately so the page can show it instantly) ----
-export type Chat = { at: number; you: string; pino: string; who?: string; name?: string };
+export type Chat = { at: number; you: string; pino: string; who?: string; name?: string; react?: string };
 export async function addChat(c: Chat) {
   await store().setJSON(newKey("chats"), c);
 }

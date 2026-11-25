@@ -1,4 +1,4 @@
-import type { Config } from "@netlify/functions";
+import type { Config, Context } from "@netlify/functions";
 import { identityPrompt, isNight, parseJSON, publicView, talkPrompt, type Person } from "../lib/pino.mts";
 import { ask, hasBrain } from "../lib/brain.mts";
 import { GIFTS, GIFT_BY_ID } from "../lib/gifts.mts";
@@ -27,7 +27,7 @@ function whoFrom(b: Record<string, any>): Who | null {
   return /^[a-z0-9-]{8,64}$/i.test(id) ? { id, name: clean(b?.who?.name, 30) } : null;
 }
 
-export default async (req: Request) => {
+export default async (req: Request, context: Context) => {
   const { pathname } = new URL(req.url);
   const now = Date.now();
 
@@ -35,7 +35,8 @@ export default async (req: Request) => {
     const [s, unread, chats, claimed, people] = await Promise.all([loadState(), countNotes(), recentChats(14), claimedGiftIds(), peopleIndex()]);
     const gone = new Set([...claimed, ...(s.gifts?.received ?? [])]);
     return json({
-      ...publicView(s, unread, now, chats.map(({ at, you, pino, name }) => ({ at, you, pino, name }))),
+      ...publicView(s, unread, now, chats.map(({ at, you, pino, name, react }) => ({ at, you, pino, name, react }))),
+      version: context?.deploy?.id ?? "",
       giftsAvailable: GIFTS.filter((g) => !gone.has(g.id)).map(({ id, kind, name, emoji, desc }) => ({ id, kind, name, emoji, desc })),
       friends: Object.values(people).filter((p) => p.visits > 0).sort((a, b) => b.lastSeen - a.lastSeen).slice(0, 30)
         .map(({ name, visits, note, lastSeen }) => ({ name, visits, note, lastSeen })),
@@ -102,7 +103,7 @@ export default async (req: Request) => {
       ? { id: who.id, name: who.name, firstMet: now, lastSeen: now, visits: 0, chats: 0, facts: [], gave: [], pets: 0 } : null;
     const mine = chats.filter((c) => who && c.who === who.id);
 
-    let reply = "", mood = "curious", remember = "", theirName = "";
+    let reply = "", mood = "curious", remember = "", theirName = "", react = "";
     if (!hasBrain()) {
       reply = "*tilts head and chirps* (Pino has no brain connected yet.)";
     } else {
@@ -113,6 +114,9 @@ export default async (req: Request) => {
         mood = typeof parsed?.mood === "string" ? parsed.mood : mood;
         remember = clean(parsed?.remember, 160);
         theirName = clean(parsed?.their_name, 30);
+        // one emoji only (a short grapheme run, no words)
+        const r = clean(parsed?.react, 16);
+        react = /^[\p{Extended_Pictographic}\p{Emoji_Component}\u200d\ufe0f]{1,12}$/u.test(r) ? r : "";
       } catch (e) {
         console.error("talk failed:", (e as Error).message);
         return json({ ok: false, error: "Pino got distracted by a butterfly. Try again in a moment." }, 503);
@@ -121,14 +125,14 @@ export default async (req: Request) => {
     if (!reply) reply = isNight(now) ? "*yawns* ...mm?" : "*chirp?*";
     const name = who?.name || theirName || person?.name || "";
     await Promise.all([
-      addChat({ at: now, you: text, pino: reply, who: who?.id, name }),
+      addChat({ at: now, you: text, pino: reply, who: who?.id, name, react }),
       addEvent({ type: "talk", at: now, text, reply, who: who ? { id: who.id, name } : undefined }),
       meet(who ? { id: who.id, name } : null, (p) => {
         p.chats += 1;
         if (remember && !p.facts.some((f) => f.toLowerCase() === remember.toLowerCase())) p.facts = [...p.facts, remember].slice(-12);
       }),
     ]);
-    return json({ ok: true, reply, mood, name: name || undefined, firstMeeting: !person });
+    return json({ ok: true, reply, mood, react, at: now, name: name || undefined, firstMeeting: !person });
   }
 
   return new Response("Not found", { status: 404 });

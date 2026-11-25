@@ -46,6 +46,10 @@
   .bubble.mini { padding: 3px 7px; font-size: 15px; border-radius: 999px; }
   .lastreply { margin-top: 8px; background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 10px 12px; font-size: 15px; line-height: 1.45; }
   .lastreply[hidden] { display: none; }
+  .react { display: inline-block; margin-left: 6px; font-size: 15px; background: #fff; border: 1px solid var(--line); border-radius: 999px; padding: 0 7px; vertical-align: middle; }
+  .update { position: fixed; left: 50%; bottom: calc(16px + env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 60;
+    background: var(--ink); color: #fff; border: 0; border-radius: 999px; padding: 11px 18px; font: inherit; font-weight: 800; font-size: 14px; box-shadow: 0 4px 16px rgba(0,0,0,.25); cursor: pointer; white-space: nowrap; }
+  .update[hidden] { display: none; }
   .lastreply .you { font-size: 13px; }
   .lastreply .pino { margin-top: 4px; }
   .bubble.mini .txt { display: none; }
@@ -154,6 +158,7 @@
 </style>
 </head>
 <body>
+<button class="update" id="updateBtn" type="button" hidden>✨ Pino's town was updated · tap to refresh</button>
 <div class="wrap">
   <header>
     <h1 id="name">Pino's Town</h1>
@@ -835,16 +840,20 @@ function renderChat() {
   const s = latest; if (!s) return;
   const serverChats = s.chats || [];
   const extra = pending.filter((p) => !serverChats.some((c) => c.at === p.at || (c.you === p.you && c.pino === p.pino)));
+  announceOthers(serverChats);
   const all = [...serverChats, ...extra];
   list("chat", all, (c) => {
     const li = el("li");
-    li.append(el("span", "meta", new Date(c.at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })), el("div", "you", `${c.name || "Someone"}: ${c.you}`), el("div", "pino", `${s.name}: ${c.pino}`));
+    const said = el("div", "you", `${c.name || "Someone"}: ${c.you}`);
+    if (c.react) said.append(el("span", "react", c.react));
+    li.append(el("span", "meta", new Date(c.at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })), said, el("div", "pino", `${s.name}: ${c.pino}`));
     return li;
   }, "Say hi to Pino using the box under the town!");
 }
 
 function render(s) {
   latest = s;
+  checkVersion(s.version);
   $("name").textContent = `${s.name}'s Town`; document.title = `${s.name}'s Town`;
   $("clock").textContent = `${s.weekday} · ${s.clock}`;
   const last = [...s.memories].reverse().find((m) => m.brain !== "visitor");
@@ -950,6 +959,30 @@ function renderGallery(drawings) {
 }
 $("viewer").addEventListener("click", () => ($("viewer").hidden = true));
 
+// ---- when someone else talks to Pino, everyone watching sees him answer
+let seenChat = 0, chatPrimed = false;
+function announceOthers(chats) {
+  const newest = chats.reduce((m, c) => Math.max(m, c.at), 0);
+  if (!chatPrimed) { seenChat = newest; chatPrimed = true; return; }
+  const fresh = chats.filter((c) => c.at > seenChat && !pending.some((p) => p.mine && p.at === c.at));
+  seenChat = Math.max(seenChat, newest);
+  const c = fresh.at(-1);
+  if (!c || Date.now() - c.at > 90_000) return;
+  toast(`💬 ${c.name || "Someone"} said: “${short(c.you, 70)}”${c.react ? " " + c.react : ""}`);
+  speaking = Date.now() + 12000;
+  showBubble("speech", c.pino);
+  setTimeout(() => { if (Date.now() > speaking && latest) render(latest); }, 12500);
+}
+
+// ---- new version of the site? offer a refresh (never force one mid-typing)
+let firstVersion = null;
+function checkVersion(v) {
+  if (!v) return;
+  if (firstVersion === null) firstVersion = v;
+  else if (v !== firstVersion) $("updateBtn").hidden = false;
+}
+$("updateBtn").addEventListener("click", () => location.reload());
+
 // ---- give tab
 const KINDS = [["book", "Books for his library"], ["treat", "Treats (eaten right away)"], ["snack", "New snacks for the vending machine"], ["thing", "Things for his town"]];
 let giveSig = "";
@@ -1042,9 +1075,11 @@ $("talkForm").addEventListener("submit", async (e) => {
   const j = await post("/api/talk", { text });
   $("talkBtn").disabled = false;
   if (j.ok) {
-    pending.push({ at: Date.now(), you: text, pino: j.reply, name: me.name || "You" });
+    pending.push({ at: j.at || Date.now(), you: text, pino: j.reply, name: me.name || "You", react: j.react, mine: true });
+    seenChat = Math.max(seenChat, j.at || 0);
     speaking = Date.now() + 14000; showBubble("speech", j.reply);
-    box.replaceChildren(el("div", "you", `You: ${text}`), el("div", "pino", `${latest ? latest.name : "Pino"}: ${j.reply}`));
+    const youLine = el("div", "you", `You: ${text}`); if (j.react) youLine.append(el("span", "react", j.react));
+    box.replaceChildren(youLine, el("div", "pino", `${latest ? latest.name : "Pino"}: ${j.reply}`));
     if (world && /happy|excited/.test(j.mood || "")) world.pet();
     renderChat();
     setTimeout(() => { if (Date.now() > speaking && latest) render(latest); }, 14500);
