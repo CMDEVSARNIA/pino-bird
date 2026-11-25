@@ -375,7 +375,8 @@ function buildWorld() {
   }
 
   // ---------------------------------------------------------------- movement
-  const state = { path: [], look: null, doing: "", place: "house", hop: 0, happy: 0, sleeping: false, follow: false, nightF: 0, night: false };
+  const state = { path: [], look: null, doing: "", place: "house", hop: 0, happy: 0, sleeping: false, follow: false, nightF: 0, night: false,
+    base: SPOTS.house.clone(), nextWander: 4, wandering: false };
   function setActivity(place, doing, instant) {
     const act = ACT.find(([re]) => re.test(doing));
     const target = act ? act[1] : SPOTS[place];
@@ -387,7 +388,7 @@ function buildWorld() {
       state.path = place !== state.place ? [JUNCTION.clone(), SPOTS[place].clone(), target.clone()] : [target.clone()];
       if (place !== state.place && pino.group.position.distanceTo(JUNCTION) > 6) state.path.unshift(SPOTS[state.place].clone());
     }
-    state.look = look; state.place = place; state.doing = doing;
+    state.look = look; state.place = place; state.doing = doing; state.base = target.clone(); state.wandering = false;
     state.sleeping = /^sleep/.test(doing);
   }
 
@@ -416,6 +417,20 @@ function buildWorld() {
     timer.update(); const dt = Math.min(timer.getDelta(), 0.05), t = timer.getElapsed();
     const g = pino.group;
 
+    // between decisions, potter about near where he is so he always feels alive
+    if (!state.path.length && t > state.nextWander) {
+      const still = state.sleeping || state.base.y > 0.05 || /window/.test(state.doing);
+      if (!still) {
+        if (state.wandering) { state.path = [state.base.clone()]; state.wandering = false; }
+        else {
+          const a = Math.random() * Math.PI * 2, r = 0.5 + Math.random() * 0.9;
+          state.path = [state.base.clone().add(V(Math.cos(a) * r, 0, Math.sin(a) * r))]; state.wandering = true;
+        }
+        if (Math.random() < 0.3) state.hop = 0.6;
+      }
+      state.nextWander = t + (state.wandering ? 3 + Math.random() * 4 : 6 + Math.random() * 8);
+    }
+
     // walking
     let walking = false;
     if (state.path.length) {
@@ -427,7 +442,7 @@ function buildWorld() {
         g.position.addScaledVector(tmp.normalize(), step);
         lookAngle = Math.atan2(tmp.x, tmp.z);
       }
-    } else if (state.look) {
+    } else if (state.look && !state.wandering) {
       tmp.copy(state.look).sub(g.position); lookAngle = Math.atan2(tmp.x, tmp.z);
     }
     // height: hop onto the bench / bed only once arrived
