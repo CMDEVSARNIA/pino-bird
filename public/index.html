@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#f6f1e7">
+<title>Pino's Town</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐦</text></svg>">
+<style>
+  :root {
+    --bg: #f6f1e7; --card: #fffdf8; --ink: #2b2a27; --muted: #7b756b; --line: #e7dfd0;
+    --accent: #c8643b; --food: #e39b3b; --energy: #4c8fd6; --joy: #d4579a;
+    --radius: 16px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--ink);
+    font-family: ui-rounded, "SF Pro Rounded", "Nunito", system-ui, -apple-system, "Segoe UI", sans-serif; }
+  body { padding: env(safe-area-inset-top) 0 calc(24px + env(safe-area-inset-bottom)); }
+  .wrap { max-width: 520px; margin: 0 auto; padding: 12px 14px; }
+
+  header { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding: 4px 2px 10px; }
+  h1 { font-size: 26px; margin: 0; letter-spacing: -0.5px; }
+  .clock { font-size: 14px; color: var(--muted); text-align: right; }
+  .brain { font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 6px; justify-content: flex-end; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: #5bb36a; display: inline-block; }
+  .dot.off { background: #d9a23c; }
+
+  .scene { border-radius: var(--radius); overflow: hidden; background: #a9d98a; box-shadow: 0 2px 0 var(--line); }
+  .scene svg { display: block; width: 100%; height: auto; }
+
+  .banner { margin-top: 10px; padding: 10px 12px; border-radius: 12px; background: #fff3db; border: 1px solid #f0d9a8; font-size: 13px; line-height: 1.4; }
+  .banner[hidden] { display: none; }
+
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px; margin-top: 12px; }
+  .now { font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: .6px; }
+  .doing { font-size: 18px; font-weight: 700; margin: 2px 0 8px; }
+  .thought { font-size: 16px; line-height: 1.45; margin: 0; font-style: italic; }
+  .heartbeat { font-size: 12px; color: var(--muted); margin-top: 8px; }
+
+  .needs { display: grid; gap: 10px; }
+  .need { display: grid; grid-template-columns: 64px 1fr 34px; align-items: center; gap: 10px; font-size: 14px; }
+  .bar { height: 10px; border-radius: 6px; background: #efe8da; overflow: hidden; }
+  .bar > i { display: block; height: 100%; border-radius: 6px; transition: width 1s ease; }
+  .need span:last-child { text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+  .tabs { display: flex; gap: 6px; overflow-x: auto; margin-top: 14px; padding-bottom: 2px; scrollbar-width: none; }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tab { flex: 0 0 auto; border: 1px solid var(--line); background: var(--card); color: var(--ink);
+    padding: 8px 14px; border-radius: 999px; font: inherit; font-size: 14px; cursor: pointer; }
+  .tab[aria-selected="true"] { background: var(--ink); color: #fff; border-color: var(--ink); }
+  .badge { background: var(--accent); color: #fff; border-radius: 999px; font-size: 11px; padding: 1px 6px; margin-left: 4px; }
+
+  .panel[hidden] { display: none; }
+  .list { list-style: none; margin: 0; padding: 0; }
+  .list li { padding: 10px 0; border-bottom: 1px solid var(--line); font-size: 14px; line-height: 1.45; }
+  .list li:last-child { border-bottom: 0; }
+  .meta { font-size: 12px; color: var(--muted); display: block; margin-bottom: 2px; }
+  .tag { font-size: 11px; padding: 1px 6px; border-radius: 6px; background: #f0e9db; color: var(--muted); margin-left: 4px; }
+  .empty { color: var(--muted); font-size: 14px; padding: 6px 0; }
+  .personality { font-size: 15px; line-height: 1.5; margin: 0 0 10px; }
+  h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); margin: 6px 0; }
+
+  form { display: grid; gap: 8px; margin-bottom: 8px; }
+  textarea { width: 100%; min-height: 70px; border-radius: 12px; border: 1px solid var(--line); padding: 10px; font: inherit; font-size: 16px; resize: vertical; background: #fff; }
+  button.send { justify-self: end; background: var(--accent); color: #fff; border: 0; border-radius: 999px; padding: 10px 18px; font: inherit; font-weight: 700; font-size: 15px; cursor: pointer; }
+  button.send:disabled { opacity: .5; }
+  .formmsg { font-size: 13px; color: var(--muted); min-height: 1em; }
+  .reply { margin-top: 4px; padding-left: 10px; border-left: 3px solid var(--accent); }
+
+  /* scene animation */
+  #bird { transition: transform 2.6s ease-in-out; }
+  #birdFlip { transition: transform .35s ease; transform-box: fill-box; transform-origin: center; }
+  #birdFlip.left { transform: scaleX(-1); }
+  #birdBob.walking { animation: bob .32s ease-in-out infinite alternate; }
+  @keyframes bob { from { transform: translateY(0); } to { transform: translateY(-3px); } }
+  .zzz { animation: float 2.4s ease-in-out infinite; }
+  @keyframes float { 0% { opacity: 0; transform: translate(0, 0); } 40% { opacity: 1; } 100% { opacity: 0; transform: translate(8px, -16px); } }
+  .night-only { opacity: 0; transition: opacity 1.5s; }
+  svg.night .night-only { opacity: 1; }
+  .day-only { transition: opacity 1.5s; }
+  svg.night .day-only { opacity: 0; }
+  .glow { transition: fill 1.5s; }
+  svg.night .glow { fill: #ffd979; }
+  .ripple { animation: ripple 4s ease-in-out infinite; }
+  @keyframes ripple { 50% { transform: translateX(6px); } }
+  .duck { animation: paddle 9s ease-in-out infinite alternate; }
+  @keyframes paddle { to { transform: translateX(-46px); } }
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1 id="name">Pino's Town</h1>
+    <div>
+      <div class="clock" id="clock">waking up…</div>
+      <div class="brain"><span class="dot" id="dot"></span><span id="brain">—</span></div>
+    </div>
+  </header>
+
+  <div class="scene">
+    <svg id="svg" viewBox="0 0 400 440" role="img" aria-label="Pino's town: a little house, a library, a vending machine and a park">
+      <defs>
+        <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#bfe3f5"/><stop offset="1" stop-color="#eef8fb"/>
+        </linearGradient>
+        <linearGradient id="nightsky" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#141b3d"/><stop offset="1" stop-color="#3a3f6e"/>
+        </linearGradient>
+      </defs>
+
+      <!-- sky -->
+      <rect width="400" height="200" fill="url(#sky)"/>
+      <rect width="400" height="200" fill="url(#nightsky)" class="night-only"/>
+      <circle cx="342" cy="44" r="20" fill="#ffd45c" class="day-only"/>
+      <g class="night-only" fill="#fff">
+        <circle cx="330" cy="40" r="15" fill="#f4f1dc"/><circle cx="337" cy="35" r="13" fill="#2a3060"/>
+        <circle cx="40" cy="30" r="1.4"/><circle cx="90" cy="60" r="1"/><circle cx="150" cy="25" r="1.6"/>
+        <circle cx="210" cy="70" r="1"/><circle cx="260" cy="30" r="1.3"/><circle cx="380" cy="90" r="1"/>
+        <circle cx="120" cy="100" r="1"/><circle cx="300" cy="110" r="1.2"/>
+      </g>
+      <g class="day-only" fill="#fff" opacity=".9">
+        <ellipse cx="80" cy="50" rx="30" ry="10"/><ellipse cx="100" cy="44" rx="20" ry="10"/>
+        <ellipse cx="230" cy="80" rx="26" ry="8"/><ellipse cx="246" cy="75" rx="16" ry="8"/>
+      </g>
+
+      <!-- ground -->
+      <path d="M0 170 Q 100 150 200 168 T 400 160 V 440 H 0 Z" fill="#a9d98a"/>
+      <path d="M0 250 Q 120 236 230 252 T 400 246 V 440 H 0 Z" fill="#9fd27f"/>
+
+      <!-- path -->
+      <path d="M95 208 C 120 250, 180 250, 205 262 S 285 240, 290 208 M205 262 C 215 300, 250 330, 285 398 M205 262 C 195 310, 185 340, 175 372"
+            fill="none" stroke="#ead9b0" stroke-width="16" stroke-linecap="round"/>
+
+      <!-- HOUSE -->
+      <g>
+        <rect x="45" y="140" width="96" height="66" rx="4" fill="#f2c9a0"/>
+        <path d="M36 144 L93 100 L150 144 Z" fill="#c8643b"/>
+        <rect x="120" y="108" width="10" height="22" fill="#8b4c32"/>
+        <rect x="82" y="168" width="24" height="38" rx="12" fill="#8b5a3c"/>
+        <circle cx="100" cy="188" r="1.6" fill="#f2d28c"/>
+        <rect x="55" y="156" width="20" height="20" rx="3" fill="#cfe9f2" class="glow"/>
+        <rect x="112" y="156" width="20" height="20" rx="3" fill="#cfe9f2" class="glow"/>
+        <path d="M65 156 V176 M55 166 H75 M122 156 V176 M112 166 H132" stroke="#f2c9a0" stroke-width="2"/>
+        <text x="93" y="226" text-anchor="middle" font-size="11" fill="#55704a" font-weight="700">home</text>
+      </g>
+
+      <!-- LIBRARY -->
+      <g>
+        <rect x="228" y="140" width="140" height="66" fill="#e8e1d3"/>
+        <path d="M220 142 L298 108 L376 142 Z" fill="#a9a091"/>
+        <rect x="222" y="138" width="152" height="8" fill="#cfc6b5"/>
+        <rect x="248" y="122" width="100" height="13" rx="2" fill="#5b4a3a"/>
+        <text x="298" y="132" text-anchor="middle" font-size="9" fill="#f6efe2" font-weight="700" letter-spacing="2">LIBRARY</text>
+        <g fill="#d6cebe"><rect x="236" y="148" width="9" height="58"/><rect x="351" y="148" width="9" height="58"/></g>
+        <rect x="286" y="170" width="24" height="36" rx="2" fill="#6d553f"/>
+        <rect x="254" y="156" width="24" height="26" rx="3" fill="#cfe9f2" class="glow"/>
+        <rect x="318" y="156" width="24" height="26" rx="3" fill="#cfe9f2" class="glow"/>
+        <g><rect x="257" y="172" width="4" height="10" fill="#c8643b"/><rect x="262" y="174" width="4" height="8" fill="#4c8fd6"/><rect x="267" y="171" width="4" height="11" fill="#5bb36a"/>
+           <rect x="321" y="173" width="4" height="9" fill="#d4579a"/><rect x="326" y="171" width="4" height="11" fill="#e39b3b"/></g>
+      </g>
+
+      <!-- PARK -->
+      <g>
+        <rect x="52" y="268" width="10" height="44" fill="#7b5636"/>
+        <circle cx="57" cy="262" r="30" fill="#5fae5a"/><circle cx="38" cy="276" r="18" fill="#56a352"/><circle cx="78" cy="276" r="18" fill="#56a352"/>
+        <circle cx="48" cy="254" r="3" fill="#e0473b"/><circle cx="70" cy="266" r="3" fill="#e0473b"/>
+        <g fill="#c58b4d"><rect x="16" y="330" width="44" height="5" rx="2"/><rect x="16" y="322" width="44" height="4" rx="2"/>
+          <rect x="20" y="335" width="4" height="10"/><rect x="52" y="335" width="4" height="10"/></g>
+        <ellipse cx="110" cy="405" rx="62" ry="20" fill="#7cc4e4"/>
+        <path d="M70 402 q 8 -4 16 0 M112 410 q 8 -4 16 0" stroke="#bfe6f5" stroke-width="2" fill="none" class="ripple"/>
+        <g class="duck"><ellipse cx="135" cy="400" rx="8" ry="5" fill="#fff"/><circle cx="141" cy="394" r="3.5" fill="#fff"/><path d="M144 394 l4 1 -4 1z" fill="#f2a23c"/></g>
+        <g fill="#c98c3b"><path d="M150 330 l6 -4 4 6z"/><path d="M128 344 l6 2 -3 5z"/><path d="M162 350 l5 -5 3 6z"/></g>
+        <text x="58" y="370" text-anchor="middle" font-size="11" fill="#45663c" font-weight="700">park</text>
+      </g>
+
+      <!-- VENDING MACHINE -->
+      <g>
+        <ellipse cx="328" cy="388" rx="34" ry="6" fill="#000" opacity=".12"/>
+        <rect x="300" y="288" width="58" height="98" rx="6" fill="#d24b4b"/>
+        <rect x="306" y="296" width="34" height="62" rx="3" fill="#dff1f7" class="glow"/>
+        <g><rect x="309" y="301" width="8" height="9" rx="1" fill="#e39b3b"/><rect x="319" y="301" width="8" height="9" rx="1" fill="#e39b3b"/><rect x="329" y="301" width="8" height="9" rx="1" fill="#e39b3b"/>
+           <rect x="309" y="316" width="8" height="10" rx="2" fill="#a0d36a"/><rect x="319" y="316" width="8" height="10" rx="2" fill="#a0d36a"/><rect x="329" y="316" width="8" height="10" rx="2" fill="#a0d36a"/>
+           <rect x="310" y="331" width="6" height="12" rx="2" fill="#8e44ad"/><rect x="320" y="331" width="6" height="12" rx="2" fill="#8e44ad"/><rect x="330" y="331" width="6" height="12" rx="2" fill="#8e44ad"/></g>
+        <g fill="#f7e0a6"><circle cx="349" cy="304" r="2.5"/><circle cx="349" cy="312" r="2.5"/><circle cx="349" cy="320" r="2.5"/></g>
+        <rect x="344" y="330" width="10" height="16" rx="2" fill="#3a2a2a"/>
+        <rect x="308" y="364" width="42" height="12" rx="2" fill="#3a2a2a"/>
+        <text x="329" y="283" text-anchor="middle" font-size="10" fill="#45663c" font-weight="700">snacks</text>
+      </g>
+
+      <!-- night dimmer over the ground (windows above stay lit) -->
+      <rect y="150" width="400" height="290" fill="#0d1233" fill-opacity=".4" class="night-only" pointer-events="none"/>
+      <g class="night-only">
+        <rect x="55" y="156" width="20" height="20" rx="3" fill="#ffd979" opacity=".9"/><rect x="112" y="156" width="20" height="20" rx="3" fill="#ffd979" opacity=".9"/>
+        <rect x="306" y="296" width="34" height="62" rx="3" fill="#fff4c2" opacity=".55"/>
+        <circle cx="329" cy="330" r="46" fill="#fff4c2" opacity=".08"/>
+      </g>
+
+      <!-- PINO -->
+      <g id="bird" style="transform: translate(118px, 222px)">
+        <g id="birdBob">
+          <g id="zzz" visibility="hidden" fill="#fff" font-size="12" font-weight="700">
+            <text x="10" y="-34" class="zzz">z</text><text x="18" y="-44" class="zzz" style="animation-delay:.8s">z</text><text x="26" y="-54" class="zzz" style="animation-delay:1.6s">Z</text>
+          </g>
+          <text id="badge" x="0" y="-36" text-anchor="middle" font-size="16"></text>
+          <g id="birdFlip">
+            <ellipse cx="0" cy="1" rx="14" ry="3" fill="#000" opacity=".15"/>
+            <path d="M-5 -5 L-6 1 M-6 1 l-3 0 M-6 1 l2 0 M3 -5 L4 1 M4 1 l-3 0 M4 1 l2 0" stroke="#c98a4a" stroke-width="2" stroke-linecap="round" fill="none"/>
+            <ellipse cx="-2" cy="-15" rx="15" ry="11.5" fill="#8b6a45"/>
+            <path d="M-12 -18 q 3 2 6 0 M-8 -11 q 3 2 6 0 M-1 -19 q 3 2 6 0" stroke="#6f5233" stroke-width="1.2" fill="none"/>
+            <circle cx="10" cy="-21" r="7" fill="#7d5e3c"/>
+            <path d="M16 -20 Q 26 -15 30 -5" stroke="#e7c48d" stroke-width="2.4" fill="none" stroke-linecap="round"/>
+            <circle id="eyeOpen" cx="12" cy="-23" r="1.5" fill="#1d1a16"/>
+            <path id="eyeShut" d="M10 -23 q 2 1.5 4 0" stroke="#1d1a16" stroke-width="1.2" fill="none" visibility="hidden"/>
+          </g>
+        </g>
+      </g>
+    </svg>
+  </div>
+
+  <div class="banner" id="banner" hidden></div>
+
+  <div class="card">
+    <div class="now">Right now</div>
+    <div class="doing" id="doing">…</div>
+    <p class="thought" id="thought"></p>
+    <div class="heartbeat" id="heartbeat"></div>
+  </div>
+
+  <div class="card needs" id="needs"></div>
+
+  <div class="tabs" role="tablist">
+    <button class="tab" role="tab" data-tab="diary" aria-selected="true">Diary</button>
+    <button class="tab" role="tab" data-tab="journal">Journal</button>
+    <button class="tab" role="tab" data-tab="drawings">Drawings</button>
+    <button class="tab" role="tab" data-tab="mind">Mind</button>
+    <button class="tab" role="tab" data-tab="notes">Notes<span class="badge" id="unread" hidden></span></button>
+  </div>
+
+  <div class="card panel" id="p-diary"><ul class="list" id="diary"></ul></div>
+  <div class="card panel" id="p-journal" hidden><ul class="list" id="journal"></ul></div>
+  <div class="card panel" id="p-drawings" hidden><ul class="list" id="drawings"></ul></div>
+  <div class="card panel" id="p-mind" hidden>
+    <h3>Who I am (written by me)</h3>
+    <p class="personality" id="personality"></p>
+    <h3>Things I've realised</h3>
+    <ul class="list" id="insights"></ul>
+  </div>
+  <div class="card panel" id="p-notes" hidden>
+    <form id="noteForm">
+      <textarea id="noteText" maxlength="300" placeholder="Leave Pino a note… he'll find it next time he looks around."></textarea>
+      <div class="formmsg" id="formmsg"></div>
+      <button class="send" type="submit">Leave note</button>
+    </form>
+    <ul class="list" id="convos"></ul>
+  </div>
+</div>
+
+<script>
+// Where Pino stands at each place (SVG coordinates of his feet)
+const SPOTS = { house: [118, 222], library: [276, 222], vending: [282, 398], park: [178, 372] };
+const BADGES = [
+  [/sleep/, "💤"], [/read/, "📖"], [/journal/, "✏️"], [/draw/, "🎨"], [/seed bar/, "🍫"],
+  [/crisps/, "🥨"], [/juice/, "🧃"], [/leaf/, "🍂"], [/ducks/, "🦆"], [/bench|sit/, "💭"],
+  [/window/, "🪟"], [/tidy/, "🧹"], [/reply|note/, "✉️"], [/reflect/, "🌙"], [/walked/, "👣"],
+];
+const $ = (id) => document.getElementById(id);
+const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+let lastPlace = null, lastX = null;
+
+function moveBird(place, doing) {
+  const [x, y] = SPOTS[place] || SPOTS.house;
+  if (lastPlace !== null && place !== lastPlace) {
+    $("birdFlip").classList.toggle("left", x < lastX);
+    $("birdBob").classList.add("walking");
+    setTimeout(() => $("birdBob").classList.remove("walking"), 2600);
+  }
+  $("bird").style.transform = `translate(${x}px, ${y}px)`;
+  lastPlace = place; lastX = x;
+  const sleeping = /^sleep/.test(doing || "");
+  $("zzz").setAttribute("visibility", sleeping ? "visible" : "hidden");
+  $("eyeOpen").setAttribute("visibility", sleeping ? "hidden" : "visible");
+  $("eyeShut").setAttribute("visibility", sleeping ? "visible" : "hidden");
+  const b = BADGES.find(([re]) => re.test(doing || ""));
+  $("badge").textContent = sleeping ? "" : (b ? b[1] : "");
+}
+
+function list(target, items, render, emptyText) {
+  const ul = $(target); ul.replaceChildren();
+  if (!items.length) { ul.append(el("li", "empty", emptyText)); return; }
+  for (const it of items.slice().reverse()) ul.append(render(it));
+}
+
+function ago(ms) {
+  if (!ms) return "";
+  const m = Math.round((Date.now() - ms) / 60000);
+  return m < 1 ? "just now" : m === 1 ? "1 minute ago" : m < 60 ? `${m} minutes ago` : `${Math.round(m / 60)} h ago`;
+}
+
+function render(s) {
+  document.title = `${s.name}'s Town`;
+  $("name").textContent = `${s.name}'s Town`;
+  $("clock").textContent = `${s.weekday} · ${s.clock}`;
+  $("svg").classList.toggle("night", !!s.night);
+  const last = s.memories[s.memories.length - 1];
+  const onInstinct = !last || last.brain === "instinct";
+  $("dot").classList.toggle("off", onInstinct);
+  $("brain").textContent = onInstinct ? "running on instinct" : `thinking with ${last.brain}`;
+
+  const banner = $("banner");
+  banner.hidden = !s.last_error;
+  banner.textContent = s.last_error || "";
+
+  moveBird(s.place, s.doing);
+  $("doing").textContent = `${s.doing.charAt(0).toUpperCase() + s.doing.slice(1)} · ${s.places[s.place] || s.place}`;
+  $("thought").textContent = s.thought ? `“${s.thought}”` : "";
+  $("heartbeat").textContent = s.last_tick_at
+    ? `Last moment ${ago(s.last_tick_at)} · he decides something new about every 5 minutes`
+    : "Pino hasn't taken his first step yet. His first moment happens within 5 minutes.";
+
+  const needs = $("needs"); needs.replaceChildren();
+  for (const [k, label] of [["food", "Food"], ["energy", "Energy"], ["joy", "Joy"]]) {
+    const row = el("div", "need");
+    const bar = el("div", "bar"); const fill = el("i"); fill.style.width = `${s.needs[k]}%`; fill.style.background = `var(--${k})`;
+    bar.append(fill); row.append(el("span", null, label), bar, el("span", null, s.needs[k])); needs.append(row);
+  }
+
+  list("diary", s.memories, (m) => {
+    const li = el("li");
+    const meta = el("span", "meta", `${m.t} · ${s.places[m.place] || m.place}`);
+    if (m.first) meta.append(el("span", "tag", "first time!"));
+    if (m.bored) meta.append(el("span", "tag", "bored"));
+    li.append(meta, el("strong", null, m.action), document.createTextNode(` — ${m.thought}`));
+    return li;
+  }, "Nothing yet. His life is just beginning.");
+  list("journal", s.journal, (j) => { const li = el("li"); li.append(el("span", "meta", j.t), document.createTextNode(j.text)); return li; },
+    "He hasn't written anything yet. Maybe he'll find the journal at the library.");
+  list("drawings", s.drawings, (d) => { const li = el("li"); li.append(el("span", "meta", `🎨 ${d.t}`), document.createTextNode(d.text)); return li; },
+    "No drawings yet.");
+  $("personality").textContent = s.personality;
+  list("insights", s.insights, (i) => { const li = el("li"); li.append(el("span", "meta", i.t), document.createTextNode(i.text)); return li; },
+    "He reflects about once an hour, once he has a brain connected.");
+  list("convos", s.conversations, (c) => {
+    const li = el("li"); li.append(el("span", "meta", c.t), el("div", null, `You: ${c.visitor}`), el("div", "reply", `${s.name}: ${c.reply}`)); return li;
+  }, s.unread ? "Your note is waiting in his mailbox." : "No notes yet. Say hello!");
+  const ur = $("unread"); ur.hidden = !s.unread; ur.textContent = s.unread;
+}
+
+async function refresh() {
+  try {
+    const r = await fetch("/api/state", { cache: "no-store" });
+    if (!r.ok) throw new Error(r.status);
+    render(await r.json());
+  } catch (e) {
+    $("banner").hidden = false;
+    $("banner").textContent = "Can't reach Pino's town right now. Retrying…";
+  }
+}
+
+document.querySelectorAll(".tab").forEach((t) => t.addEventListener("click", () => {
+  document.querySelectorAll(".tab").forEach((x) => x.setAttribute("aria-selected", x === t));
+  document.querySelectorAll(".panel").forEach((p) => p.hidden = p.id !== `p-${t.dataset.tab}`);
+}));
+
+$("noteForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const text = $("noteText").value.trim();
+  if (!text) return;
+  const btn = e.target.querySelector("button"); btn.disabled = true;
+  try {
+    const r = await fetch("/api/message", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text }) });
+    const j = await r.json();
+    $("formmsg").textContent = j.ok ? "Delivered! He'll read it next time he looks around." : (j.error || "Couldn't send.");
+    if (j.ok) { $("noteText").value = ""; refresh(); }
+  } catch { $("formmsg").textContent = "Couldn't send. Try again."; }
+  btn.disabled = false;
+});
+
+refresh();
+setInterval(refresh, 20000);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) refresh(); });
+</script>
+</body>
+</html>
