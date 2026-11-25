@@ -2,6 +2,8 @@
 
 import { BOOKS } from "./library.mts";
 import { GIFT_BY_ID, TEDDY_ID } from "./gifts.mts";
+import { CROPS, doGarden, gardenActivities, gardenLine, gardenView, newGarden, type Garden } from "./garden.mts";
+import { holiday } from "./holidays.mts";
 import { SONG_BY_ID, nextSong, randomSong, silence, songsOwned, type Music } from "./music.mts";
 import { recall } from "./memory.mts";
 import { frozenPond, outdoorFeeling, season, snowy, weatherDrain, weatherLine, wet, type Weather } from "./weather.mts";
@@ -77,6 +79,11 @@ export const PLACES: Record<string, Place> = {
       "sit on the bench": { joy: 3, energy: 5 },
     },
   },
+  garden: {
+    label: "garden",
+    desc: "your garden to the left of your house: two raised beds under a glass cold frame, where whatever you plant grows all year round",
+    activities: {}, // depends on what's planted (see garden.mts)
+  },
   museum: {
     label: "museum",
     desc: "the grand town museum with a dome and stone columns, full of real treasures from around the world: famous paintings, a T. rex skeleton, ancient wonders like the Rosetta Stone, and things from space. Every exhibit has a plaque that tells its true story",
@@ -84,7 +91,7 @@ export const PLACES: Record<string, Place> = {
   },
 };
 // places that are outdoors (weather reaches him there)
-export const OUTDOORS = new Set(["park", "gallery", "vending"]);
+export const OUTDOORS = new Set(["park", "gallery", "vending", "garden"]);
 
 // ---------------------------------------------------------------------------
 // State
@@ -117,6 +124,9 @@ export type State = {
   museumLog?: { t: string; id: string; name: string; reaction: string }[];
   teddy?: { holding: boolean; place: string };   // his penguin teddy: in his wing, or left somewhere in town
   tv?: TV;                                       // the TV in his house
+  garden?: Garden;                               // his garden beds, seed packets and harvest
+  lettersSent?: Record<string, number>;          // person id -> when he last wrote to them
+  outbox?: { to: string; name: string; text: string; t: string; at: number }[]; // letters waiting to be delivered
   lastWatched?: { channel: string; title: string; lines: string[] } | null; // what he just watched (he reacts next moment)
   tvLog?: { t: string; channel: string; title: string; reaction: string }[];
   wants: Want[];                                 // what he wants right now, in his own words
@@ -210,6 +220,7 @@ export function parseJSON(text: string): any {
 export function activitiesAt(s: State, place: string): Record<string, Effects> {
   const acts: Record<string, Effects> = { ...PLACES[place].activities };
   if (place === "museum") for (const e of EXHIBITS) acts[exhibitAction(e)] = { joy: 7, energy: -1 };
+  if (place === "garden") Object.assign(acts, gardenActivities(s.garden ?? newGarden(Date.now()), Date.now()));
   const w = s.weather, sea = season(Date.now()).name;
   if (place === "park") {
     // the seasons and the real weather change what there is to do
@@ -265,7 +276,8 @@ export function hasBook(s: State, slug: string) {
   return !!b && (!b.gift || (s.gifts?.received ?? []).includes(`book-${slug}`));
 }
 
-export type Option = { type: "do" | "go" | "reply" | "rest" | "read" | "hang"; name: string; label: string };
+export type Option = { type: "do" | "go" | "reply" | "rest" | "read" | "hang" | "letter"; name: string; label: string };
+export type Pal = { id: string; name: string; note?: string };
 
 export const GALLERY_SIZE = 6;
 function hangOptions(s: State): Option[] {
@@ -277,7 +289,7 @@ function hangOptions(s: State): Option[] {
   }));
 }
 
-export function buildOptions(s: State, notes: Note[]): Option[] {
+export function buildOptions(s: State, notes: Note[], pals: Pal[] = []): Option[] {
   const here = s.place;
   let acts = Object.keys(activitiesAt(s, here));
   if (here === "museum") {
@@ -298,6 +310,13 @@ export function buildOptions(s: State, notes: Note[]): Option[] {
   }
   if (here === "library") opts.push(...bookOptions(s));
   if (here === "gallery") opts.push(...hangOptions(s));
+  // letters: only an option, never a chore - he writes to a friend when he feels like it
+  if (here === "house" || here === "library") {
+    const recent = (id: string) => Date.now() - (s.lettersSent?.[id] ?? 0) < 20 * 3_600_000;
+    for (const p of pals.filter((p) => p.name && !recent(p.id)).slice(0, 2)) {
+      opts.push({ type: "letter", name: p.id, label: `write a letter to ${p.name}, if you feel like it (put the whole letter in "note": a few warm sentences in your own voice, signed Pino)` });
+    }
+  }
   if (here !== "house" && s.needs.energy < 45) {
     opts.push({ type: "do", name: "take a nap right here", label: `take a nap right here at the ${PLACES[here].label} (your bed at home is cosier)` });
   }
@@ -319,7 +338,9 @@ export function townDescription(s: State) {
     `- The vending machine: ${snacks.join(", ")} (no coins needed).`,
     `- Your art gallery: ${(s.galleryWall ?? []).length ? `${s.galleryWall.length} of your drawings hang on the walls (${s.galleryWall.map((d) => `"${d.title ?? "untitled"}"`).join(", ")})` : `empty frames waiting for your drawings`}. You can hang any drawing you've finished.`,
     `- The museum: a grand domed building full of real treasures - famous paintings (like The Starry Night and the Mona Lisa), a T. rex skeleton, a giant moa skeleton, the Rosetta Stone, an Egyptian mummy, the Wright brothers' airplane, a moon rock, a Saturn V rocket and more. You've looked at ${new Set((s.museumLog ?? []).map((m) => m.id)).size} of its ${EXHIBITS.length} exhibits.`,
+    `- Your garden, just to the left of your house: ${gardenLine(s.garden, Date.now())}.`,
     `- The weather in town right now: ${weatherLine(s.weather, Date.now())}`,
+    ...(holiday(Date.now()) ? [`- ${holiday(Date.now())!.line}`] : []),
     ...(s.teddy ? [`- Your penguin teddy: ${s.teddy.holding ? "you're carrying it with you right now" : `you left it at the ${PLACES[s.teddy.place]?.label ?? s.teddy.place}`}. You can pick it up, hug it, and put it down wherever you like.`] : []),
     `- The park: a big tree, ${season(Date.now()).name === "autumn" ? "a leaf pile, " : ""}a bench, a swing set, a pond${frozenPond(s.weather) ? " (frozen over - the ducks have gone)" : " with ducks"}, and your gramophone - a wind-up record player with ${records} records (${playing})${extras("park").length ? `; plus ${extras("park").join(", ")}` : ""}.`,
   ].join("\n");
@@ -403,7 +424,7 @@ export function decisionPrompt(s: State, opts: Option[], notes: Note[], now: num
     "Pick ONE option. Reply with JSON exactly like this:\n" +
     '{"thought": "what is on your mind, first person, 1-2 short sentences", ' +
     '"choice": <option number>, ' +
-    '"note": "only when writing in your journal, drawing (describe the picture you want to draw), or replying to a visitor - otherwise an empty string"}'
+    '"note": "only when writing in your journal, drawing (describe the picture you want to draw), replying to a visitor, or writing a letter - otherwise an empty string"}'
   );
 }
 
@@ -505,6 +526,14 @@ export function applyChoice(
     deltas = { joy: 6 + (first ? 6 : 0) + (page === b.pages.length ? 10 : 0), energy: -1 };
     action = `${b.art ? "studied the drawing manual" : "read"} "${b.title}" (page ${page} of ${b.pages.length})`;
     note = "";
+  } else if (opt.type === "letter") {
+    const name = opt.label.match(/^write a letter to (.+?), if you feel/)?.[1] ?? "a friend";
+    const text = note || `Dear ${name}, I was thinking about you today. From Pino`;
+    s.outbox = [...(s.outbox ?? []), { to: opt.name, name, text, t, at: now }];
+    s.lettersSent = { ...(s.lettersSent ?? {}), [opt.name]: now };
+    action = `wrote a letter to ${name}`;
+    deltas = { joy: 9, energy: -2 };
+    note = text;
   } else if (opt.type === "go") {
     s.place = opt.name;
     deltas = { energy: -2, food: -2 };             // walking works up an appetite
@@ -541,6 +570,11 @@ export function applyChoice(
       action = `${action} - now playing "${song.title}" by ${song.by}`;
     }
 
+    if (here === "garden") {
+      s.garden ??= newGarden(now);
+      const did = doGarden(s.garden, action, now);
+      if (did) action = `${action} - ${did}`;
+    }
     s.tv ??= { ...TV_OFF };
     if (action === "turn on the TV") s.tv = { on: true, channel: s.tv.channel || randomChannel(), since: now };
     else if (action === "flip to the next TV channel") s.tv = { on: true, channel: nextChannel(s.tv.channel), since: now };
@@ -652,8 +686,15 @@ export function applyVisits(s: State, visits: Visit[], now: number) {
   }
   for (const v of visits.filter((x) => x.type === "gift")) {
     const g = v.id ? GIFT_BY_ID[v.id] : undefined;
-    if (!g || s.gifts.received.includes(g.id)) continue;
-    s.gifts.received.push(g.id);
+    if (!g) continue;
+    if (g.kind === "seedpack") {
+      const crop = g.id.replace(/^seeds-/, "");
+      s.garden ??= newGarden(now);
+      s.garden.packets[crop] = (s.garden.packets[crop] ?? 0) + 1;
+    } else {
+      if (s.gifts.received.includes(g.id)) continue;
+      s.gifts.received.push(g.id);
+    }
     s.gifts.log.push({ t, id: g.id, name: g.name, emoji: g.emoji, from: whoName(v) });
     s.gifts.log = s.gifts.log.slice(-200);
     if (g.kind === "song" && g.song) s.music = { on: true, song: g.song, since: now };
@@ -662,6 +703,7 @@ export function applyVisits(s: State, visits: Visit[], now: number) {
       : g.kind === "artbook" ? `${g.name} - a drawing manual to learn from`
       : g.kind === "song" ? `${g.name} - it's playing on my gramophone right now!`
       : g.kind === "toy" ? `${g.name} - I'm holding it in my wings right now`
+      : g.kind === "seedpack" ? `${g.name} for my garden - I can plant it in the beds by my house`
       : g.kind === "snack" ? `${g.name} - now I can "${g.activity}"`
       : g.kind === "thing" ? `${g.name} at the ${PLACES[g.place!]?.label} - now I can "${g.activity}"` : g.name;
     remember(`was given ${what} by ${whoName(v)}`,
@@ -680,6 +722,7 @@ export type Person = {
   seeds?: number;                                                   // spectator currency 🌱
   earned?: { day: string; watch: number; chat: number; pet: number }; // today's earnings, for daily caps
   lastWatch?: number;
+  letters?: { at: number; t: string; text: string; read?: boolean }[]; // letters Pino wrote to them
 };
 
 // ---- seeds 🌱: earned by watching and interacting, spent on gifts
@@ -756,6 +799,7 @@ export function publicView(s: State, unread: number, now: number, chats: { at: n
     season: season(now), pond: { frozen: frozenPond(s.weather) },
     museumLog: (s.museumLog ?? []).slice(-40),
     teddy: s.teddy ?? null,
+    garden: gardenView(s.garden, now), holiday: holiday(now)?.id ?? null,
     tv: s.tv?.on ? programme(s.tv.channel, s, now) : null,
     tvLog: (s.tvLog ?? []).slice(-30),
     exhibit: s.place === "museum" ? exhibitFromAction(s.doing)?.id ?? null : null,

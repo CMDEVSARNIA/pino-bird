@@ -1,10 +1,10 @@
 import type { Config, Context } from "@netlify/functions";
 import { earn, EARN, identityPrompt, isNight, parseJSON, publicView, seedsOf, START_SEEDS, talkPrompt, type Person } from "../lib/pino.mts";
 import { ask, hasBrain } from "../lib/brain.mts";
-import { GIFTS, GIFT_BY_ID, QUICK_TREAT_PRICE } from "../lib/gifts.mts";
+import { GIFTS, GIFT_BY_ID, QUICK_TREAT_PRICE, repeatable } from "../lib/gifts.mts";
 import {
   addChat, addEvent, addNote, claimGift, claimedGiftIds, countEvents, countNotes, getPerson, loadState, meet,
-  peopleIndex, recentChats, store, type Who,
+  peopleIndex, recentChats, store, updatePerson, type Who,
 } from "../lib/store.mts";
 import { EXHIBIT_BY_ID } from "../lib/museum.mts";
 
@@ -43,12 +43,12 @@ export default async (req: Request, context: Context) => {
     let [s, unread, chats, claimed, people, mePerson] = await Promise.all([loadState(), countNotes(), recentChats(14), claimedGiftIds(), peopleIndex(),
       /^[a-z0-9-]{8,64}$/i.test(meId) ? getPerson(meId) : Promise.resolve(null)]);
     mePerson = await grantSeeds(mePerson, people, now);
-    const gone = new Set([...claimed, ...(s.gifts?.received ?? [])]);
+    const gone = new Set([...claimed, ...(s.gifts?.received ?? [])].filter((id) => !GIFT_BY_ID[id] || !repeatable(GIFT_BY_ID[id])));
     return json({
       ...publicView(s, unread, now, chats.map(({ at, you, pino, name, react }) => ({ at, you, pino, name, react }))),
       version: context?.deploy?.id ?? "",
       giftsAvailable: GIFTS.filter((g) => !gone.has(g.id)).map(({ id, kind, name, emoji, desc, price }) => ({ id, kind, name, emoji, desc, price })),
-      me: { name: mePerson?.name ?? null, seeds: seedsOf(mePerson), earned: mePerson?.earned ?? null, rules: EARN, treatPrice: QUICK_TREAT_PRICE },
+      me: { letters: (mePerson?.letters ?? []).slice(-20), name: mePerson?.name ?? null, seeds: seedsOf(mePerson), earned: mePerson?.earned ?? null, rules: EARN, treatPrice: QUICK_TREAT_PRICE },
       friends: Object.values(people).filter((p) => p.visits > 0).sort((a, b) => b.lastSeen - a.lastSeen).slice(0, 30)
         .map(({ name, visits, note, lastSeen }) => ({ name, visits, note, lastSeen })),
     });
@@ -57,6 +57,13 @@ export default async (req: Request, context: Context) => {
   if (req.method !== "POST") return new Response("Not found", { status: 404 });
   const b = await body(req);
   const who = whoFrom(b);
+
+  if (pathname === "/api/letter-read") {
+    if (!who) return json({ ok: false }, 400);
+    const at = Number(b.at);
+    await updatePerson(who.id, (p) => { for (const l of p.letters ?? []) if (l.at === at) l.read = true; });
+    return json({ ok: true });
+  }
 
   if (pathname === "/api/watch") {
     if (!who) return json({ ok: false }, 400);
@@ -116,12 +123,13 @@ export default async (req: Request, context: Context) => {
       return json({ ok: false, error: `That costs 🌱 ${gift.price} and you have 🌱 ${seedsOf(giver)}. Keep watching and chatting with Pino to earn more!` }, 402);
     }
     const s = await loadState();
-    if (s.gifts?.received?.includes(gift.id) || !(await claimGift(gift.id, who))) {
+    if (!repeatable(gift) && (s.gifts?.received?.includes(gift.id) || !(await claimGift(gift.id, who)))) {
       return json({ ok: false, error: "Someone already gave Pino that one!" }, 409);
     }
     await addEvent({ type: "gift", id: gift.id, at: now, who });
     const after = await meet(who, (p) => { p.gave = [...p.gave, gift.name].slice(-20); p.seeds = seedsOf(p) - gift.price; });
-    const reaction = gift.kind === "treat" ? `Pino's eyes go wide at ${gift.name}. He'll dig in any second!`
+    const reaction = gift.kind === "seedpack" ? `Pino tucks ${gift.name} into his feathers. ${gift.emoji} He'll plant it in his garden when he's ready.`
+      : gift.kind === "treat" ? `Pino's eyes go wide at ${gift.name}. He'll dig in any second!`
       : gift.kind === "book" ? `Pino hugs ${gift.name} and carries it off to his library shelf.`
       : gift.kind === "holiday" ? `Pino tucks ${gift.name} under his wing and hurries to the library. ${gift.emoji}`
       : gift.kind === "artbook" ? `Pino flips through ${gift.name} with wide eyes. He's going to practise everything in it!`
@@ -180,7 +188,7 @@ export default async (req: Request, context: Context) => {
 };
 
 export const config: Config = {
-  path: ["/api/state", "/api/message", "/api/pet", "/api/treat", "/api/give", "/api/talk", "/api/watch", "/api/museum-image"],
+  path: ["/api/state", "/api/message", "/api/pet", "/api/treat", "/api/give", "/api/talk", "/api/watch", "/api/museum-image", "/api/letter-read"],
   method: ["GET", "POST"],
 };
 

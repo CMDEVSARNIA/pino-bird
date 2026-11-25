@@ -125,6 +125,21 @@ export async function peopleIndex() {
   return ((await store().get("people-index", { type: "json" })) as Record<string, { name: string; lastSeen: number; note: string; visits: number }> | null) ?? {};
 }
 // Touch (or create) a person whenever they do something
+// Change someone's record without counting it as a visit (e.g. Pino's letters arriving in their mailbox)
+export async function updatePerson(id: string, change: (p: Person) => void) {
+  const k = safeId(id); if (!k) return null;
+  const key = `people/${k}`;
+  for (let attempt = 0; attempt < 6; attempt++) {
+    const cur = await store().getWithMetadata(key, { type: "json" });
+    if (!cur?.data) return null;
+    const p = cur.data as Person; change(p);
+    const r = await store().setJSON(key, p, { onlyIfMatch: cur.etag });
+    if (r.modified) return p;
+    await new Promise((res) => setTimeout(res, 60 + Math.random() * 120));
+  }
+  return null;
+}
+
 // Changes are applied with a conditional write (only if nobody else saved this person in between),
 // retrying on a clash, so two things happening at once - say a treat and the once-a-minute
 // "still watching" ping - can't overwrite each other's seeds.

@@ -5,8 +5,9 @@ import {
   drawingPrompt, sanitizeSvg, artSkill, mustSleep,
 } from "../lib/pino.mts";
 import { ask, hasBrain, NoBrain } from "../lib/brain.mts";
-import { fetchWeather, needsRefresh } from "../lib/weather.mts";
-import { acquireLock, deleteKeys, deleteNote, listEvents, listNotes, loadState, peopleIndex, releaseLock, saveState } from "../lib/store.mts";
+import { fetchWeather, needsRefresh, wet } from "../lib/weather.mts";
+import { grow, newGarden } from "../lib/garden.mts";
+import { acquireLock, deleteKeys, deleteNote, listEvents, listNotes, loadState, peopleIndex, releaseLock, saveState, updatePerson } from "../lib/store.mts";
 
 // Pino's heartbeat. Netlify wakes this every minute (its shortest schedule).
 // While Pino is new (his first few hours) he lives two moments per wake-up,
@@ -65,6 +66,9 @@ async function moment(s: State, start: number) {
     if (w) s.weather = w;
     else if (s.weather) s.weather.at = now - 10 * 60_000; // try again in about 5 minutes
   }
+  // the garden grows (rain waters it for him)
+  if (s.garden) grow(s.garden, now, wet(s.weather));
+  else s.garden = newGarden(now);
   const persist = async () => {
     await saveState(s);
     if (visits.length) await deleteKeys(visits.map((v) => v.key));
@@ -96,7 +100,8 @@ async function moment(s: State, start: number) {
     }
 
     const notes = await listNotes();
-    const opts = buildOptions(s, notes);
+    const pals = await palsFor(now);
+    const opts = buildOptions(s, notes, pals);
     let idx = -1, thought = "", note = "", brain = "instinct";
 
     if (mustSleep(s)) {
@@ -131,6 +136,7 @@ async function moment(s: State, start: number) {
     const action = applyChoice(s, opt, thought || "...", note, now, brain, answered, minutes);
     // a fresh drawing idea: draw it right away if there's time, otherwise next moment
     if (s.pendingDrawing !== null && hasBrain() && start + HARD_STOP - Date.now() > 14_000) await finishDrawing(s, timeLeft());
+    await deliverLetters(s);
     await persist();
     if (answered) await deleteNote(answered.key);
     console.log(`Pino @ ${s.place}: ${action} - ${thought}`);
@@ -139,6 +145,23 @@ async function moment(s: State, start: number) {
     console.error(s.last_error);
     await persist();
   }
+}
+
+// Friends he could write to: people with names who've visited in the last week
+async function palsFor(now: number) {
+  try {
+    const idx = await peopleIndex();
+    return Object.entries(idx).filter(([, p]) => p.name && p.visits > 0 && now - p.lastSeen < 7 * 86_400_000)
+      .sort((a, b) => b[1].lastSeen - a[1].lastSeen).slice(0, 4).map(([id, p]) => ({ id, name: p.name, note: p.note }));
+  } catch { return []; }
+}
+// Pop his letters into his friends' mailboxes
+async function deliverLetters(s: State) {
+  for (const l of s.outbox ?? []) {
+    const ok = await updatePerson(l.to, (p) => { p.letters = [...(p.letters ?? []), { at: l.at, t: l.t, text: l.text }].slice(-30); });
+    console.log(ok ? `Pino's letter to ${l.name} was delivered.` : `Couldn't deliver Pino's letter to ${l.name}.`);
+  }
+  s.outbox = [];
 }
 
 // A few lines about the visitors he knows, most recent first

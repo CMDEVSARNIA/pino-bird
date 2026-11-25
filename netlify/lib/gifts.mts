@@ -6,7 +6,7 @@ import { SONGS } from "./music.mts";
 type Fx = { food?: number; energy?: number; joy?: number; kind?: "journal" | "drawing" };
 export type Gift = {
   id: string;
-  kind: "book" | "artbook" | "holiday" | "treat" | "snack" | "thing" | "song" | "toy";
+  kind: "book" | "artbook" | "holiday" | "treat" | "snack" | "thing" | "song" | "toy" | "seedpack";
   price: number;       // in seeds
   name: string;        // "a telescope"
   emoji: string;
@@ -18,7 +18,7 @@ export type Gift = {
   book?: string;       // books: slug
   song?: string;       // songs: id
 };
-export const PRICES = { treat: 10, song: 20, snack: 25, book: 30, holiday: 30, artbook: 40, toy: 0, thing: 50 } as const;
+export const PRICES = { treat: 10, song: 20, snack: 25, book: 30, holiday: 30, artbook: 40, toy: 0, seedpack: 12, thing: 50 } as const;
 export const QUICK_TREAT_PRICE = 2;
 
 const TREATS: Omit<Gift, "price">[] = [
@@ -67,6 +67,14 @@ const TOYS: Omit<Gift, "price">[] = [
   { id: TEDDY_ID, kind: "toy", name: "a penguin teddy", emoji: "🐧", desc: "A soft little penguin to cuddle. Pino can pick it up and carry it anywhere. Free!" },
 ];
 
-export const GIFTS: Gift[] = ([...TOYS, ...BOOK_GIFTS, ...SONG_GIFTS, ...TREATS, ...SNACKS, ...THINGS] as (Omit<Gift, "price"> & { price?: number })[])
+// Seed packets for his garden: these never run out - visitors can buy him as many as they like
+import { CROPS } from "./garden.mts";
+const SEEDPACKS: Omit<Gift, "price">[] = Object.values(CROPS).map((c) => ({
+  id: `seeds-${c.id}`, kind: "seedpack" as const, name: `a packet of ${c.name} seeds`, emoji: c.emoji,
+  desc: `Pino plants them in his garden by the house. ${c.flower ? "They bloom" : "They're ready to eat"} after about ${c.hours / 24 === Math.round(c.hours / 24) ? `${c.hours / 24} day${c.hours === 24 ? "" : "s"}` : `${c.hours} hours`} of growing, if he keeps them watered.`,
+}));
+export const repeatable = (g: { kind: string }) => g.kind === "seedpack";
+
+export const GIFTS: Gift[] = ([...TOYS, ...SEEDPACKS, ...BOOK_GIFTS, ...SONG_GIFTS, ...TREATS, ...SNACKS, ...THINGS] as (Omit<Gift, "price"> & { price?: number })[])
   .map((g) => ({ ...g, price: g.price ?? PRICES[g.kind] }));
 export const GIFT_BY_ID: Record<string, Gift> = Object.fromEntries(GIFTS.map((g) => [g.id, g]));
