@@ -56,6 +56,9 @@
   .update { position: fixed; left: 50%; bottom: calc(16px + env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 60;
     background: var(--ink); color: #fff; border: 0; border-radius: 999px; padding: 11px 18px; font: inherit; font-weight: 800; font-size: 14px; box-shadow: 0 4px 16px rgba(0,0,0,.25); cursor: pointer; white-space: nowrap; }
   .update[hidden] { display: none; }
+  .titlerow { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .installbtn { border: 0; background: var(--accent); color: #fff; border-radius: 999px; padding: 6px 12px; font: inherit; font-weight: 800; font-size: 13px; cursor: pointer; box-shadow: 0 2px 6px rgba(200,100,59,.35); }
+  .installbtn[hidden] { display: none; }
   .installtip { position: fixed; left: 12px; right: 12px; bottom: calc(14px + env(safe-area-inset-bottom)); z-index: 55; max-width: 520px; margin: 0 auto;
     background: #fff; border: 1px solid var(--line); border-radius: 16px; padding: 12px 40px 12px 14px; box-shadow: 0 6px 24px rgba(0,0,0,.18); font-size: 14px; line-height: 1.4; }
   .installtip[hidden] { display: none; }
@@ -180,7 +183,7 @@
 <button class="update" id="updateBtn" type="button" hidden>✨ Pino's town was updated · tap to refresh</button>
 <div class="wrap">
   <header>
-    <h1 id="name">Pino's Town</h1>
+    <div class="titlerow"><h1 id="name">Pino's Town</h1><button class="installbtn" id="installBtn" type="button" hidden>📲 Install</button></div>
     <div>
       <div class="clock" id="clock">waking up…</div>
       <div class="brain"><span class="dot" id="dot"></span><span id="brain">—</span></div>
@@ -1006,24 +1009,37 @@ $("updateBtn").addEventListener("click", () => location.reload());
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
 (function installPrompt() {
   const standalone = matchMedia("(display-mode: standalone)").matches || navigator.standalone;
+  if (standalone) return; // already opened from the home screen
+  const tip = $("installTip"), how = $("installHow"), go = $("installGo"), btn = $("installBtn");
   let dismissed = false; try { dismissed = localStorage.getItem("pinoInstallDismissed") === "1"; } catch {}
-  if (standalone || dismissed) return;
-  const tip = $("installTip"), how = $("installHow"), go = $("installGo");
-  const close = () => { tip.hidden = true; try { localStorage.setItem("pinoInstallDismissed", "1"); } catch {} };
-  $("installClose").onclick = close;
-  const ios = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
-  if (ios) {
-    how.textContent = "Tap the Share button (the square with an arrow), then “Add to Home Screen”.";
-    setTimeout(() => (tip.hidden = false), 20000);
-  }
+  const ua = navigator.userAgent;
+  const ios = /iphone|ipad|ipod/i.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  const iosOther = ios && /crios|fxios|edgios/i.test(ua); // Chrome/Firefox/Edge on iPhone
   let deferred = null;
-  window.addEventListener("beforeinstallprompt", (e) => {
-    e.preventDefault(); deferred = e;
-    how.textContent = "Get Pino as an app, one tap away.";
-    go.hidden = false; setTimeout(() => (tip.hidden = false), 8000);
-  });
+
+  function explain() {
+    if (deferred) { how.textContent = "Get Pino as an app on your home screen, one tap away."; go.hidden = false; }
+    else if (ios) {
+      how.textContent = iosOther
+        ? "Tap the Share button (top right or bottom of your browser), then “Add to Home Screen”."
+        : "Tap the Share button (the square with an arrow at the bottom of Safari), scroll down, then tap “Add to Home Screen”.";
+      go.hidden = true;
+    } else {
+      how.textContent = "Open your browser menu (⋮ or ⋯) and choose “Install app” or “Add to Home screen”.";
+      go.hidden = true;
+    }
+    tip.hidden = false;
+  }
+  btn.hidden = false;                       // the Install button is always there on landing
+  btn.onclick = async () => {
+    if (deferred) { deferred.prompt(); await deferred.userChoice; deferred = null; tip.hidden = true; return; }
+    explain();
+  };
+  $("installClose").onclick = () => { tip.hidden = true; try { localStorage.setItem("pinoInstallDismissed", "1"); } catch {} };
   go.onclick = async () => { if (!deferred) return; deferred.prompt(); await deferred.userChoice; deferred = null; tip.hidden = true; };
-  window.addEventListener("appinstalled", () => (tip.hidden = true));
+  window.addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); deferred = e; if (!tip.hidden) explain(); });
+  window.addEventListener("appinstalled", () => { tip.hidden = true; btn.hidden = true; });
+  if (!dismissed) setTimeout(explain, 1500); // greet new visitors with the how-to right away
 })();
 
 // ---- give tab
