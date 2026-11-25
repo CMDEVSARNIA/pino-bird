@@ -6,50 +6,89 @@
 <meta name="theme-color" content="#f6f1e7">
 <title>Pino's Town</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐦</text></svg>">
+<script type="importmap">
+{ "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.187.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.187.0/examples/jsm/"
+} }
+</script>
 <style>
   :root {
     --bg: #f6f1e7; --card: #fffdf8; --ink: #2b2a27; --muted: #7b756b; --line: #e7dfd0;
-    --accent: #c8643b; --food: #e39b3b; --energy: #4c8fd6; --joy: #d4579a;
-    --radius: 16px;
+    --accent: #c8643b; --food: #e39b3b; --energy: #4c8fd6; --joy: #d4579a; --radius: 16px;
   }
-  * { box-sizing: border-box; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   html, body { margin: 0; background: var(--bg); color: var(--ink);
     font-family: ui-rounded, "SF Pro Rounded", "Nunito", system-ui, -apple-system, "Segoe UI", sans-serif; }
   body { padding: env(safe-area-inset-top) 0 calc(24px + env(safe-area-inset-bottom)); }
-  .wrap { max-width: 520px; margin: 0 auto; padding: 12px 14px; }
+  .wrap { max-width: 560px; margin: 0 auto; padding: 10px 12px; }
 
   header { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding: 4px 2px 10px; }
-  h1 { font-size: 26px; margin: 0; letter-spacing: -0.5px; }
-  .clock { font-size: 14px; color: var(--muted); text-align: right; }
+  h1 { font-size: 24px; margin: 0; letter-spacing: -0.5px; }
+  .clock { font-size: 13px; color: var(--muted); text-align: right; }
   .brain { font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 6px; justify-content: flex-end; }
   .dot { width: 8px; height: 8px; border-radius: 50%; background: #5bb36a; display: inline-block; }
   .dot.off { background: #d9a23c; }
 
-  .scene { border-radius: var(--radius); overflow: hidden; background: #a9d98a; box-shadow: 0 2px 0 var(--line); }
-  .scene svg { display: block; width: 100%; height: auto; }
+  /* 3D stage */
+  .stage { position: relative; height: min(60vh, 540px); min-height: 340px; border-radius: var(--radius); overflow: hidden;
+    background: linear-gradient(#bfe3f5, #eef8fb); box-shadow: 0 2px 0 var(--line); user-select: none; -webkit-user-select: none; }
+  .stage canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+  .ov { position: absolute; left: 0; top: 0; pointer-events: none; will-change: transform; }
+  .label { font-size: 11px; font-weight: 800; color: #fff; background: rgba(43,42,39,.45); padding: 2px 7px; border-radius: 999px;
+    transform: translate(-50%, -50%); white-space: nowrap; letter-spacing: .3px; }
+  .bubble { transform: translate(-50%, -100%); max-width: 210px; min-width: 60px; background: #fff; color: var(--ink);
+    border-radius: 14px; padding: 7px 10px; font-size: 13px; line-height: 1.35; box-shadow: 0 2px 10px rgba(0,0,0,.15);
+    transition: opacity .3s; text-align: center; }
+  .bubble::after { content: ""; position: absolute; left: 50%; bottom: -6px; width: 12px; height: 12px; background: #fff;
+    transform: translateX(-50%) rotate(45deg); border-radius: 2px; }
+  .bubble.thought { font-style: italic; color: #4a463f; background: rgba(255,255,255,.92); }
+  .bubble.thought::after { width: 7px; height: 7px; bottom: -10px; border-radius: 50%; transform: translateX(-30%); }
+  .bubble.speech { font-weight: 600; border: 2px solid var(--accent); }
+  .bubble.speech::after { border-right: 2px solid var(--accent); border-bottom: 2px solid var(--accent); }
+  .bubble[hidden] { display: none; }
+  .dots span { animation: blink 1.2s infinite; opacity: .2; font-weight: 800; }
+  .dots span:nth-child(2) { animation-delay: .2s; } .dots span:nth-child(3) { animation-delay: .4s; }
+  @keyframes blink { 50% { opacity: 1; } }
+
+  .hint { position: absolute; left: 10px; top: 10px; font-size: 12px; background: rgba(255,255,255,.85); padding: 5px 10px;
+    border-radius: 999px; transition: opacity 1s; pointer-events: none; }
+  .toast { position: absolute; left: 50%; top: 10px; transform: translateX(-50%); max-width: 88%; font-size: 13px;
+    background: rgba(43,42,39,.88); color: #fff; padding: 7px 12px; border-radius: 12px; text-align: center;
+    opacity: 0; transition: opacity .3s; pointer-events: none; }
+  .toast.show { opacity: 1; }
+  .controls { position: absolute; right: 10px; bottom: 10px; display: flex; gap: 8px; }
+  .fab { border: 0; background: rgba(255,255,255,.95); color: var(--ink); border-radius: 999px; padding: 9px 13px;
+    font: inherit; font-size: 14px; font-weight: 700; box-shadow: 0 2px 8px rgba(0,0,0,.15); cursor: pointer; }
+  .fab[aria-pressed="true"] { background: var(--ink); color: #fff; }
+  .fab:disabled { opacity: .5; }
+  .nogl { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; padding: 20px; color: var(--muted); }
+
+  .talk { display: flex; gap: 8px; margin-top: 10px; }
+  .talk input { flex: 1; min-width: 0; border: 1px solid var(--line); background: #fff; border-radius: 999px; padding: 11px 16px;
+    font: inherit; font-size: 16px; color: var(--ink); }
+  .talk button { border: 0; background: var(--accent); color: #fff; border-radius: 999px; padding: 0 18px; font: inherit;
+    font-weight: 800; font-size: 15px; cursor: pointer; }
+  .talk button:disabled { opacity: .5; }
 
   .banner { margin-top: 10px; padding: 10px 12px; border-radius: 12px; background: #fff3db; border: 1px solid #f0d9a8; font-size: 13px; line-height: 1.4; }
   .banner[hidden] { display: none; }
-
   .card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px; margin-top: 12px; }
-  .now { font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: .6px; }
-  .doing { font-size: 18px; font-weight: 700; margin: 2px 0 8px; }
-  .thought { font-size: 16px; line-height: 1.45; margin: 0; font-style: italic; }
+  .now { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .6px; }
+  .doing { font-size: 17px; font-weight: 800; margin: 2px 0 6px; }
+  .thought { font-size: 15px; line-height: 1.45; margin: 0; font-style: italic; }
   .heartbeat { font-size: 12px; color: var(--muted); margin-top: 8px; }
-
   .needs { display: grid; gap: 10px; }
-  .need { display: grid; grid-template-columns: 64px 1fr 34px; align-items: center; gap: 10px; font-size: 14px; }
+  .need { display: grid; grid-template-columns: 60px 1fr 30px; align-items: center; gap: 10px; font-size: 14px; }
   .bar { height: 10px; border-radius: 6px; background: #efe8da; overflow: hidden; }
   .bar > i { display: block; height: 100%; border-radius: 6px; transition: width 1s ease; }
   .need span:last-child { text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; }
 
   .tabs { display: flex; gap: 6px; overflow-x: auto; margin-top: 14px; padding-bottom: 2px; scrollbar-width: none; }
   .tabs::-webkit-scrollbar { display: none; }
-  .tab { flex: 0 0 auto; border: 1px solid var(--line); background: var(--card); color: var(--ink);
-    padding: 8px 14px; border-radius: 999px; font: inherit; font-size: 14px; cursor: pointer; }
+  .tab { flex: 0 0 auto; border: 1px solid var(--line); background: var(--card); color: var(--ink); padding: 8px 14px;
+    border-radius: 999px; font: inherit; font-size: 14px; cursor: pointer; }
   .tab[aria-selected="true"] { background: var(--ink); color: #fff; border-color: var(--ink); }
-  .badge { background: var(--accent); color: #fff; border-radius: 999px; font-size: 11px; padding: 1px 6px; margin-left: 4px; }
-
   .panel[hidden] { display: none; }
   .list { list-style: none; margin: 0; padding: 0; }
   .list li { padding: 10px 0; border-bottom: 1px solid var(--line); font-size: 14px; line-height: 1.45; }
@@ -58,34 +97,9 @@
   .tag { font-size: 11px; padding: 1px 6px; border-radius: 6px; background: #f0e9db; color: var(--muted); margin-left: 4px; }
   .empty { color: var(--muted); font-size: 14px; padding: 6px 0; }
   .personality { font-size: 15px; line-height: 1.5; margin: 0 0 10px; }
-  h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); margin: 6px 0; }
-
-  form { display: grid; gap: 8px; margin-bottom: 8px; }
-  textarea { width: 100%; min-height: 70px; border-radius: 12px; border: 1px solid var(--line); padding: 10px; font: inherit; font-size: 16px; resize: vertical; background: #fff; }
-  button.send { justify-self: end; background: var(--accent); color: #fff; border: 0; border-radius: 999px; padding: 10px 18px; font: inherit; font-weight: 700; font-size: 15px; cursor: pointer; }
-  button.send:disabled { opacity: .5; }
-  .formmsg { font-size: 13px; color: var(--muted); min-height: 1em; }
-  .reply { margin-top: 4px; padding-left: 10px; border-left: 3px solid var(--accent); }
-
-  /* scene animation */
-  #bird { transition: transform 2.6s ease-in-out; }
-  #birdFlip { transition: transform .35s ease; transform-box: fill-box; transform-origin: center; }
-  #birdFlip.left { transform: scaleX(-1); }
-  #birdBob.walking { animation: bob .32s ease-in-out infinite alternate; }
-  @keyframes bob { from { transform: translateY(0); } to { transform: translateY(-3px); } }
-  .zzz { animation: float 2.4s ease-in-out infinite; }
-  @keyframes float { 0% { opacity: 0; transform: translate(0, 0); } 40% { opacity: 1; } 100% { opacity: 0; transform: translate(8px, -16px); } }
-  .night-only { opacity: 0; transition: opacity 1.5s; }
-  svg.night .night-only { opacity: 1; }
-  .day-only { transition: opacity 1.5s; }
-  svg.night .day-only { opacity: 0; }
-  .glow { transition: fill 1.5s; }
-  svg.night .glow { fill: #ffd979; }
-  .ripple { animation: ripple 4s ease-in-out infinite; }
-  @keyframes ripple { 50% { transform: translateX(6px); } }
-  .duck { animation: paddle 9s ease-in-out infinite alternate; }
-  @keyframes paddle { to { transform: translateX(-46px); } }
-  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+  h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); margin: 6px 0; }
+  .you { color: var(--muted); }
+  .pino { margin-top: 3px; padding-left: 10px; border-left: 3px solid var(--accent); }
 </style>
 </head>
 <body>
@@ -98,125 +112,19 @@
     </div>
   </header>
 
-  <div class="scene">
-    <svg id="svg" viewBox="0 0 400 440" role="img" aria-label="Pino's town: a little house, a library, a vending machine and a park">
-      <defs>
-        <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stop-color="#bfe3f5"/><stop offset="1" stop-color="#eef8fb"/>
-        </linearGradient>
-        <linearGradient id="nightsky" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stop-color="#141b3d"/><stop offset="1" stop-color="#3a3f6e"/>
-        </linearGradient>
-      </defs>
-
-      <!-- sky -->
-      <rect width="400" height="200" fill="url(#sky)"/>
-      <rect width="400" height="200" fill="url(#nightsky)" class="night-only"/>
-      <circle cx="342" cy="44" r="20" fill="#ffd45c" class="day-only"/>
-      <g class="night-only" fill="#fff">
-        <circle cx="330" cy="40" r="15" fill="#f4f1dc"/><circle cx="337" cy="35" r="13" fill="#2a3060"/>
-        <circle cx="40" cy="30" r="1.4"/><circle cx="90" cy="60" r="1"/><circle cx="150" cy="25" r="1.6"/>
-        <circle cx="210" cy="70" r="1"/><circle cx="260" cy="30" r="1.3"/><circle cx="380" cy="90" r="1"/>
-        <circle cx="120" cy="100" r="1"/><circle cx="300" cy="110" r="1.2"/>
-      </g>
-      <g class="day-only" fill="#fff" opacity=".9">
-        <ellipse cx="80" cy="50" rx="30" ry="10"/><ellipse cx="100" cy="44" rx="20" ry="10"/>
-        <ellipse cx="230" cy="80" rx="26" ry="8"/><ellipse cx="246" cy="75" rx="16" ry="8"/>
-      </g>
-
-      <!-- ground -->
-      <path d="M0 170 Q 100 150 200 168 T 400 160 V 440 H 0 Z" fill="#a9d98a"/>
-      <path d="M0 250 Q 120 236 230 252 T 400 246 V 440 H 0 Z" fill="#9fd27f"/>
-
-      <!-- path -->
-      <path d="M95 208 C 120 250, 180 250, 205 262 S 285 240, 290 208 M205 262 C 215 300, 250 330, 285 398 M205 262 C 195 310, 185 340, 175 372"
-            fill="none" stroke="#ead9b0" stroke-width="16" stroke-linecap="round"/>
-
-      <!-- HOUSE -->
-      <g>
-        <rect x="45" y="140" width="96" height="66" rx="4" fill="#f2c9a0"/>
-        <path d="M36 144 L93 100 L150 144 Z" fill="#c8643b"/>
-        <rect x="120" y="108" width="10" height="22" fill="#8b4c32"/>
-        <rect x="82" y="168" width="24" height="38" rx="12" fill="#8b5a3c"/>
-        <circle cx="100" cy="188" r="1.6" fill="#f2d28c"/>
-        <rect x="55" y="156" width="20" height="20" rx="3" fill="#cfe9f2" class="glow"/>
-        <rect x="112" y="156" width="20" height="20" rx="3" fill="#cfe9f2" class="glow"/>
-        <path d="M65 156 V176 M55 166 H75 M122 156 V176 M112 166 H132" stroke="#f2c9a0" stroke-width="2"/>
-        <text x="93" y="226" text-anchor="middle" font-size="11" fill="#55704a" font-weight="700">home</text>
-      </g>
-
-      <!-- LIBRARY -->
-      <g>
-        <rect x="228" y="140" width="140" height="66" fill="#e8e1d3"/>
-        <path d="M220 142 L298 108 L376 142 Z" fill="#a9a091"/>
-        <rect x="222" y="138" width="152" height="8" fill="#cfc6b5"/>
-        <rect x="248" y="122" width="100" height="13" rx="2" fill="#5b4a3a"/>
-        <text x="298" y="132" text-anchor="middle" font-size="9" fill="#f6efe2" font-weight="700" letter-spacing="2">LIBRARY</text>
-        <g fill="#d6cebe"><rect x="236" y="148" width="9" height="58"/><rect x="351" y="148" width="9" height="58"/></g>
-        <rect x="286" y="170" width="24" height="36" rx="2" fill="#6d553f"/>
-        <rect x="254" y="156" width="24" height="26" rx="3" fill="#cfe9f2" class="glow"/>
-        <rect x="318" y="156" width="24" height="26" rx="3" fill="#cfe9f2" class="glow"/>
-        <g><rect x="257" y="172" width="4" height="10" fill="#c8643b"/><rect x="262" y="174" width="4" height="8" fill="#4c8fd6"/><rect x="267" y="171" width="4" height="11" fill="#5bb36a"/>
-           <rect x="321" y="173" width="4" height="9" fill="#d4579a"/><rect x="326" y="171" width="4" height="11" fill="#e39b3b"/></g>
-      </g>
-
-      <!-- PARK -->
-      <g>
-        <rect x="52" y="268" width="10" height="44" fill="#7b5636"/>
-        <circle cx="57" cy="262" r="30" fill="#5fae5a"/><circle cx="38" cy="276" r="18" fill="#56a352"/><circle cx="78" cy="276" r="18" fill="#56a352"/>
-        <circle cx="48" cy="254" r="3" fill="#e0473b"/><circle cx="70" cy="266" r="3" fill="#e0473b"/>
-        <g fill="#c58b4d"><rect x="16" y="330" width="44" height="5" rx="2"/><rect x="16" y="322" width="44" height="4" rx="2"/>
-          <rect x="20" y="335" width="4" height="10"/><rect x="52" y="335" width="4" height="10"/></g>
-        <ellipse cx="110" cy="405" rx="62" ry="20" fill="#7cc4e4"/>
-        <path d="M70 402 q 8 -4 16 0 M112 410 q 8 -4 16 0" stroke="#bfe6f5" stroke-width="2" fill="none" class="ripple"/>
-        <g class="duck"><ellipse cx="135" cy="400" rx="8" ry="5" fill="#fff"/><circle cx="141" cy="394" r="3.5" fill="#fff"/><path d="M144 394 l4 1 -4 1z" fill="#f2a23c"/></g>
-        <g fill="#c98c3b"><path d="M150 330 l6 -4 4 6z"/><path d="M128 344 l6 2 -3 5z"/><path d="M162 350 l5 -5 3 6z"/></g>
-        <text x="58" y="370" text-anchor="middle" font-size="11" fill="#45663c" font-weight="700">park</text>
-      </g>
-
-      <!-- VENDING MACHINE -->
-      <g>
-        <ellipse cx="328" cy="388" rx="34" ry="6" fill="#000" opacity=".12"/>
-        <rect x="300" y="288" width="58" height="98" rx="6" fill="#d24b4b"/>
-        <rect x="306" y="296" width="34" height="62" rx="3" fill="#dff1f7" class="glow"/>
-        <g><rect x="309" y="301" width="8" height="9" rx="1" fill="#e39b3b"/><rect x="319" y="301" width="8" height="9" rx="1" fill="#e39b3b"/><rect x="329" y="301" width="8" height="9" rx="1" fill="#e39b3b"/>
-           <rect x="309" y="316" width="8" height="10" rx="2" fill="#a0d36a"/><rect x="319" y="316" width="8" height="10" rx="2" fill="#a0d36a"/><rect x="329" y="316" width="8" height="10" rx="2" fill="#a0d36a"/>
-           <rect x="310" y="331" width="6" height="12" rx="2" fill="#8e44ad"/><rect x="320" y="331" width="6" height="12" rx="2" fill="#8e44ad"/><rect x="330" y="331" width="6" height="12" rx="2" fill="#8e44ad"/></g>
-        <g fill="#f7e0a6"><circle cx="349" cy="304" r="2.5"/><circle cx="349" cy="312" r="2.5"/><circle cx="349" cy="320" r="2.5"/></g>
-        <rect x="344" y="330" width="10" height="16" rx="2" fill="#3a2a2a"/>
-        <rect x="308" y="364" width="42" height="12" rx="2" fill="#3a2a2a"/>
-        <text x="329" y="283" text-anchor="middle" font-size="10" fill="#45663c" font-weight="700">snacks</text>
-      </g>
-
-      <!-- night dimmer over the ground (windows above stay lit) -->
-      <rect y="150" width="400" height="290" fill="#0d1233" fill-opacity=".4" class="night-only" pointer-events="none"/>
-      <g class="night-only">
-        <rect x="55" y="156" width="20" height="20" rx="3" fill="#ffd979" opacity=".9"/><rect x="112" y="156" width="20" height="20" rx="3" fill="#ffd979" opacity=".9"/>
-        <rect x="306" y="296" width="34" height="62" rx="3" fill="#fff4c2" opacity=".55"/>
-        <circle cx="329" cy="330" r="46" fill="#fff4c2" opacity=".08"/>
-      </g>
-
-      <!-- PINO -->
-      <g id="bird" style="transform: translate(118px, 222px)">
-        <g id="birdBob">
-          <g id="zzz" visibility="hidden" fill="#fff" font-size="12" font-weight="700">
-            <text x="10" y="-34" class="zzz">z</text><text x="18" y="-44" class="zzz" style="animation-delay:.8s">z</text><text x="26" y="-54" class="zzz" style="animation-delay:1.6s">Z</text>
-          </g>
-          <text id="badge" x="0" y="-36" text-anchor="middle" font-size="16"></text>
-          <g id="birdFlip">
-            <ellipse cx="0" cy="1" rx="14" ry="3" fill="#000" opacity=".15"/>
-            <path d="M-5 -5 L-6 1 M-6 1 l-3 0 M-6 1 l2 0 M3 -5 L4 1 M4 1 l-3 0 M4 1 l2 0" stroke="#c98a4a" stroke-width="2" stroke-linecap="round" fill="none"/>
-            <ellipse cx="-2" cy="-15" rx="15" ry="11.5" fill="#8b6a45"/>
-            <path d="M-12 -18 q 3 2 6 0 M-8 -11 q 3 2 6 0 M-1 -19 q 3 2 6 0" stroke="#6f5233" stroke-width="1.2" fill="none"/>
-            <circle cx="10" cy="-21" r="7" fill="#7d5e3c"/>
-            <path d="M16 -20 Q 26 -15 30 -5" stroke="#e7c48d" stroke-width="2.4" fill="none" stroke-linecap="round"/>
-            <circle id="eyeOpen" cx="12" cy="-23" r="1.5" fill="#1d1a16"/>
-            <path id="eyeShut" d="M10 -23 q 2 1.5 4 0" stroke="#1d1a16" stroke-width="1.2" fill="none" visibility="hidden"/>
-          </g>
-        </g>
-      </g>
-    </svg>
+  <div class="stage" id="stage">
+    <div class="hint" id="hint">Tap Pino to pet him · drag to look around</div>
+    <div class="toast" id="toast"></div>
+    <div class="controls">
+      <button class="fab" id="treatBtn" type="button">🍪 Treat</button>
+      <button class="fab" id="followBtn" type="button" aria-pressed="false">🎥 Follow</button>
+    </div>
   </div>
+
+  <form class="talk" id="talkForm" autocomplete="off">
+    <input id="talkText" maxlength="280" placeholder="Say something to Pino…" enterkeyhint="send">
+    <button type="submit" id="talkBtn">Send</button>
+  </form>
 
   <div class="banner" id="banner" hidden></div>
 
@@ -230,14 +138,14 @@
   <div class="card needs" id="needs"></div>
 
   <div class="tabs" role="tablist">
-    <button class="tab" role="tab" data-tab="diary" aria-selected="true">Diary</button>
+    <button class="tab" role="tab" data-tab="chat" aria-selected="true">Chat</button>
+    <button class="tab" role="tab" data-tab="diary">Diary</button>
     <button class="tab" role="tab" data-tab="journal">Journal</button>
     <button class="tab" role="tab" data-tab="drawings">Drawings</button>
     <button class="tab" role="tab" data-tab="mind">Mind</button>
-    <button class="tab" role="tab" data-tab="notes">Notes<span class="badge" id="unread" hidden></span></button>
   </div>
-
-  <div class="card panel" id="p-diary"><ul class="list" id="diary"></ul></div>
+  <div class="card panel" id="p-chat"><ul class="list" id="chat"></ul></div>
+  <div class="card panel" id="p-diary" hidden><ul class="list" id="diary"></ul></div>
   <div class="card panel" id="p-journal" hidden><ul class="list" id="journal"></ul></div>
   <div class="card panel" id="p-drawings" hidden><ul class="list" id="drawings"></ul></div>
   <div class="card panel" id="p-mind" hidden>
@@ -246,104 +154,507 @@
     <h3>Things I've realised</h3>
     <ul class="list" id="insights"></ul>
   </div>
-  <div class="card panel" id="p-notes" hidden>
-    <form id="noteForm">
-      <textarea id="noteText" maxlength="300" placeholder="Leave Pino a note… he'll find it next time he looks around."></textarea>
-      <div class="formmsg" id="formmsg"></div>
-      <button class="send" type="submit">Leave note</button>
-    </form>
-    <ul class="list" id="convos"></ul>
-  </div>
 </div>
 
-<script>
-// Where Pino stands at each place (SVG coordinates of his feet)
-const SPOTS = { house: [118, 222], library: [276, 222], vending: [282, 398], park: [178, 372] };
-const BADGES = [
-  [/sleep/, "💤"], [/read/, "📖"], [/journal/, "✏️"], [/draw/, "🎨"], [/seed bar/, "🍫"],
-  [/crisps/, "🥨"], [/juice/, "🧃"], [/leaf/, "🍂"], [/ducks/, "🦆"], [/bench|sit/, "💭"],
-  [/window/, "🪟"], [/tidy/, "🧹"], [/reply|note/, "✉️"], [/reflect/, "🌙"], [/walked/, "👣"],
-];
+<script type="module">
+import * as THREE from "three";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+
 const $ = (id) => document.getElementById(id);
 const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
-let lastPlace = null, lastX = null;
+const V = (x, y, z) => new THREE.Vector3(x, y, z);
+const stage = $("stage");
 
-function moveBird(place, doing) {
-  const [x, y] = SPOTS[place] || SPOTS.house;
-  if (lastPlace !== null && place !== lastPlace) {
-    $("birdFlip").classList.toggle("left", x < lastX);
-    $("birdBob").classList.add("walking");
-    setTimeout(() => $("birdBob").classList.remove("walking"), 2600);
-  }
-  $("bird").style.transform = `translate(${x}px, ${y}px)`;
-  lastPlace = place; lastX = x;
-  const sleeping = /^sleep/.test(doing || "");
-  $("zzz").setAttribute("visibility", sleeping ? "visible" : "hidden");
-  $("eyeOpen").setAttribute("visibility", sleeping ? "hidden" : "visible");
-  $("eyeShut").setAttribute("visibility", sleeping ? "visible" : "hidden");
-  const b = BADGES.find(([re]) => re.test(doing || ""));
-  $("badge").textContent = sleeping ? "" : (b ? b[1] : "");
+// ---------------------------------------------------------------- toasts
+let toastTimer;
+function toast(msg) {
+  const t = $("toast"); t.textContent = msg; t.classList.add("show");
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove("show"), 3800);
 }
+setTimeout(() => ($("hint").style.opacity = 0), 7000);
+
+// ================================================================ 3D WORLD
+let world = null;
+try { world = buildWorld(); } catch (e) {
+  console.error(e);
+  stage.append(Object.assign(el("div", "nogl"), { textContent: "Your browser couldn't start the 3D view, but Pino is still living his life below." }));
+}
+
+function buildWorld() {
+  const renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFShadowMap;
+  stage.prepend(renderer.domElement);
+
+  const scene = new THREE.Scene();
+  const DAY = new THREE.Color(0xbfe3f5), NIGHT = new THREE.Color(0x141b3d);
+  scene.background = DAY.clone();
+  scene.fog = new THREE.Fog(DAY.clone(), 30, 60);
+
+  const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 200);
+  const controls = new OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true; controls.dampingFactor = 0.08;
+  controls.minDistance = 5; controls.maxDistance = 38;
+  controls.maxPolarAngle = 1.38; controls.minPolarAngle = 0.25;
+  controls.enablePan = false;
+  controls.target.set(0, 0.5, 1.0);
+
+  // lights
+  const hemi = new THREE.HemisphereLight(0xffffff, 0x6f9a55, 1.15);
+  scene.add(hemi);
+  const sun = new THREE.DirectionalLight(0xfff3dc, 1.8);
+  sun.position.set(8, 14, 7); sun.castShadow = true;
+  sun.shadow.mapSize.set(1024, 1024);
+  Object.assign(sun.shadow.camera, { left: -13, right: 13, top: 13, bottom: -13, near: 1, far: 40 });
+  sun.shadow.bias = -0.0015;
+  scene.add(sun);
+
+  const M = (color, extra = {}) => new THREE.MeshStandardMaterial({ color, roughness: 0.9, flatShading: true, ...extra });
+  const add = (mesh, parent = scene, { cast = true, receive = false } = {}) => {
+    mesh.castShadow = cast; mesh.receiveShadow = receive; parent.add(mesh); return mesh;
+  };
+  const box = (w, h, d, mat) => new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+
+  // glowing materials (brighten at night)
+  const windowMat = M(0xcfe9f2, { emissive: 0xffc861, emissiveIntensity: 0 });
+  const glowMats = [windowMat];
+
+  // ---- ground
+  add(new THREE.Mesh(new THREE.CircleGeometry(24, 48).rotateX(-Math.PI / 2), M(0x9bd27a, { flatShading: false })), scene, { cast: false, receive: true });
+  const hillMat = M(0x86c266);
+  for (let i = 0; i < 16; i++) {
+    const a = (i / 16) * Math.PI * 2, r = 17 + (i % 3);
+    const h = add(new THREE.Mesh(new THREE.IcosahedronGeometry(3 + (i % 4), 0), hillMat), scene, { cast: false, receive: true });
+    h.position.set(Math.cos(a) * r, -1.2, Math.sin(a) * r); h.scale.y = 0.55;
+  }
+  // scattered little trees and flowers
+  const pineMat = M(0x4f9a52), trunkMat = M(0x7b5636);
+  [[-10, -9], [-12, -2], [11, -9], [12, 1], [-11, 8], [9, 10], [0, -11], [-2, 11], [13, 6]].forEach(([x, z], i) => {
+    const t = new THREE.Group(); t.position.set(x, 0, z); t.scale.setScalar(0.8 + (i % 3) * 0.2);
+    add(box(0.3, 0.8, 0.3, trunkMat), t).position.y = 0.4;
+    add(new THREE.Mesh(new THREE.ConeGeometry(1, 2, 6), pineMat), t).position.y = 1.7;
+    add(new THREE.Mesh(new THREE.ConeGeometry(0.75, 1.5, 6), pineMat), t).position.y = 2.5;
+    scene.add(t);
+  });
+  const flowerCols = [0xffffff, 0xf7d046, 0xe76f9a, 0xa983e6];
+  for (let i = 0; i < 40; i++) {
+    const a = Math.random() * Math.PI * 2, r = 7 + Math.random() * 9;
+    const f = add(new THREE.Mesh(new THREE.IcosahedronGeometry(0.08, 0), M(flowerCols[i % 4])), scene, { cast: false });
+    f.position.set(Math.cos(a) * r, 0.08, Math.sin(a) * r);
+  }
+
+  // ---- paths
+  const sand = M(0xead9b0, { flatShading: false });
+  const JUNCTION = V(0, 0, 0.6);
+  function strip(a, b, w = 1.1) {
+    const d = b.clone().sub(a), len = d.length();
+    const m = add(box(w, 0.03, len, sand), scene, { cast: false, receive: true });
+    m.position.copy(a).add(b).multiplyScalar(0.5); m.position.y = 0.015;
+    m.rotation.y = Math.atan2(d.x, d.z);
+  }
+  add(new THREE.Mesh(new THREE.CylinderGeometry(1.3, 1.3, 0.03, 24), sand), scene, { cast: false, receive: true }).position.set(0, 0.016, 0.6);
+
+  // ---- HOUSE
+  const house = new THREE.Group(); house.position.set(-5, 0, -5.2); scene.add(house);
+  add(box(3.2, 2, 2.6, M(0xf2c9a0)), house).position.y = 1;
+  const roof = add(new THREE.Mesh(new THREE.ConeGeometry(2.6, 1.7, 4), M(0xc8643b)), house);
+  roof.position.y = 2.85; roof.rotation.y = Math.PI / 4; roof.scale.set(1.0, 1, 0.82);
+  add(box(0.4, 1, 0.4, M(0x8b4c32)), house).position.set(0.9, 3.1, -0.3);
+  add(box(0.75, 1.3, 0.08, M(0x8b5a3c)), house).position.set(0, 0.65, 1.32);
+  add(box(1.0, 0.12, 0.5, M(0xd0b38b)), house).position.set(0, 0.06, 1.5);
+  for (const x of [-0.95, 0.95]) add(box(0.6, 0.6, 0.08, windowMat), house).position.set(x, 1.25, 1.32);
+  add(box(0.05, 0.6, 0.1, M(0xf2c9a0)), house).position.set(-0.95, 1.25, 1.35);
+  add(box(0.05, 0.6, 0.1, M(0xf2c9a0)), house).position.set(0.95, 1.25, 1.35);
+  // Pino's outdoor sleeping nest-cushion
+  const bed = new THREE.Group(); bed.position.set(-6.4, 0, -2.9); scene.add(bed);
+  add(new THREE.Mesh(new THREE.TorusGeometry(0.42, 0.16, 6, 14).rotateX(Math.PI / 2), M(0xb5835a)), bed).position.y = 0.14;
+  add(new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, 0.1, 14), M(0xe7a7b8)), bed).position.y = 0.08;
+
+  // ---- LIBRARY
+  const lib = new THREE.Group(); lib.position.set(5, 0, -5.4); scene.add(lib);
+  add(box(4.8, 0.25, 3.3, M(0xcfc6b5)), lib, { receive: true }).position.y = 0.12;
+  add(box(4.4, 2.4, 2.8, M(0xe8e1d3)), lib).position.y = 1.45;
+  const tri = new THREE.Shape(); tri.moveTo(-2.6, 0); tri.lineTo(2.6, 0); tri.lineTo(0, 1.1); tri.lineTo(-2.6, 0);
+  const ped = add(new THREE.Mesh(new THREE.ExtrudeGeometry(tri, { depth: 3.2, bevelEnabled: false }), M(0xa9a091)), lib);
+  ped.position.set(0, 2.65, -1.6);
+  add(box(5.3, 0.15, 3.3, M(0xcfc6b5)), lib).position.y = 2.65;
+  for (const x of [-1.9, -1.1, 1.1, 1.9]) add(new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.16, 2.4, 8), M(0xf3efe6)), lib).position.set(x, 1.45, 1.55);
+  add(box(0.9, 1.5, 0.08, M(0x6d553f)), lib).position.set(0, 1.0, 1.42);
+  for (const x of [-1.5, 1.5]) add(box(0.7, 0.8, 0.08, windowMat), lib).position.set(x, 1.6, 1.42);
+  add(new THREE.Mesh(new THREE.PlaneGeometry(2.2, 0.42), new THREE.MeshBasicMaterial({ map: textTexture("LIBRARY", "#5b4a3a", "#f6efe2", 512, 96) })), lib).position.set(0, 2.38, 1.43);
+
+  // ---- VENDING MACHINE
+  const vm = new THREE.Group(); vm.position.set(5.0, 0, 3.4); scene.add(vm);
+  add(box(1.2, 2.1, 0.85, M(0xd24b4b)), vm).position.y = 1.05;
+  const screenTex = snacksTexture();
+  const screenMat = new THREE.MeshStandardMaterial({ map: screenTex, emissive: 0xffffff, emissiveMap: screenTex, emissiveIntensity: 0.25, roughness: 0.4 });
+  add(new THREE.Mesh(new THREE.PlaneGeometry(0.72, 1.25), screenMat), vm).position.set(-0.15, 1.3, 0.43);
+  add(box(0.22, 0.5, 0.05, M(0x3a2a2a)), vm).position.set(0.38, 1.25, 0.44);
+  add(box(0.9, 0.22, 0.05, M(0x3a2a2a)), vm).position.set(0, 0.38, 0.44);
+  add(new THREE.Mesh(new THREE.PlaneGeometry(1.0, 0.25), new THREE.MeshBasicMaterial({ map: textTexture("SNACKS", "#ffe27a", "#8a1f1f", 256, 64) })), vm).position.set(0, 2.2, 0.01 + 0.43);
+  const vmLight = new THREE.PointLight(0xfff1b8, 0, 6, 1.5); vmLight.position.set(0, 1.3, 1.2); vm.add(vmLight);
+
+  // ---- PARK
+  const park = new THREE.Group(); scene.add(park);
+  const tree = new THREE.Group(); tree.position.set(-7.2, 0, 2.4); park.add(tree);
+  add(new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.35, 2, 7), trunkMat), tree).position.y = 1;
+  const leafMat = M(0x5fae5a);
+  [[0, 2.6, 0, 1.4], [-0.9, 2.2, 0.3, 1], [0.9, 2.2, -0.2, 1.05], [0.1, 3.3, 0.1, 0.9]].forEach(([x, y, z, r]) => add(new THREE.Mesh(new THREE.IcosahedronGeometry(r, 0), leafMat), tree).position.set(x, y, z));
+  [[0.6, 2.4, 1.1], [-0.7, 2.9, 0.8], [1.2, 2.0, 0.5]].forEach(([x, y, z]) => add(new THREE.Mesh(new THREE.IcosahedronGeometry(0.12, 0), M(0xe0473b)), tree).position.set(x, y, z));
+  const pile = new THREE.Group(); pile.position.set(-6.0, 0, 4.4); park.add(pile);
+  const leafCols = [0xe08a3c, 0xd2602f, 0xf0b44a];
+  for (let i = 0; i < 22; i++) {
+    const l = add(new THREE.Mesh(new THREE.IcosahedronGeometry(0.16, 0), M(leafCols[i % 3])), pile, { cast: false });
+    const a = Math.random() * 6.28, r = Math.random() * 0.6;
+    l.position.set(Math.cos(a) * r, 0.08 + Math.random() * 0.25 * (1 - r), Math.sin(a) * r); l.scale.y = 0.4;
+  }
+  const bench = new THREE.Group(); bench.position.set(-3.4, 0, 6.6); bench.rotation.y = Math.PI + 0.3; park.add(bench);
+  const wood = M(0xc58b4d);
+  add(box(1.8, 0.1, 0.5, wood), bench).position.set(0, 0.5, 0);
+  add(box(1.8, 0.4, 0.08, wood), bench).position.set(0, 0.85, -0.25);
+  for (const x of [-0.75, 0.75]) add(box(0.1, 0.5, 0.45, M(0x6b5a4a)), bench).position.set(x, 0.25, 0);
+  const pond = add(new THREE.Mesh(new THREE.CircleGeometry(1.7, 28).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0x6fbbe0, roughness: 0.15, metalness: 0.1 })), park, { cast: false, receive: false });
+  pond.position.set(-2.4, 0.05, 3.6);
+  add(new THREE.Mesh(new THREE.TorusGeometry(1.75, 0.12, 5, 28).rotateX(Math.PI / 2), M(0xa8a39a)), park, { cast: false }).position.set(-2.4, 0.04, 3.6);
+  const duck = new THREE.Group(); park.add(duck);
+  add(new THREE.Mesh(new THREE.IcosahedronGeometry(0.22, 1), M(0xffffff)), duck).scale.set(1, 0.7, 1.4);
+  add(new THREE.Mesh(new THREE.IcosahedronGeometry(0.13, 1), M(0xffffff)), duck).position.set(0, 0.22, 0.22);
+  add(new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.14, 5).rotateX(Math.PI / 2), M(0xf2a23c)), duck).position.set(0, 0.2, 0.38);
+
+  // spots where Pino stands at each place, what he faces, and extra spots for some activities
+  const SPOTS = { house: V(-5, 0, -2.4), library: V(5, 0, -2.5), vending: V(3.9, 0, 4.7), park: V(-4.3, 0, 4.9) };
+  const LOOK = { house: V(-5, 0, -4), library: V(5, 0, -4), vending: V(5.0, 0, 3.4), park: V(-2.4, 0, 3.6) };
+  const ACT = [
+    [/^sleep/, V(-6.4, 0.1, -2.9), V(-6.4, 0, 0)],
+    [/leaf/, V(-5.3, 0, 4.7), V(-6.0, 0, 4.4)],
+    [/ducks/, V(-3.6, 0, 5.0), V(-2.4, 0, 3.6)],
+    [/bench|sit and think/, V(-3.4, 0.52, 6.6), V(-2.4, 0, 3.6)],
+    [/window/, V(-5.95, 0, -3.75), V(-5.95, 0, -5)],
+  ];
+  for (const k of Object.keys(SPOTS)) strip(JUNCTION, SPOTS[k]);
+  strip(SPOTS.house, V(-5, 0, -3.9), 0.9); strip(SPOTS.library, V(5, 0, -3.8), 0.9);
+
+  // stars + glow lights
+  const starGeo = new THREE.BufferGeometry(); const sp = [];
+  for (let i = 0; i < 300; i++) { const a = Math.random() * 6.28, b = Math.random() * 1.2 + 0.15, r = 70; sp.push(Math.cos(a) * Math.cos(b) * r, Math.sin(b) * r, Math.sin(a) * Math.cos(b) * r); }
+  starGeo.setAttribute("position", new THREE.Float32BufferAttribute(sp, 3));
+  const stars = new THREE.Points(starGeo, new THREE.PointsMaterial({ color: 0xffffff, size: 0.5, transparent: true, opacity: 0, fog: false }));
+  scene.add(stars);
+  const moon = new THREE.Mesh(new THREE.SphereGeometry(2.5, 16, 16), new THREE.MeshBasicMaterial({ color: 0xf4f1dc, fog: false, transparent: true, opacity: 0 }));
+  moon.position.set(-30, 32, -45); scene.add(moon);
+  const houseLight = new THREE.PointLight(0xffc861, 0, 7, 1.5); houseLight.position.set(-5, 1.3, -3.4); scene.add(houseLight);
+
+  // ================================================================ PINO
+  const pino = makeKiwi(M); pino.group.scale.setScalar(1.45); scene.add(pino.group);
+  pino.group.position.copy(SPOTS.house);
+
+  // ---------------------------------------------------------------- overlays
+  const labels = [["home", V(-5, 4.2, -5.2)], ["library", V(5, 4.1, -5.4)], ["snacks", V(5.0, 2.75, 3.4)], ["park", V(-7.2, 4.1, 2.4)]].map(([t, p]) => {
+    const d = el("div", "ov label", t); stage.append(d); return { d, p };
+  });
+  const bubble = el("div", "ov bubble thought"); bubble.hidden = true; stage.append(bubble);
+
+  // ---------------------------------------------------------------- particles
+  const particles = [];
+  const heartTex = emojiTexture("❤️"), zTex = textTexture("z", "rgba(0,0,0,0)", "#ffffff", 64, 64, 54);
+  function spawn(tex, pos, { vy = 1, life = 1.6, size = 0.4, spread = 0.3 } = {}) {
+    const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false }));
+    s.position.copy(pos).add(V((Math.random() - 0.5) * spread, 0, (Math.random() - 0.5) * spread));
+    s.scale.setScalar(size); scene.add(s);
+    particles.push({ s, vy, life, age: 0, size });
+  }
+  let treat = null;
+  function dropTreat() {
+    if (treat) scene.remove(treat.mesh);
+    const mesh = add(box(0.32, 0.1, 0.16, M(0xe39b3b)), scene);
+    const fwd = V(Math.sin(pino.group.rotation.y), 0, Math.cos(pino.group.rotation.y));
+    const at = pino.group.position.clone().add(fwd.multiplyScalar(0.75)); at.y = Math.max(0, pino.group.position.y);
+    mesh.position.copy(at).add(V(0, 3, 0));
+    treat = { mesh, landY: at.y + 0.05, vy: 0, eaten: 0 };
+  }
+
+  // ---------------------------------------------------------------- movement
+  const state = { path: [], look: null, doing: "", place: "house", hop: 0, happy: 0, sleeping: false, follow: false, nightF: 0, night: false };
+  function setActivity(place, doing, instant) {
+    const act = ACT.find(([re]) => re.test(doing));
+    const target = act ? act[1] : SPOTS[place];
+    const look = act ? act[2] : LOOK[place];
+    const same = target.distanceTo(pino.group.position) < 0.05;
+    if (instant) {
+      pino.group.position.copy(target); state.path = [];
+    } else if (!same) {
+      state.path = place !== state.place ? [JUNCTION.clone(), SPOTS[place].clone(), target.clone()] : [target.clone()];
+      if (place !== state.place && pino.group.position.distanceTo(JUNCTION) > 6) state.path.unshift(SPOTS[state.place].clone());
+    }
+    state.look = look; state.place = place; state.doing = doing;
+    state.sleeping = /^sleep/.test(doing);
+  }
+
+  function resize() {
+    const w = stage.clientWidth, h = stage.clientHeight;
+    renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix();
+    const dist = w / h < 0.9 ? 30 : w / h < 1.3 ? 25 : 20;
+    if (!resize.done) { camera.position.set(0, dist * 0.62, dist * 0.78); resize.done = true; }
+  }
+  new ResizeObserver(resize).observe(stage); resize();
+
+  // tap Pino to pet him (taps only, not drags)
+  const ray = new THREE.Raycaster(); let down = null;
+  renderer.domElement.addEventListener("pointerdown", (e) => (down = { x: e.clientX, y: e.clientY, t: performance.now() }));
+  renderer.domElement.addEventListener("pointerup", (e) => {
+    if (!down || Math.hypot(e.clientX - down.x, e.clientY - down.y) > 8 || performance.now() - down.t > 500) return;
+    const r = renderer.domElement.getBoundingClientRect();
+    ray.setFromCamera(new THREE.Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1), camera);
+    if (ray.intersectObject(pino.group, true).length) onPet(false);
+  });
+
+  // ---------------------------------------------------------------- loop
+  const timer = new THREE.Timer(); const tmp = new THREE.Vector3(); const headPos = new THREE.Vector3();
+  let lookAngle = Math.PI;
+  renderer.setAnimationLoop(() => {
+    timer.update(); const dt = Math.min(timer.getDelta(), 0.05), t = timer.getElapsed();
+    const g = pino.group;
+
+    // walking
+    let walking = false;
+    if (state.path.length) {
+      const target = state.path[0]; tmp.copy(target).sub(g.position); tmp.y = 0;
+      const d = tmp.length();
+      if (d < 0.06) { g.position.x = target.x; g.position.z = target.z; state.path.shift(); }
+      else {
+        walking = true; const step = Math.min(d, 1.9 * dt);
+        g.position.addScaledVector(tmp.normalize(), step);
+        lookAngle = Math.atan2(tmp.x, tmp.z);
+      }
+    } else if (state.look) {
+      tmp.copy(state.look).sub(g.position); lookAngle = Math.atan2(tmp.x, tmp.z);
+    }
+    // height: hop onto the bench / bed only once arrived
+    const targetY = state.path.length ? 0 : (ACT.find(([re]) => re.test(state.doing))?.[1].y ?? 0);
+    g.position.y += (targetY - g.position.y) * Math.min(1, dt * 8);
+    let dA = lookAngle - g.rotation.y; dA = Math.atan2(Math.sin(dA), Math.cos(dA));
+    g.rotation.y += dA * Math.min(1, dt * 6);
+
+    // body language
+    const sleeping = state.sleeping && !walking;
+    const d = state.doing;
+    pino.legs[0].rotation.x = walking ? Math.sin(t * 13) * 0.7 : 0;
+    pino.legs[1].rotation.x = walking ? -Math.sin(t * 13) * 0.7 : 0;
+    let bob = walking ? Math.abs(Math.sin(t * 13)) * 0.05 : 0;
+    if (state.hop > 0) { state.hop -= dt; bob += Math.sin((1 - state.hop / 0.6) * Math.PI) * 0.35; }
+    if (!walking && /leaf/.test(d) && Math.sin(t * 2.2) > 0.85) bob += (Math.sin(t * 2.2) - 0.85) * 1.5;
+    pino.body.position.y = (sleeping ? -0.16 : 0) + bob;
+    pino.body.scale.y = 1 + Math.sin(t * (sleeping ? 1.6 : 2.4)) * 0.015;
+    let headX = 0, headY = 0;
+    if (sleeping) headX = 0.45;
+    else if (!walking && /seed bar|crisps|juice|treat/.test(d)) headX = Math.max(0, Math.sin(t * 7)) * 0.7;
+    else if (!walking && /read|journal|draw/.test(d)) headX = 0.35 + Math.sin(t * 1.3) * 0.06;
+    else if (!walking && /tidy/.test(d)) headY = Math.sin(t * 4) * 0.6;
+    else if (!walking) headY = Math.sin(t * 0.6) * 0.45 + Math.sin(t * 1.7) * 0.1;
+    if (treat && treat.eaten > 0) headX = Math.max(0, Math.sin(t * 9)) * 0.8;
+    pino.head.rotation.x += (headX - pino.head.rotation.x) * Math.min(1, dt * 8);
+    pino.head.rotation.y += (headY - pino.head.rotation.y) * Math.min(1, dt * 5);
+    const blink = (t % 3.7) < 0.12;
+    const eyeY = sleeping ? 0.12 : state.happy > 0 ? 0.35 : blink ? 0.1 : 1;
+    for (const e of pino.eyes) e.scale.y += (eyeY - e.scale.y) * Math.min(1, dt * 15);
+    if (state.happy > 0) state.happy -= dt;
+
+    // particles: zzz while sleeping, hearts when petted
+    if (sleeping && Math.random() < dt * 0.9) spawn(zTex, g.position.clone().add(V(0.2, 0.8, 0)), { vy: 0.45, life: 2.6, size: 0.35, spread: 0.1 });
+    for (let i = particles.length - 1; i >= 0; i--) {
+      const p = particles[i]; p.age += dt; p.s.position.y += p.vy * dt; p.s.position.x += Math.sin(p.age * 3) * dt * 0.2;
+      p.s.material.opacity = 1 - p.age / p.life; p.s.scale.setScalar(p.size * (0.7 + p.age / p.life * 0.6));
+      if (p.age >= p.life) { scene.remove(p.s); p.s.material.dispose(); particles.splice(i, 1); }
+    }
+    // treat falling and being eaten
+    if (treat) {
+      const m = treat.mesh;
+      if (m.position.y > treat.landY) { treat.vy -= 9.8 * dt; m.position.y = Math.max(treat.landY, m.position.y + treat.vy * dt); m.rotation.z += dt * 4; }
+      else { treat.eaten += dt; m.rotation.z = 0; if (treat.eaten > 0.6) m.scale.setScalar(Math.max(0.01, 1 - (treat.eaten - 0.6) / 1.6)); }
+      if (treat.eaten > 2.2) { scene.remove(m); treat = null; }
+    }
+    // duck paddling
+    const da = t * 0.35; duck.position.set(-2.4 + Math.cos(da) * 1.0, 0.1 + Math.sin(t * 3) * 0.015, 3.6 + Math.sin(da) * 1.0); duck.rotation.y = -da;
+
+    // day / night
+    state.nightF += ((state.night ? 1 : 0) - state.nightF) * Math.min(1, dt * 0.8);
+    const f = state.nightF;
+    scene.background.lerpColors(DAY, NIGHT, f); scene.fog.color.copy(scene.background);
+    hemi.intensity = 1.15 - f * 0.85; sun.intensity = 1.8 - f * 1.45; sun.color.setRGB(1 - f * 0.45, 0.95 - f * 0.3, 0.86 + f * 0.1);
+    windowMat.emissiveIntensity = f * 1.6; screenMat.emissiveIntensity = 0.25 + f * 1.2;
+    vmLight.intensity = f * 5; houseLight.intensity = f * 4; stars.material.opacity = f; moon.material.opacity = f;
+
+    // camera follow
+    if (state.follow) {
+      tmp.copy(g.position).add(V(0, 0.5, 0)).sub(controls.target).multiplyScalar(Math.min(1, dt * 3));
+      controls.target.add(tmp); camera.position.add(tmp);
+    }
+    controls.update();
+    renderer.render(scene, camera);
+
+    // overlays follow 3D positions
+    const w = stage.clientWidth, h = stage.clientHeight;
+    const place = (div, p) => {
+      tmp.copy(p).project(camera);
+      const vis = tmp.z < 1 && Math.abs(tmp.x) < 1.2 && Math.abs(tmp.y) < 1.2;
+      div.style.visibility = vis ? "visible" : "hidden";
+      let x = (tmp.x * 0.5 + 0.5) * w, y = (-tmp.y * 0.5 + 0.5) * h;
+      if (div === bubble) {
+        const bw = bubble.offsetWidth, bh = bubble.offsetHeight;
+        x = Math.min(Math.max(x, bw / 2 + 8), w - bw / 2 - 8); y = Math.max(y, bh + 8);
+        div.style.transform = `translate(${x}px, ${y}px) translate(-50%, -100%)`;
+      } else div.style.transform = `translate(${x}px, ${y}px) translate(-50%, -50%)`;
+    };
+    labels.forEach(({ d, p }) => place(d, p));
+    pino.head.getWorldPosition(headPos); headPos.y += 0.75;
+    place(bubble, headPos);
+  });
+
+  function onPet(silent) {
+    state.hop = 0.6; state.happy = 2.2;
+    for (let i = 0; i < 6; i++) setTimeout(() => spawn(heartTex, pino.group.position.clone().add(V(0, 1.1, 0)), { vy: 0.9, life: 1.5, size: 0.35, spread: 0.6 }), i * 90);
+    if (!silent) window.dispatchEvent(new CustomEvent("pino:pet"));
+  }
+
+  return {
+    setActivity,
+    setNight: (n) => (state.night = n),
+    setFollow: (on) => (state.follow = on),
+    pet: () => onPet(true),
+    treat: () => { dropTreat(); state.happy = 1.5; },
+    bubble,
+  };
+}
+
+// ---------------------------------------------------------------- the kiwi model (built from shapes, free to use)
+function makeKiwi(M) {
+  const group = new THREE.Group();
+  const body = new THREE.Group(); group.add(body);
+  const feathers = M(0x8b6a45);
+  const torso = new THREE.Mesh(new THREE.IcosahedronGeometry(0.42, 2), feathers);
+  torso.scale.set(0.95, 0.85, 1.15); torso.position.y = 0.55; torso.castShadow = true; body.add(torso);
+  // a few shaggy feather tufts
+  const tuftMat = M(0x6f5233);
+  for (let i = 0; i < 9; i++) {
+    const tuft = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.16, 4), tuftMat);
+    const a = (i / 9) * Math.PI * 2;
+    tuft.position.set(Math.cos(a) * 0.36, 0.42 + (i % 3) * 0.08, Math.sin(a) * 0.42 - 0.05);
+    tuft.rotation.set(Math.PI, 0, Math.cos(a) * 0.5); body.add(tuft);
+  }
+  const head = new THREE.Group(); head.position.set(0, 0.8, 0.36); body.add(head);
+  const skull = new THREE.Mesh(new THREE.IcosahedronGeometry(0.2, 2), M(0x7d5e3c)); skull.castShadow = true; head.add(skull);
+  const curve = new THREE.QuadraticBezierCurve3(V(0, -0.03, 0.14), V(0, -0.03, 0.48), V(0, -0.32, 0.66));
+  head.add(new THREE.Mesh(new THREE.TubeGeometry(curve, 16, 0.03, 6), M(0xe7c48d, { flatShading: false })));
+  const eyeMat = new THREE.MeshStandardMaterial({ color: 0x1d1a16, roughness: 0.3 });
+  const eyes = [-1, 1].map((s) => { const e = new THREE.Mesh(new THREE.SphereGeometry(0.038, 10, 8), eyeMat); e.position.set(s * 0.11, 0.06, 0.13); head.add(e); return e; });
+  const legMat = M(0xc98a4a);
+  const legs = [-1, 1].map((s) => {
+    const pivot = new THREE.Group(); pivot.position.set(s * 0.13, 0.3, 0.02); group.add(pivot);
+    const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.028, 0.028, 0.3, 6), legMat); leg.position.y = -0.15; pivot.add(leg);
+    for (const a of [-0.5, 0, 0.5]) { const toe = new THREE.Mesh(new THREE.BoxGeometry(0.025, 0.02, 0.14), legMat); toe.position.set(Math.sin(a) * 0.05, -0.3, 0.05); toe.rotation.y = a; pivot.add(toe); }
+    return pivot;
+  });
+  return { group, body, head, eyes, legs };
+}
+
+// ---------------------------------------------------------------- canvas textures
+function textTexture(text, bg, fg, w, h, size) {
+  const c = Object.assign(document.createElement("canvas"), { width: w, height: h }), x = c.getContext("2d");
+  x.fillStyle = bg; x.fillRect(0, 0, w, h);
+  x.fillStyle = fg; x.font = `800 ${size || h * 0.55}px system-ui, sans-serif`; x.textAlign = "center"; x.textBaseline = "middle";
+  x.fillText(text, w / 2, h / 2 + 2);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+}
+function emojiTexture(ch) {
+  const c = Object.assign(document.createElement("canvas"), { width: 64, height: 64 }), x = c.getContext("2d");
+  x.font = "52px serif"; x.textAlign = "center"; x.textBaseline = "middle"; x.fillText(ch, 32, 36);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+}
+function snacksTexture() {
+  const c = Object.assign(document.createElement("canvas"), { width: 128, height: 224 }), x = c.getContext("2d");
+  x.fillStyle = "#dff1f7"; x.fillRect(0, 0, 128, 224);
+  const rows = [["#e39b3b", 18, 22], ["#a0d36a", 18, 26], ["#8e44ad", 14, 32], ["#f2c94c", 18, 22]];
+  rows.forEach(([col, w, h], r) => {
+    for (let i = 0; i < 3; i++) { x.fillStyle = col; x.fillRect(14 + i * 36, 14 + r * 52, w + 8, h); }
+    x.fillStyle = "#b9d6df"; x.fillRect(6, 44 + r * 52, 116, 4);
+  });
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+}
+
+// ================================================================ UI + DATA
+const BADGES = [[/sleep/, "💤"], [/read/, "📖"], [/journal/, "✏️"], [/draw/, "🎨"], [/seed bar/, "🍫"], [/crisps/, "🥨"], [/juice/, "🧃"],
+  [/leaf/, "🍂"], [/ducks/, "🦆"], [/bench|sit/, "💭"], [/window/, "🪟"], [/tidy/, "🧹"], [/talked/, "💬"], [/petted/, "❤️"], [/treat/, "🍪"], [/reflect/, "🌙"], [/walked/, "👣"]];
+let latest = null, first = true, speaking = 0, followOn = false;
+const pending = []; // chat lines sent this visit, before the server lists them
 
 function list(target, items, render, emptyText) {
   const ul = $(target); ul.replaceChildren();
   if (!items.length) { ul.append(el("li", "empty", emptyText)); return; }
   for (const it of items.slice().reverse()) ul.append(render(it));
 }
+const ago = (ms) => { if (!ms) return ""; const m = Math.round((Date.now() - ms) / 60000); return m < 1 ? "just now" : m === 1 ? "1 minute ago" : m < 60 ? `${m} minutes ago` : `${Math.round(m / 60)} h ago`; };
+const short = (s, n = 110) => (s.length > n ? s.slice(0, n - 1) + "…" : s);
 
-function ago(ms) {
-  if (!ms) return "";
-  const m = Math.round((Date.now() - ms) / 60000);
-  return m < 1 ? "just now" : m === 1 ? "1 minute ago" : m < 60 ? `${m} minutes ago` : `${Math.round(m / 60)} h ago`;
+function showBubble(kind, text) {
+  if (!world) return;
+  const b = world.bubble; b.className = `ov bubble ${kind}`; b.hidden = !text;
+  if (kind === "thinking") { b.className = "ov bubble speech"; b.innerHTML = '<span class="dots"><span>●</span><span>●</span><span>●</span></span>'; }
+  else b.textContent = text;
+}
+
+function renderChat() {
+  const s = latest; if (!s) return;
+  const serverChats = s.chats || [];
+  const extra = pending.filter((p) => !serverChats.some((c) => c.at === p.at || (c.you === p.you && c.pino === p.pino)));
+  const all = [...serverChats, ...extra];
+  list("chat", all, (c) => {
+    const li = el("li");
+    li.append(el("span", "meta", new Date(c.at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })), el("div", "you", `You: ${c.you}`), el("div", "pino", `${s.name}: ${c.pino}`));
+    return li;
+  }, "Say hi to Pino using the box under the town!");
 }
 
 function render(s) {
-  document.title = `${s.name}'s Town`;
-  $("name").textContent = `${s.name}'s Town`;
+  latest = s;
+  $("name").textContent = `${s.name}'s Town`; document.title = `${s.name}'s Town`;
   $("clock").textContent = `${s.weekday} · ${s.clock}`;
-  $("svg").classList.toggle("night", !!s.night);
-  const last = s.memories[s.memories.length - 1];
+  const last = [...s.memories].reverse().find((m) => m.brain !== "visitor");
   const onInstinct = !last || last.brain === "instinct";
   $("dot").classList.toggle("off", onInstinct);
   $("brain").textContent = onInstinct ? "running on instinct" : `thinking with ${last.brain}`;
+  $("banner").hidden = !s.last_error; $("banner").textContent = s.last_error || "";
 
-  const banner = $("banner");
-  banner.hidden = !s.last_error;
-  banner.textContent = s.last_error || "";
+  if (world) {
+    world.setNight(!!s.night);
+    world.setActivity(s.place, s.doing, first);
+    if (Date.now() > speaking) {
+      const b = BADGES.find(([re]) => re.test(s.doing));
+      showBubble("thought", s.thought ? `${b ? b[1] + " " : ""}${short(s.thought)}` : "");
+    }
+  }
+  first = false;
 
-  moveBird(s.place, s.doing);
   $("doing").textContent = `${s.doing.charAt(0).toUpperCase() + s.doing.slice(1)} · ${s.places[s.place] || s.place}`;
   $("thought").textContent = s.thought ? `“${s.thought}”` : "";
-  $("heartbeat").textContent = s.last_tick_at
-    ? `Last moment ${ago(s.last_tick_at)} · he decides something new about every 5 minutes`
-    : "Pino hasn't taken his first step yet. His first moment happens within 5 minutes.";
+  $("heartbeat").textContent = s.last_tick_at ? `Last moment ${ago(s.last_tick_at)} · he decides something new about every 5 minutes` : "His first moment happens within 5 minutes.";
 
   const needs = $("needs"); needs.replaceChildren();
   for (const [k, label] of [["food", "Food"], ["energy", "Energy"], ["joy", "Joy"]]) {
-    const row = el("div", "need");
-    const bar = el("div", "bar"); const fill = el("i"); fill.style.width = `${s.needs[k]}%`; fill.style.background = `var(--${k})`;
-    bar.append(fill); row.append(el("span", null, label), bar, el("span", null, s.needs[k])); needs.append(row);
+    const row = el("div", "need"), bar = el("div", "bar"), fill = el("i");
+    fill.style.width = `${s.needs[k]}%`; fill.style.background = `var(--${k})`; bar.append(fill);
+    row.append(el("span", null, label), bar, el("span", null, s.needs[k])); needs.append(row);
   }
-
+  renderChat();
   list("diary", s.memories, (m) => {
-    const li = el("li");
-    const meta = el("span", "meta", `${m.t} · ${s.places[m.place] || m.place}`);
-    if (m.first) meta.append(el("span", "tag", "first time!"));
-    if (m.bored) meta.append(el("span", "tag", "bored"));
-    li.append(meta, el("strong", null, m.action), document.createTextNode(` — ${m.thought}`));
-    return li;
+    const li = el("li"), meta = el("span", "meta", `${m.t} · ${s.places[m.place] || m.place}`);
+    if (m.first) meta.append(el("span", "tag", "first time!")); if (m.bored) meta.append(el("span", "tag", "bored"));
+    li.append(meta, el("strong", null, m.action), document.createTextNode(` — ${m.thought}`)); return li;
   }, "Nothing yet. His life is just beginning.");
-  list("journal", s.journal, (j) => { const li = el("li"); li.append(el("span", "meta", j.t), document.createTextNode(j.text)); return li; },
-    "He hasn't written anything yet. Maybe he'll find the journal at the library.");
-  list("drawings", s.drawings, (d) => { const li = el("li"); li.append(el("span", "meta", `🎨 ${d.t}`), document.createTextNode(d.text)); return li; },
-    "No drawings yet.");
+  list("journal", s.journal, (j) => { const li = el("li"); li.append(el("span", "meta", j.t), document.createTextNode(j.text)); return li; }, "He hasn't written anything yet.");
+  list("drawings", s.drawings, (d) => { const li = el("li"); li.append(el("span", "meta", `🎨 ${d.t}`), document.createTextNode(d.text)); return li; }, "No drawings yet.");
   $("personality").textContent = s.personality;
-  list("insights", s.insights, (i) => { const li = el("li"); li.append(el("span", "meta", i.t), document.createTextNode(i.text)); return li; },
-    "He reflects about once an hour, once he has a brain connected.");
-  list("convos", s.conversations, (c) => {
-    const li = el("li"); li.append(el("span", "meta", c.t), el("div", null, `You: ${c.visitor}`), el("div", "reply", `${s.name}: ${c.reply}`)); return li;
-  }, s.unread ? "Your note is waiting in his mailbox." : "No notes yet. Say hello!");
-  const ur = $("unread"); ur.hidden = !s.unread; ur.textContent = s.unread;
+  list("insights", s.insights, (i) => { const li = el("li"); li.append(el("span", "meta", i.t), document.createTextNode(i.text)); return li; }, "He reflects about once an hour.");
 }
 
 async function refresh() {
@@ -351,33 +662,59 @@ async function refresh() {
     const r = await fetch("/api/state", { cache: "no-store" });
     if (!r.ok) throw new Error(r.status);
     render(await r.json());
-  } catch (e) {
-    $("banner").hidden = false;
-    $("banner").textContent = "Can't reach Pino's town right now. Retrying…";
-  }
+  } catch { $("banner").hidden = false; $("banner").textContent = "Can't reach Pino's town right now. Retrying…"; }
 }
 
+async function post(path, body) {
+  const r = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body || {}) });
+  let j = {}; try { j = await r.json(); } catch {}
+  return j;
+}
+
+// pet (tap on Pino)
+let lastPet = 0;
+window.addEventListener("pino:pet", async () => {
+  if (Date.now() - lastPet < 1500) return; lastPet = Date.now();
+  const j = await post("/api/pet"); if (j.reaction) toast(j.reaction);
+});
+// treat
+$("treatBtn").addEventListener("click", async () => {
+  const btn = $("treatBtn"); btn.disabled = true;
+  const j = await post("/api/treat");
+  if (j.ok && world) world.treat();
+  if (j.reaction) toast(j.reaction);
+  setTimeout(() => (btn.disabled = false), 4000);
+});
+// follow camera
+$("followBtn").addEventListener("click", () => {
+  followOn = !followOn; $("followBtn").setAttribute("aria-pressed", followOn); world && world.setFollow(followOn);
+});
+// talk
+$("talkForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const input = $("talkText"), text = input.value.trim(); if (!text) return;
+  input.value = ""; $("talkBtn").disabled = true;
+  speaking = Date.now() + 60000; showBubble("thinking");
+  const j = await post("/api/talk", { text });
+  $("talkBtn").disabled = false;
+  if (j.ok) {
+    pending.push({ at: Date.now(), you: text, pino: j.reply });
+    speaking = Date.now() + 14000; showBubble("speech", short(j.reply, 180));
+    if (world && /happy|excited/.test(j.mood || "")) world.pet();
+    renderChat();
+    setTimeout(() => { if (Date.now() > speaking && latest) render(latest); }, 14500);
+  } else {
+    speaking = 0; latest && render(latest); toast(j.error || "Pino didn't hear you. Try again.");
+  }
+});
+// tabs
 document.querySelectorAll(".tab").forEach((t) => t.addEventListener("click", () => {
   document.querySelectorAll(".tab").forEach((x) => x.setAttribute("aria-selected", x === t));
-  document.querySelectorAll(".panel").forEach((p) => p.hidden = p.id !== `p-${t.dataset.tab}`);
+  document.querySelectorAll(".panel").forEach((p) => (p.hidden = p.id !== `p-${t.dataset.tab}`));
 }));
 
-$("noteForm").addEventListener("submit", async (e) => {
-  e.preventDefault();
-  const text = $("noteText").value.trim();
-  if (!text) return;
-  const btn = e.target.querySelector("button"); btn.disabled = true;
-  try {
-    const r = await fetch("/api/message", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text }) });
-    const j = await r.json();
-    $("formmsg").textContent = j.ok ? "Delivered! He'll read it next time he looks around." : (j.error || "Couldn't send.");
-    if (j.ok) { $("noteText").value = ""; refresh(); }
-  } catch { $("formmsg").textContent = "Couldn't send. Try again."; }
-  btn.disabled = false;
-});
-
 refresh();
-setInterval(refresh, 20000);
+setInterval(refresh, 15000);
 document.addEventListener("visibilitychange", () => { if (!document.hidden) refresh(); });
 </script>
 </body>

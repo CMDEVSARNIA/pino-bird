@@ -168,6 +168,7 @@ export function identityPrompt(s: State) {
     "Nobody gives you instructions or tasks. You are not an assistant and you don't help anyone.",
     "You simply live: you notice how you feel, choose what to do next, and slowly learn what you enjoy.",
     "You are curious, and doing the same thing over and over gets boring.",
+    "Sometimes visitors come by: they may pet you, give you treats or chat with you.",
     "",
     `Your personality, in your own words (you rewrite this yourself as you grow):\n${s.personality}`,
     "",
@@ -320,9 +321,60 @@ export function applyReflection(s: State, reply: any, now: number) {
   if (typeof p === "string" && p.length > 20 && p.length < 1500) s.personality = p.trim();
 }
 
+// ---------------------------------------------------------------------------
+// Visitors: pets, treats and conversations
+// ---------------------------------------------------------------------------
+type Visit = { type: "pet" | "treat" | "talk"; at: number; text?: string; reply?: string };
+
+// Folds what visitors did since the last tick into Pino's needs and memories.
+export function applyVisits(s: State, visits: Visit[], now: number) {
+  if (!visits.length) return;
+  const t = clockStr(s, now);
+  const base = { t, place: s.place, note: "", first: false, bored: false, brain: "visitor" };
+  const remember = (action: string, thought: string, deltas: Partial<Record<Need, number>>) => {
+    for (const [k, v] of Object.entries(deltas)) s.needs[k as Need] = clamp(s.needs[k as Need] + (v ?? 0));
+    s.memories.push({ ...base, action, thought, deltas });
+  };
+
+  const pets = visits.filter((v) => v.type === "pet").length;
+  if (pets) {
+    remember(pets === 1 ? "was petted by a visitor" : `was petted ${pets} times by visitors`,
+      pets > 4 ? "So many pats! My feathers are all fluffed up." : "Someone gave me a gentle pat. That was nice.",
+      { joy: Math.min(15, 4 * pets) });
+  }
+  const treats = visits.filter((v) => v.type === "treat").length;
+  if (treats) {
+    remember(treats === 1 ? "was given a treat by a visitor" : `was given ${treats} treats by visitors`,
+      "A visitor dropped me a snack. Crunchy!",
+      { food: Math.min(40, 12 * treats), joy: Math.min(9, 3 * treats) });
+  }
+  for (const v of visits.filter((x) => x.type === "talk").slice(-5)) {
+    remember("talked with a visitor", `They said "${(v.text ?? "").slice(0, 160)}" and I said "${(v.reply ?? "").slice(0, 160)}"`, { joy: 5 });
+  }
+  s.memories = s.memories.slice(-400);
+}
+
+export function talkPrompt(s: State, chats: { you: string; pino: string }[], text: string, now: number) {
+  const feel = NEEDS.map((n) => `${n} ${describe(n, s.needs[n])}`).join(", ");
+  const recentLife = s.memories.slice(-6).map(memoryLine).join("\n") || "- (nothing yet)";
+  const convo = chats.slice(-6).map((c) => `Visitor: ${c.you}\n${NAME}: ${c.pino}`).join("\n") || "(this is the start of the conversation)";
+  return (
+    `It is ${clockStr(s, now)} (${isNight(now) ? "night" : "day"}). You are at the ${PLACES[s.place].label}, ` +
+    `currently "${s.doing}". You feel: ${feel}.\n\n` +
+    `What you've been up to:\n${recentLife}\n\n` +
+    `A visitor has come to your town and is talking to you. Conversation so far:\n${convo}\n\n` +
+    `The visitor says: "${text}"\n\n` +
+    `Answer as ${NAME} the ${SPECIES}: in character, warm and a bit quirky, 1-3 short sentences, ` +
+    "no emojis, never claim to be an assistant. You can mention what you're doing or how you feel. " +
+    "If you're very sleepy you can be drowsy. If asked to do something you can't do in your town, say so in a bird-like way.\n" +
+    'Reply with JSON exactly like this: {"reply": "what you say", "mood": "one of happy, curious, shy, sleepy, grumpy, excited"}'
+  );
+}
+
 // Trimmed copy for the viewer page
-export function publicView(s: State, unread: number, now: number) {
+export function publicView(s: State, unread: number, now: number, chats: { at: number; you: string; pino: string }[] = []) {
   return {
+    chats,
     name: NAME, species: SPECIES,
     clock: clockStr(s, now), night: isNight(now), weekday: localTime(now).weekday,
     place: s.place, needs: s.needs, thought: s.thought, doing: s.doing,

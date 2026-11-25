@@ -1,10 +1,10 @@
 import type { Config } from "@netlify/functions";
 import {
   applyChoice, applyReflection, buildOptions, decisionPrompt, identityPrompt, instinct,
-  parseJSON, readChoice, reflectionPrompt, REFLECT_EVERY,
+  parseJSON, readChoice, reflectionPrompt, REFLECT_EVERY, applyVisits,
 } from "../lib/pino.mts";
 import { ask, hasBrain, NoBrain } from "../lib/brain.mts";
-import { deleteNote, listNotes, loadState, saveState } from "../lib/store.mts";
+import { deleteKeys, deleteNote, listEvents, listNotes, loadState, saveState } from "../lib/store.mts";
 
 // Pino's heartbeat: every 5 minutes he either decides what to do next,
 // or (about once an hour) reflects on his life and rewrites his personality.
@@ -12,6 +12,14 @@ export default async () => {
   const now = Date.now();
   const s = await loadState();
   s.last_tick_at = now;
+
+  // Fold in what visitors did since last time (pets, treats, chats)
+  const visits = await listEvents();
+  applyVisits(s, visits, now);
+  const persist = async () => {
+    await saveState(s);
+    if (visits.length) await deleteKeys(visits.map((v) => v.key));
+  };
 
   const reflecting = hasBrain() && s.tick > 0 && s.tick % REFLECT_EVERY === 0 && s.memories.length >= 6
     && !s.memories.at(-1)?.action.startsWith("reflected");
@@ -25,7 +33,7 @@ export default async () => {
         deltas: {}, note: "", first: false, bored: false });
       s.tick += 1;
       s.last_error = "";
-      await saveState(s);
+      await persist();
       console.log("Pino reflected.");
       return;
     }
@@ -52,13 +60,13 @@ export default async () => {
     const opt = opts[idx];
     const answered = opt.type === "reply" ? notes[0] : undefined;
     const action = applyChoice(s, opt, thought || "...", note, now, brain, answered);
-    await saveState(s);
+    await persist();
     if (answered) await deleteNote(answered.key);
     console.log(`Pino @ ${s.place}: ${action} - ${thought}`);
   } catch (e) {
     s.last_error = `Something went wrong: ${(e as Error).message}`;
     console.error(s.last_error);
-    await saveState(s);
+    await persist();
   }
 };
 

@@ -6,10 +6,11 @@ gets bored when he repeats himself, and about once an hour reflects and rewrites
 
 ## How it works
 - `netlify/functions/tick.mts`: a scheduled function that runs every 5 minutes. It's Pino's heartbeat.
-- `netlify/functions/api.mts`: `/api/state` for the page, `/api/message` to leave him notes.
+- `netlify/functions/api.mts`: `/api/state` for the page; `/api/talk` (instant chat), `/api/pet`, `/api/treat`, `/api/message` (notes).
 - `netlify/lib/pino.mts`: the town, the needs, the boredom and the prompts. Edit `PLACES` to change his world.
 - `netlify/lib/brain.mts`: calls Claude (`ANTHROPIC_API_KEY`), or OpenAI (`OPENAI_API_KEY`) if no Claude key is set. Without a key he still lives "on instinct".
-- `public/index.html`: the town you watch on your phone.
+- `public/index.html`: the 3D town (three.js, loaded from jsDelivr). Every model, Pino included, is built from simple shapes in code, so there's nothing to license.
+- Visitor actions are stored as separate `events/` keys and folded into Pino's memory on his next heartbeat.
 - Memory lives in Netlify Blobs (store `pino`, key `state`).
 
 ## Setup
