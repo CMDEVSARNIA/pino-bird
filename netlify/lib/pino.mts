@@ -2,7 +2,7 @@
 
 import { BOOKS } from "./library.mts";
 import { GIFT_BY_ID } from "./gifts.mts";
-import { SONG_BY_ID, nextSong, randomSong, silence, type Music } from "./music.mts";
+import { SONG_BY_ID, nextSong, randomSong, silence, songsOwned, type Music } from "./music.mts";
 
 export const NAME = "Pino";
 export const SPECIES = "kiwi bird";
@@ -55,7 +55,7 @@ export const PLACES: Record<string, Place> = {
   },
   park: {
     label: "park",
-    desc: "a small park with a big tree, a bench, a swing set and a pond where ducks paddle about",
+    desc: "a small park with a big tree, a leaf pile, a bench, a swing set, a pond where ducks paddle about, and your gramophone (a wind-up record player)",
     activities: {
       "swing on the swings": { joy: 14, energy: -5 },
       "play in the leaf pile": { joy: 12, energy: -7 },
@@ -221,14 +221,32 @@ export function buildOptions(s: State, notes: Note[]): Option[] {
   return opts;
 }
 
+// Everything in his town, so he always knows what's where (even when he's elsewhere or chatting)
+export function townDescription(s: State) {
+  const got = s.gifts?.received ?? [];
+  const extras = (place: string) => got.map((id) => GIFT_BY_ID[id]).filter((g) => g && g.place === place && g.kind === "thing").map((g) => g!.name);
+  const snacks = Object.keys(activitiesAt(s, "vending")).map((a) => a.replace(/^get (a pack of |a bag of |some |an |a )?/, ""));
+  const books = Object.values(BOOKS).filter((b) => hasBook(s, b.slug)).length;
+  const records = songsOwned(got).length;
+  const playing = s.music?.on ? `it's playing "${SONG_BY_ID[s.music.song]?.title}" right now` : "it's switched off right now";
+  return [
+    `- Your little house: your bed, a rug and a window over the path${extras("house").length ? `; plus ${extras("house").join(", ")}` : ""}.`,
+    `- The library: ${books} books on your shelf, your journal and a big drawing table${extras("library").length ? `; plus ${extras("library").join(", ")}` : ""}.`,
+    `- The vending machine: ${snacks.join(", ")} (no coins needed).`,
+    `- The park: a big tree, a leaf pile, a bench, a swing set, a pond with ducks, and your gramophone - a wind-up record player with ${records} records (${playing})${extras("park").length ? `; plus ${extras("park").join(", ")}` : ""}.`,
+  ].join("\n");
+}
+
 export function identityPrompt(s: State) {
   const insights = s.insights.slice(-6).map((i) => `- ${i.text}`).join("\n") || "- (nothing yet)";
   return [
-    `You are ${NAME}, a small ${SPECIES} who lives alone in a tiny town with a little house, a library, a vending machine and a park.`,
+    `You are ${NAME}, a small ${SPECIES} who lives alone in a tiny town.`,
     "Nobody gives you instructions or tasks. You are not an assistant and you don't help anyone.",
     "You simply live: you notice how you feel, choose what to do next, and slowly learn what you enjoy.",
     "You are curious, and doing the same thing over and over gets boring.",
     "Sometimes visitors come by: they may pet you, give you treats or chat with you.",
+    "",
+    `Your town (you know it well, wherever you are):\n${townDescription(s)}`,
     "",
     `Your personality, in your own words (you rewrite this yourself as you grow):\n${s.personality}`,
     "",
