@@ -1692,7 +1692,7 @@ function render(s) {
   const badge = BADGES.find(([re]) => re.test(s.doing));
   $("doing").textContent = `${badge ? badge[1] + " " : ""}${s.doing.charAt(0).toUpperCase() + s.doing.slice(1)} · ${s.places[s.place] || s.place}`;
   $("thought").textContent = s.thought ? `“${s.thought}”` : "";
-  const pace = s.pace < 1 ? "about twice a minute (he's new here!)" : "about every 5 minutes";
+  const pace = s.pace < 1 ? "about twice a minute (he's new here!)" : s.pace <= 1 ? "about once a minute (thinking fast for a while)" : `about every ${s.pace} minutes`;
   $("heartbeat").textContent = `decides something new ${pace}`;
 
   const needs = $("needs"); needs.replaceChildren();
@@ -2109,7 +2109,7 @@ $("nowLine").addEventListener("click", () => {
 });
 
 // check in more often while he's thinking fast
-(function poll() { refresh().finally(() => setTimeout(poll, latest && latest.pace < 1 ? 6000 : 15000)); })();
+(function poll() { refresh().finally(() => setTimeout(poll, latest && latest.pace <= 1 ? 6000 : 15000)); })();
 document.addEventListener("visibilitychange", () => { if (!document.hidden) refresh(); });
 </script>
 </body>

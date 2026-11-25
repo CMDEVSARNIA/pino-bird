@@ -34,9 +34,9 @@ async function live() {
   if (!(await acquireLock(40_000))) { console.log("Another heartbeat is already running; skipping."); return; }
   try {
     const s = await loadState();
-    const fast = paceMinutes(s, start) < 1;
+    const pace = paceMinutes(s, start), fast = pace < 1;
     const since = s.last_tick_at ? start - s.last_tick_at : Infinity;
-    if (fast ? since < 15_000 : since < 5 * 60_000 - 20_000) return;
+    if (fast ? since < 15_000 : since < pace * 60_000 - 20_000) return;
 
     await moment(s, start);
     if (fast) {

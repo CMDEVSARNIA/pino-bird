@@ -14,8 +14,10 @@ export const REFLECT_EVERY = 12;     // reflects every 12 decisions
 export const FAST_HOURS = 3;         // for his first 3 hours he thinks about twice a minute, then every 5 minutes
 
 // Minutes between his decisions right now
+export const BOOST_UNTIL = Date.parse("2026-11-26T00:15:00Z"); // a burst of once-a-minute thinking until 7:15 pm Toronto, Nov 25
 export function paceMinutes(s: { born: number }, now: number) {
-  return now - s.born < FAST_HOURS * 3_600_000 ? 0.5 : 5;
+  if (now - s.born < FAST_HOURS * 3_600_000) return 0.5;
+  return now < BOOST_UNTIL ? 1 : 5;
 }
 
 export type Need = "food" | "energy" | "joy";
