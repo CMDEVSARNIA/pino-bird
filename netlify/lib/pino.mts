@@ -102,7 +102,9 @@ export type Memory = {
   deltas: Partial<Record<Need, number>>; first: boolean; bored: boolean; brain: string;
 };
 export type Note = { key: string; text: string; at: number };
-export type Drawing = { t: string; text: string; title?: string; svg?: string; skill?: number; seed?: number; lesson?: string; tries?: number };
+export type Drawing = { t: string; text: string; title?: string; svg?: string; skill?: number; seed?: number; lesson?: string; tries?: number; drawStart?: number; drawMs?: number };
+// a drawing he's still putting on paper (everyone can watch it appear, stroke by stroke)
+export const drawingInProgress = (s: { drawings: Drawing[] }, now: number) => s.drawings.find((d) => d.svg && d.drawStart && now < d.drawStart + (d.drawMs ?? 0));
 export type Want = { t: string; want: string; why: string; size?: string };
 export type State = {
   born: number; tick: number; place: string;

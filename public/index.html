@@ -112,6 +112,20 @@
   .treasure small { color: var(--muted); display: block; }
   .dream b { display: block; }
   .dream i { display: block; margin-top: 3px; }
+  .livewrap { position: fixed; inset: 0; z-index: 61; background: rgba(43,42,39,.5); display: flex; align-items: center; justify-content: center; padding: 16px; }
+  .livewrap[hidden] { display: none; }
+  .livecard { position: relative; background: #fffaf0; border-radius: 16px; padding: 14px 14px 12px; width: 100%; max-width: 440px; box-shadow: 0 10px 30px rgba(0,0,0,.25); }
+  .livecard .x { position: absolute; right: 10px; top: 6px; border: 0; background: none; font-size: 22px; cursor: pointer; color: var(--muted); }
+  .livecard .ltitle { font-weight: 700; margin: 2px 0 8px; }
+  .liveart { position: relative; border-radius: 10px; overflow: hidden; box-shadow: inset 0 0 0 1px var(--line); }
+  .liveart svg { display: block; width: 100%; height: auto; }
+  .livepen { position: absolute; font-size: 24px; pointer-events: none; transform: translate(-2px, 0); transition: left .12s linear, top .12s linear; }
+  .livebar { height: 6px; background: #eadfca; border-radius: 99px; margin-top: 10px; overflow: hidden; }
+  .livebar i { display: block; height: 100%; width: 0; background: var(--accent, #c8643b); }
+  .livestatus { font-size: 13px; margin-top: 6px; font-weight: 600; }
+  .liveidea { font-size: 12px; color: var(--muted); margin-top: 4px; }
+  .drawchip { position: absolute; left: 10px; bottom: 62px; border: 0; border-radius: 999px; padding: 8px 14px; font: 700 13px system-ui, sans-serif; background: #fff; color: var(--ink); box-shadow: 0 2px 8px rgba(0,0,0,.18); cursor: pointer; }
+  .drawchip[hidden] { display: none; }
   .letterwrap { position: fixed; inset: 0; z-index: 60; background: rgba(43,42,39,.45); display: flex; align-items: center; justify-content: center; padding: 20px; }
   .letterwrap[hidden] { display: none; }
   .letterpaper { background: #fffaf0; background-image: repeating-linear-gradient(transparent 0 27px, #eadfca 27px 28px); border-radius: 6px; padding: 20px 22px 16px; max-width: 420px; width: 100%;
@@ -303,6 +317,7 @@
     <div class="nowplaying" id="nowPlaying" hidden></div>
     <div class="museumbar" id="museumBar" hidden><button type="button" id="museumBack">⬅ Back to town</button><span id="roomNote">🏛️ Tap an exhibit to read about it</span></div>
     <div class="plaque" id="plaque" hidden></div>
+    <button class="drawchip" id="drawChip" type="button" hidden>🎨 Pino is drawing · watch</button>
     <div class="hint" id="hint" hidden>Tap Pino to pet him · tap a building to go inside</div>
     <div class="toast" id="toast"></div>
     <div class="controls">
@@ -337,6 +352,12 @@
 
   <div class="lastreply" id="lastReply" hidden aria-live="polite"></div>
   <div class="banner" id="banner" hidden></div>
+  <div class="livewrap" id="liveBox" hidden><div class="livecard">
+    <button type="button" class="x" id="liveClose">×</button>
+    <div class="lhead">🎨 Watching Pino draw</div><div class="ltitle" id="liveTitle"></div>
+    <div class="liveart"><div id="liveArt"></div><span class="livepen" id="livePen" hidden>✏️</span></div>
+    <div class="livebar"><i id="liveBar"></i></div><div class="livestatus" id="liveStatus"></div><div class="liveidea" id="liveIdea"></div>
+  </div></div>
   <div class="letterwrap" id="letterBox" hidden><div class="letterpaper"><div class="lhead">📬 A letter from Pino</div><div class="ldate" id="letterDate"></div><div class="ltext" id="letterText"></div><button type="button" id="letterKeep">Keep it 💌</button></div></div>
 
   <div class="tabs" role="tablist">
@@ -2307,6 +2328,7 @@ function render(s) {
   checkLetters(s);
   renderBoost(s);
   renderDreams(s);
+  const dn = drawingNow(s); $("drawChip").hidden = !dn;
   if (world && JSON.stringify(s.tv) !== tvSig) { tvSig = JSON.stringify(s.tv); world.setTV(s.tv || null); }
   syncMusic(s.music || { on: false });
   renderGive(s);
@@ -2336,7 +2358,8 @@ function render(s) {
 // ---- drawings gallery (his own SVG pictures, shown as images so nothing in them can run)
 const svgUrl = (svg) => `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 // Put his SVG on "paper" and give the lines a hand-drawn wobble. Beginners shake more; it steadies with practice.
-function artUrl(d) {
+function artUrl(d) { return svgUrl(artSvg(d)); }
+function artSvg(d) {
   const skill = typeof d.skill === "number" ? d.skill : 0;
   const shake = (6 - skill * 4.5).toFixed(2);            // displacement: ~6px at first, ~1.5px when experienced
   const seed = d.seed ?? [...d.t].reduce((a, c) => a + c.charCodeAt(0), 0) % 1000;
@@ -2351,22 +2374,64 @@ function artUrl(d) {
     `<feColorMatrix values="0 0 0 0 0.55  0 0 0 0 0.5  0 0 0 0 0.42  0 0 0 0.22 0"/></filter></defs>` +
     `<rect width="300" height="300" fill="#fffdf6"/><g filter="url(#hand)" opacity="0.94">${inner}</g>` +
     `<rect width="300" height="300" filter="url(#grain)"/></svg>`;
-  return svgUrl(wrapped);
+  return wrapped;
+}
+
+// ---- watching Pino draw, live: the strokes appear one by one, timed by the server, so everyone sees the same picture grow
+const serverNowMs = () => Date.now() + ((latest?.serverNow ?? Date.now()) - (latest?._got ?? Date.now()));
+const drawingNow = (s) => (s?.drawings || []).find((d) => d.svg && d.drawStart && serverNowMs() < d.drawStart + (d.drawMs || 0));
+let live = null;
+function openLive(d) {
+  const box = $("liveArt"); box.innerHTML = artSvg(d).replace(/id="hand"/, 'id="livehand"').replace(/url\(#hand\)/, "url(#livehand)").replace(/id="grain"/, 'id="livegrain"').replace(/url\(#grain\)/, "url(#livegrain)");
+  const els = [...box.querySelectorAll("g[filter] svg *")].filter((e) => /^(path|circle|rect|ellipse|line|polyline|polygon|text)$/i.test(e.tagName));
+  live = { d, els: els.map((el) => {
+    let len = 0; try { len = el.getTotalLength ? el.getTotalLength() : 0; } catch {}
+    const fo = el.getAttribute("fill-opacity") ?? "1", so = el.getAttribute("stroke-opacity") ?? "1";
+    if (len > 0) { el.style.strokeDasharray = `${len}`; el.style.strokeDashoffset = `${len}`; }
+    el.style.fillOpacity = "0"; if (!len) el.style.opacity = "0";
+    return { el, len, fo: Number(fo) || 1, so };
+  }) };
+  $("liveTitle").textContent = d.title ? `“${d.title}”` : "A new drawing";
+  $("liveIdea").textContent = d.text;
+  $("liveBox").hidden = false; tickLive();
+}
+function tickLive() {
+  if (!live || $("liveBox").hidden) { live = null; return; }
+  const { d, els } = live, p = Math.max(0, Math.min(1, (serverNowMs() - d.drawStart) / (d.drawMs || 1))), k = p * els.length;
+  let pen = null;
+  els.forEach((e, i) => {
+    const f = Math.max(0, Math.min(1, k - i));
+    if (e.len > 0) e.el.style.strokeDashoffset = `${e.len * (1 - Math.min(1, f / 0.7))}`;
+    else e.el.style.opacity = String(f);
+    e.el.style.fillOpacity = String(f < 0.7 ? 0 : ((f - 0.7) / 0.3) * e.fo);
+    if (f > 0 && f < 1 && e.len > 0 && !pen) { try { const pt = e.el.getPointAtLength(e.len * Math.min(1, f / 0.7)); pen = { el: e.el, pt }; } catch {} }
+  });
+  const pencil = $("livePen");
+  if (pen && pen.el.getScreenCTM()) {
+    const m = pen.el.getScreenCTM(), r = $("liveArt").getBoundingClientRect(), q = new DOMPoint(pen.pt.x, pen.pt.y).matrixTransform(m);
+    pencil.hidden = false; pencil.style.left = `${q.x - r.left}px`; pencil.style.top = `${q.y - r.top - 22}px`;
+  } else pencil.hidden = true;
+  $("liveBar").style.width = `${Math.round(p * 100)}%`;
+  $("liveStatus").textContent = p >= 1 ? "Finished! ✨ It's in his drawings now." : `Pino is drawing… ${Math.round(p * 100)}%`;
+  if (p < 1) setTimeout(tickLive, 120);
 }
 let gallerySig = "";
 function renderGallery(drawings) {
   const where = new Map([...(latest?.galleryWall || []).map((d) => [d.t, "in his gallery"]), ...(latest?.walls?.house || []).map((d) => [d.t, "on his wall at home"]), ...(latest?.walls?.library || []).map((d) => [d.t, "in the library"])]);
   const hung = { has: (t) => where.has(t) };
-  const sig = drawings.map((d) => d.t + (d.svg ? "✓" : "") + (d.skill ?? "") + (where.get(d.t) || "")).join("|");
+  const sig = drawings.map((d) => d.t + (d.svg ? "✓" : "") + (d.skill ?? "") + (where.get(d.t) || "") + (d.drawStart && serverNowMs() < d.drawStart + (d.drawMs || 0) ? "D" : "")).join("|");
   if (sig === gallerySig) return; gallerySig = sig;
   const g = $("drawings"); g.replaceChildren();
   if (!drawings.length) { g.append(el("div", "empty", "No drawings yet. He draws at the library when he feels like it.")); return; }
   for (const d of drawings.slice().reverse()) {
     const card = el("button", "art"); card.type = "button";
-    if (d.svg) { const img = new Image(); img.alt = d.title || d.text; img.src = artUrl(d); img.loading = "lazy"; card.append(img); }
+    const drawingIt = d.svg && d.drawStart && serverNowMs() < d.drawStart + (d.drawMs || 0);
+    if (drawingIt) card.append(el("div", "sketch", "🎨 He's drawing this right now. Tap to watch!"));
+    else if (d.svg) { const img = new Image(); img.alt = d.title || d.text; img.src = artUrl(d); img.loading = "lazy"; card.append(img); }
     else card.append(el("div", "sketch", "✏️ still drawing… “" + d.text + "”"));
     card.append(el("b", null, d.title || "Untitled"), el("span", null, d.t + (hung.has(d.t) ? ` · 🖼️ ${where.get(d.t)}` : "")));
     card.addEventListener("click", () => {
+      if (drawingIt) { openLive(d); return; }
       if (!d.svg) return;
       $("viewerImg").src = artUrl(d); $("viewerImg").alt = d.title || d.text;
       $("viewerCap").textContent = `${d.title || "Untitled"} · ${d.t} — “${d.text}”` + (d.lesson ? `\nNote to self: ${d.lesson}` : "");
@@ -2481,6 +2546,9 @@ function renderDreams(s) {
   if (!(s.treasures || []).length) tl.append(el("p", "muted", (s.pocket || []).length ? "Empty, until he takes something home." : "Nothing yet. Treasures are rare: when he's outside he sometimes spots something special."));
   [...(s.treasures || [])].reverse().forEach((f) => tl.append(card(f, `Found at the ${f.place} · ${f.t}${f.shelved ? ` · shelved ${f.shelved}` : ""}`)));
 }
+
+$("drawChip").addEventListener("click", () => { const d = drawingNow(latest); if (d) openLive(d); });
+$("liveClose").addEventListener("click", () => { $("liveBox").hidden = true; });
 
 // ---- the owner's fast-thinking switch (the server only shows it to Pino's owner, and only obeys him)
 function renderBoost(s) {
@@ -2749,7 +2817,7 @@ async function refresh() {
     const asked = Date.now();
     const r = await fetch(`/api/state?who=${encodeURIComponent(me.id)}`, { cache: "no-store" });
     if (!r.ok) throw new Error(r.status);
-    const j = await r.json(); j._asked = asked;
+    const j = await r.json(); j._asked = asked; j._got = Date.now();
     render(j);
   } catch { $("banner").hidden = false; $("banner").textContent = "Can't reach Pino's town right now. Retrying…"; }
 }

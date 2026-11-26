@@ -2,7 +2,7 @@ import type { Config, Context } from "@netlify/functions";
 import {
   applyChoice, applyReflection, buildOptions, decisionPrompt, identityPrompt, instinct,
   parseJSON, readChoice, reflectionPrompt, REFLECT_EVERY, applyVisits, paceMinutes, type State,
-  drawingPrompt, sanitizeSvg, artSkill, mustSleep, clockStr,
+  drawingPrompt, sanitizeSvg, artSkill, mustSleep, clockStr, drawingInProgress,
 } from "../lib/pino.mts";
 import { ask, hasBrain, NoBrain } from "../lib/brain.mts";
 import { fetchWeather, needsRefresh, wet } from "../lib/weather.mts";
@@ -122,6 +122,15 @@ async function moment(s: State, start: number) {
     return;
   }
 
+  // still busy drawing: he stays at the table until the last stroke is on the paper
+  const busy = drawingInProgress(s, now);
+  if (busy) {
+    s.tick += 1;
+    await persist();
+    console.log(`Pino is still drawing "${busy.title ?? busy.text}"`);
+    return;
+  }
+
   const reflecting = hasBrain() && s.tick > 0 && s.tick % REFLECT_EVERY === 0 && s.memories.length >= 6
     && !s.memories.at(-1)?.action.startsWith("reflected");
 
@@ -229,6 +238,9 @@ async function finishDrawing(s: State, ms: number) {
     const svg = sanitizeSvg(parsed?.svg ?? text);
     if (svg) {
       d.svg = svg;
+      // he doesn't finish it in a flash: one stroke at a time, a few minutes per drawing, and anyone can watch
+      const strokes = (svg.match(/<(path|circle|rect|ellipse|line|polyline|polygon|text)\b/gi) ?? []).length;
+      d.drawStart = Date.now(); d.drawMs = Math.max(120_000, Math.min(480_000, strokes * 7_000));
       d.skill = Math.round(artSkill(s.art.drawn, s.art.studied ?? 0) * 100) / 100; // how steady his hand was for this one
       d.seed = Math.floor(Math.random() * 1000);
       if (typeof parsed?.title === "string" && parsed.title.trim()) d.title = parsed.title.trim().slice(0, 80);
@@ -238,7 +250,7 @@ async function finishDrawing(s: State, ms: number) {
         s.art.lessons = [...s.art.lessons, lesson].slice(-12);
       }
       s.art.drawn += 1;
-      console.log(`Pino finished a drawing: ${d.title ?? d.text}`);
+      console.log(`Pino is drawing "${d.title ?? d.text}" (${Math.round((d.drawMs ?? 0) / 60_000)} min, ${strokes} strokes)`);
     } else console.log("Pino's drawing came out unreadable; he'll leave it as a sketch idea.");
     s.pendingDrawing = null;
   } catch (e) {
