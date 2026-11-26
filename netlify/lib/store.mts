@@ -20,7 +20,13 @@ export async function loadState(): Promise<State> {
 }
 
 export async function saveState(state: State) {
-  await store().setJSON("state", state);
+  // "due" is a tiny note beside his big state: the every-minute heartbeat reads just this to
+  // decide whether it's time for him to think, instead of loading all his memories.
+  await Promise.all([store().setJSON("state", state), store().setJSON("due", { last: state.last_tick_at ?? 0, born: state.born })]);
+}
+
+export async function loadDue(): Promise<{ last: number; born: number } | null> {
+  try { return (await store().get("due", { type: "json" })) as { last: number; born: number } | null; } catch { return null; }
 }
 
 async function listKeys(prefix: string) {

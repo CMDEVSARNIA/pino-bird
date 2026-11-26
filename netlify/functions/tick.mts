@@ -8,7 +8,7 @@ import { ask, hasBrain, lookUp, NoBrain } from "../lib/brain.mts";
 import { fetchWeather, needsRefresh, wet } from "../lib/weather.mts";
 import { grow, newGarden } from "../lib/garden.mts";
 import { dreamPrompt, dreamSystem } from "../lib/extras.mts";
-import { acquireLock, deleteKeys, deleteNote, getBoost, listEvents, listNotes, loadState, peopleIndex, releaseLock, saveState, updatePerson } from "../lib/store.mts";
+import { acquireLock, deleteKeys, loadDue, deleteNote, getBoost, listEvents, listNotes, loadState, peopleIndex, releaseLock, saveState, updatePerson } from "../lib/store.mts";
 
 // Pino's heartbeat. Netlify wakes this every minute (its shortest schedule).
 // While Pino is new (his first few hours) he lives two moments per wake-up,
@@ -31,15 +31,23 @@ export default async (_req: Request, context: Context) => {
   return new Response(null, { status: 204 });
 };
 
+// Is it time for him to think? Same rule as below, worked out from the tiny "due" note.
+const notDue = (last: number, pace: number, now: number) => {
+  const since = last ? now - last : Infinity;
+  return pace < 1 ? since < 15_000 : since < pace * 60_000 - 20_000;
+};
+
 async function live() {
   const start = Date.now();
+  // the quick check: most minutes he isn't due, so stop here without loading his memories or taking the lock
+  const [due, boost] = await Promise.all([loadDue(), getBoost()]);
+  if (due && notDue(due.last, paceMinutes({ born: due.born, boostUntil: boost }, start), start)) return;
   if (!(await acquireLock(40_000))) { console.log("Another heartbeat is already running; skipping."); return; }
   try {
     const s = await loadState();
-    s.boostUntil = await getBoost();
+    s.boostUntil = boost;
     const pace = paceMinutes(s, start), fast = pace < 1;
-    const since = s.last_tick_at ? start - s.last_tick_at : Infinity;
-    if (fast ? since < 15_000 : since < pace * 60_000 - 20_000) return;
+    if (notDue(s.last_tick_at ?? 0, pace, start)) return;
 
     await moment(s, start);
     if (fast) {

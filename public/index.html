@@ -2987,9 +2987,12 @@ $("nowLine").addEventListener("click", () => {
 
 // check in more often while he's thinking fast
 // check in every 15s - and a few seconds after his next thought is due, so everyone sees it at about the same time
+// Refresh every 15s, plus right when his next thought is due. Nothing at all while the app is in the
+// background: coming back to it refreshes straight away.
 (function poll() {
+  if (document.hidden) { setTimeout(poll, 15000); return; }
   refresh().finally(() => {
-    let wait = latest && latest.pace <= 1 ? 6000 : 15000;
+    let wait = 15000;
     if (latest?.doingSince && latest?.pace) {
       const skew = (latest.serverNow || Date.now()) - Date.now(), due = latest.doingSince + latest.pace * 60_000 + 8000 - (Date.now() + skew);
       if (due > 1500 && due < wait) wait = due;
