@@ -1319,6 +1319,36 @@ function buildWorld() {
     });
   }
 
+  // ---- his own art at home and in the library (he chooses what hangs where)
+  const roomFrames = {
+    house: [[V(-2.55, 2.05, -HD + 0.14), 0, 0.75], [V(-HW + 0.14, 2.15, 1.3), Math.PI / 2, 0.7], [V(2.3, 2.25, -HD + 0.14), 0, 0.6]],
+    library: [[V(1.6, 2.05, -LD + 0.14), 0, 0.8], [V(4.9, 1.75, -LD + 0.14), 0, 0.6], [V(LW - 0.14, 2.2, -1.1), -Math.PI / 2, 0.75], [V(LW - 0.14, 1.95, 0.35), -Math.PI / 2, 0.6]],
+  };
+  for (const [room, specs] of Object.entries(roomFrames)) {
+    const grp = room === "house" ? hroom : lroom;
+    roomFrames[room] = specs.map(([pos, rotY, size]) => {
+      const f = new THREE.Group(); f.position.copy(pos); f.rotation.y = rotY; f.visible = false; grp.add(f);
+      add(box(size + 0.12, size + 0.12, 0.05, M(0xb08a3a, { metalness: 0.3, roughness: 0.5 })), f, { cast: false });
+      const pic = add(new THREE.Mesh(new THREE.PlaneGeometry(size, size), blankArt), f, { cast: false }); pic.position.z = 0.03;
+      return { g: f, pic, key: null };
+    });
+  }
+  function setWalls(walls) {
+    for (const room of ["house", "library"]) roomFrames[room].forEach((fr, i) => {
+      const d = (walls?.[room] || [])[i], key = d ? d.t : "";
+      if (fr.key === key) return; fr.key = key; fr.g.visible = !!(d && d.svg);
+      if (!d || !d.svg) return;
+      const img = new Image();
+      img.onload = () => {
+        const c = Object.assign(document.createElement("canvas"), { width: 256, height: 256 });
+        c.getContext("2d").drawImage(img, 0, 0, 256, 256);
+        const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
+        if (fr.key === key) fr.pic.material = new THREE.MeshStandardMaterial({ map: tex, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: 0.3, roughness: 0.9 });
+      };
+      img.src = artUrl(d);
+    });
+  }
+
   // ---- the gramophone in the park
   const gram = new THREE.Group(); gram.position.set(-5.5, 0, 5.5); gram.rotation.y = 0.9; scene.add(gram);
   add(box(0.7, 0.35, 0.6, M(0x8b5a3c)), gram).position.y = 0.45;
@@ -1876,7 +1906,7 @@ function buildWorld() {
     setGallery,
     setWeather,
     setTeddy: (t) => (teddyState = t),
-    setGarden, setWearing, setTreasures,
+    setGarden, setWearing, setTreasures, setWalls,
     setHoliday: (id) => { holidayNow = id; deco.winter.visible = id === "winter"; deco.halloween.visible = id === "halloween"; },
     setMail: (up) => (mailUp = up),
     setTV: (p) => { tvProg = p; tvDrawn = -1; if (view.mode !== "house") drawTV(0); },
@@ -2089,7 +2119,7 @@ function render(s) {
   list("journal", s.journal, (j) => { const li = el("li"); li.append(el("span", "meta", j.t), document.createTextNode(j.text)); return li; }, "He hasn't written anything yet.");
   renderGallery(s.drawings || []);
   renderBooks(s);
-  if (world) { world.setOwned(s.owned || []); world.setGallery(s.galleryWall || []); }
+  if (world) { world.setOwned(s.owned || []); world.setGallery(s.galleryWall || []); world.setWalls(s.walls); }
   renderWeather(s);
   renderMuseum(s);
   if (world) { world.setTeddy(s.teddy || null); world.setGarden(s.garden); world.setWearing(s.wearing); world.setTreasures(s.treasures); world.setHoliday(s.holiday || null); world.setMail((s.me?.letters || []).some((l) => !l.read)); }
@@ -2144,8 +2174,9 @@ function artUrl(d) {
 }
 let gallerySig = "";
 function renderGallery(drawings) {
-  const hung = new Set((latest?.galleryWall || []).map((d) => d.t));
-  const sig = drawings.map((d) => d.t + (d.svg ? "✓" : "") + (d.skill ?? "") + (hung.has(d.t) ? "H" : "")).join("|");
+  const where = new Map([...(latest?.galleryWall || []).map((d) => [d.t, "in his gallery"]), ...(latest?.walls?.house || []).map((d) => [d.t, "on his wall at home"]), ...(latest?.walls?.library || []).map((d) => [d.t, "in the library"])]);
+  const hung = { has: (t) => where.has(t) };
+  const sig = drawings.map((d) => d.t + (d.svg ? "✓" : "") + (d.skill ?? "") + (where.get(d.t) || "")).join("|");
   if (sig === gallerySig) return; gallerySig = sig;
   const g = $("drawings"); g.replaceChildren();
   if (!drawings.length) { g.append(el("div", "empty", "No drawings yet. He draws at the library when he feels like it.")); return; }
@@ -2153,7 +2184,7 @@ function renderGallery(drawings) {
     const card = el("button", "art"); card.type = "button";
     if (d.svg) { const img = new Image(); img.alt = d.title || d.text; img.src = artUrl(d); img.loading = "lazy"; card.append(img); }
     else card.append(el("div", "sketch", "✏️ still drawing… “" + d.text + "”"));
-    card.append(el("b", null, d.title || "Untitled"), el("span", null, d.t + (hung.has(d.t) ? " · 🖼️ in his gallery" : "")));
+    card.append(el("b", null, d.title || "Untitled"), el("span", null, d.t + (hung.has(d.t) ? ` · 🖼️ ${where.get(d.t)}` : "")));
     card.addEventListener("click", () => {
       if (!d.svg) return;
       $("viewerImg").src = artUrl(d); $("viewerImg").alt = d.title || d.text;

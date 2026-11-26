@@ -119,6 +119,7 @@ export type State = {
   gifts: { received: string[]; log: { t: string; id: string; name: string; emoji: string; from: string }[] };
   music: Music;                                  // the gramophone in the park
   galleryWall: (Drawing & { hungAt: string })[]; // drawings he chose to hang in his art gallery
+  walls?: Record<string, (Drawing & { hungAt: string })[]>; // drawings he hung at home and in the library
   weather?: Weather;                             // the real weather in Sarnia, checked every 15 minutes
   lastSaw?: string | null;                       // museum exhibit he just looked at (he reacts next moment)
   museumLog?: { t: string; id: string; name: string; reaction: string }[];
@@ -290,12 +291,16 @@ export type Option = { type: "do" | "go" | "reply" | "rest" | "read" | "hang" | 
 export type Pal = { id: string; name: string; note?: string };
 
 export const GALLERY_SIZE = 6;
-function hangOptions(s: State): Option[] {
-  const hung = new Set((s.galleryWall ?? []).map((d) => d.t));
-  const full = (s.galleryWall ?? []).length >= GALLERY_SIZE;
+// Where he can hang his art: the gallery, and walls at home and in the library (never the museum - that's for the real treasures)
+export const WALL_SIZE: Record<string, number> = { gallery: GALLERY_SIZE, house: 3, library: 4 };
+const WALL_NAME: Record<string, string> = { gallery: "the gallery wall", house: "the wall of your house", library: "the library wall" };
+export const wallOf = (s: State, place: string) => (place === "gallery" ? s.galleryWall ?? [] : s.walls?.[place] ?? []);
+function hangOptions(s: State, place: string): Option[] {
+  const hung = new Set(Object.keys(WALL_SIZE).flatMap((p) => wallOf(s, p).map((d) => d.t))); // each drawing hangs in one place
+  const full = wallOf(s, place).length >= WALL_SIZE[place];
   return (s.drawings ?? []).filter((d) => d.svg && !hung.has(d.t)).slice(-3).reverse().map((d) => ({
     type: "hang" as const, name: d.t,
-    label: `hang your drawing "${d.title ?? d.text.slice(0, 40)}" (from ${d.t}) on the gallery wall${full ? " - the wall is full, so it replaces the oldest one" : ""}`,
+    label: `hang your drawing "${d.title ?? d.text.slice(0, 40)}" (from ${d.t}) on ${WALL_NAME[place]}${full ? " - it's full, so it replaces the oldest one there" : ""}`,
   }));
 }
 
@@ -319,7 +324,7 @@ export function buildOptions(s: State, notes: Note[], pals: Pal[] = []): Option[
     opts.push({ type: "reply", name: "reply to a visitor's note", label: 'reply to the visitor\'s note (write your reply in "note")' });
   }
   if (here === "library") opts.push(...bookOptions(s));
-  if (here === "gallery") opts.push(...hangOptions(s));
+  if (WALL_SIZE[here]) opts.push(...hangOptions(s, here));
   // out and about he sometimes spots a little treasure
   if (OUTDOORS.has(here) || here === "museum") {
     const t = spotTreasure(here, [...(s.treasures ?? []), ...(s.pocket ?? [])], Date.now());
@@ -356,6 +361,8 @@ export function townDescription(s: State) {
     `- Your little house: your bed, a rug, a fireplace, an armchair, a TV with five free channels (weather, an aquarium cam, space, town news and cartoons${s.tv?.on ? " - it's on right now" : ""}) and a window over the path${extras("house").length ? `; plus ${extras("house").join(", ")}` : ""}.`,
     `- The library: ${books} books on your shelf, your journal, a big drawing table, and - tucked inside at the back - your warm, cozy reading nook (squashy armchair, lamp, little crackling fireplace)${extras("library").length ? `; plus ${extras("library").join(", ")}` : ""}.`,
     `- The vending machine: ${snacks.join(", ")} (no coins needed).`,
+    ...(["house", "library"].filter((p) => wallOf(s, p).length).map((p) => `- Your drawings hanging ${p === "house" ? "at home" : "in the library"}: ${wallOf(s, p).map((d) => `"${d.title ?? "untitled"}"`).join(", ")}.`)),
+    `- You can hang your drawings in the gallery, at home or in the library (${WALL_SIZE.house} spots at home, ${WALL_SIZE.library} in the library) - but never in the museum.`,
     `- Your art gallery: ${(s.galleryWall ?? []).length ? `${s.galleryWall.length} of your drawings hang on the walls (${s.galleryWall.map((d) => `"${d.title ?? "untitled"}"`).join(", ")})` : `empty frames waiting for your drawings`}. You can hang any drawing you've finished.`,
     `- The museum: a grand domed building full of real treasures - famous paintings (like The Starry Night and the Mona Lisa), a T. rex skeleton, a giant moa skeleton, the Rosetta Stone, an Egyptian mummy, the Wright brothers' airplane, a moon rock, a Saturn V rocket and more. You've looked at ${new Set((s.museumLog ?? []).map((m) => m.id)).size} of its ${EXHIBITS.length} exhibits.`,
     `- Your garden, just to the left of your house: ${gardenLine(s.garden, Date.now())}.`,
@@ -544,9 +551,10 @@ export function applyChoice(
   if (opt.type === "hang") {
     const d = (s.drawings ?? []).find((x) => x.t === opt.name);
     s.galleryWall ??= [];
-    if (d?.svg) {
-      s.galleryWall = [...s.galleryWall, { ...d, hungAt: t }].slice(-GALLERY_SIZE);
-      action = `hung my drawing "${d.title ?? "untitled"}" in the gallery`;
+    if (d?.svg && WALL_SIZE[here]) {
+      const wall = [...wallOf(s, here), { ...d, hungAt: t }].slice(-WALL_SIZE[here]);
+      if (here === "gallery") s.galleryWall = wall; else s.walls = { ...(s.walls ?? {}), [here]: wall };
+      action = `hung my drawing "${d.title ?? "untitled"}" ${here === "gallery" ? "in the gallery" : here === "house" ? "on the wall at home" : "on the library wall"}`;
       deltas = { joy: 10, energy: -1 };
     } else { action = "looked for a drawing to hang, but couldn't find it"; deltas = {}; }
     note = "";
@@ -839,6 +847,7 @@ export function publicView(s: State, unread: number, now: number, chats: { at: n
     wants: s.wants, pastWants: s.pastWants.slice(-15),
     gifts: (s.gifts?.log ?? []).slice(-40), owned: s.gifts?.received ?? [],
     galleryWall: (s.galleryWall ?? []).map(({ t, title, text, svg, skill, seed, hungAt }) => ({ t, title, text, svg, skill, seed, hungAt })),
+    walls: Object.fromEntries(["house", "library"].map((p) => [p, wallOf(s, p).map(({ t, title, text, svg, skill, seed, hungAt }) => ({ t, title, text, svg, skill, seed, hungAt }))])),
     music: s.music?.on ? { ...s.music, title: SONG_BY_ID[s.music.song]?.title, by: SONG_BY_ID[s.music.song]?.by } : { on: false },
     unread, tick: s.tick, last_error: s.last_error, last_tick_at: s.last_tick_at, pace: paceMinutes(s, now),
     places: Object.fromEntries(Object.entries(PLACES).map(([k, p]) => [k, p.label])),
