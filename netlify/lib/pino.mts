@@ -131,7 +131,9 @@ export type State = {
   pocket?: Found[];                              // treasures he's carrying home (he has to take them home to shelve them)
   pocketFix?: boolean;                           // one-off: move early finds into his pocket
   more?: More;                                   // postcards, bird feeder, puzzle, star chart, harmonica, sled
-  justLearned?: string | null;                   // something he just learned (a constellation) - he reacts next moment
+  justLearned?: string | null;
+  doingSince?: number;                           // when he started what he's doing (keeps everyone's view in step)
+  furniture?: { house: number; library: number; at?: number }; // which furniture layout each room is in                   // something he just learned (a constellation) - he reacts next moment
   dreams?: Dream[];                              // dreams he's had
   asleepSince?: number;                          // when he dozed off (for dreaming)
   pendingDream?: boolean;                        // he slept a while: a dream is waiting to be written down
@@ -259,6 +261,9 @@ export function activitiesAt(s: State, place: string): Record<string, Effects> {
     } else if (s.teddy.place === place) acts["pick up my penguin teddy"] = { joy: 4 };
   }
   if (place === "house" && (s.treasures?.length ?? 0) > 0) acts["admire my treasure shelf"] = { joy: 5, energy: 1 };
+  // rearranging the furniture: a big job, so not more than once every few hours
+  if ((place === "house" || place === "library") && Date.now() - (s.furniture?.at ?? 0) > 3 * 3_600_000)
+    acts[`rearrange the furniture in the ${place === "house" ? "house" : "library"}`] = { joy: 9, energy: -7, food: -3 };
   if (place === "house") {
     // the TV: five free channels
     if (!s.tv?.on) acts["turn on the TV"] = { joy: 3 };
@@ -295,6 +300,16 @@ export type Option = { type: "do" | "go" | "reply" | "rest" | "read" | "hang" | 
 export type Pal = { id: string; name: string; note?: string };
 
 export const GALLERY_SIZE = 6;
+// He can rearrange the furniture at home and in the library (each room has three layouts drawn in 3D)
+export const LAYOUTS: Record<string, string[]> = {
+  house: ["the armchair facing the TV, the little table by the door, the rug in the middle",
+          "the armchair snug by the fireplace, the table near the window, the rug by the front",
+          "the armchair out in the open, the table beside the bed, the rug in front of the TV"],
+  library: ["the drawing table by the side shelves, the writing desk against the back wall",
+            "the drawing table out in the middle of the room, the writing desk under the window",
+            "the drawing table tucked by the big bookcase, the writing desk near the door"],
+};
+
 // Where he can hang his art: the gallery, and walls at home and in the library (never the museum - that's for the real treasures)
 export const WALL_SIZE: Record<string, number> = { gallery: GALLERY_SIZE, house: 3, library: 4 };
 const WALL_NAME: Record<string, string> = { gallery: "the gallery wall", house: "the wall of your house", library: "the library wall" };
@@ -367,6 +382,7 @@ export function townDescription(s: State) {
     `- The vending machine: ${snacks.join(", ")} (no coins needed).`,
     ...(["house", "library"].filter((p) => wallOf(s, p).length).map((p) => `- Your drawings hanging ${p === "house" ? "at home" : "in the library"}: ${wallOf(s, p).map((d) => `"${d.title ?? "untitled"}"`).join(", ")}.`)),
     `- You can hang your drawings in the gallery, at home or in the library (${WALL_SIZE.house} spots at home, ${WALL_SIZE.library} in the library) - but never in the museum.`,
+    `- How your rooms are arranged right now: at home, ${LAYOUTS.house[s.furniture?.house ?? 0]}; in the library, ${LAYOUTS.library[s.furniture?.library ?? 0]}. You can rearrange the furniture in either (but not the museum or anywhere else).`,
     `- Your art gallery: ${(s.galleryWall ?? []).length ? `${s.galleryWall.length} of your drawings hang on the walls (${s.galleryWall.map((d) => `"${d.title ?? "untitled"}"`).join(", ")})` : `empty frames waiting for your drawings`}. You can hang any drawing you've finished.`,
     `- The museum: a grand domed building full of real treasures - famous paintings (like The Starry Night and the Mona Lisa), a T. rex skeleton, a giant moa skeleton, the Rosetta Stone, an Egyptian mummy, the Wright brothers' airplane, a moon rock, a Saturn V rocket and more. You've looked at ${new Set((s.museumLog ?? []).map((m) => m.id)).size} of its ${EXHIBITS.length} exhibits.`,
     `- Your garden, just to the left of your house: ${gardenLine(s.garden, Date.now())}.`,
@@ -636,6 +652,14 @@ export function applyChoice(
       const did = doGarden(s.garden, action, now);
       if (did) action = `${action} - ${did}`;
     }
+    const shuffle = action.match(/^rearrange the furniture in the (house|library)$/);
+    if (shuffle) {
+      const room = shuffle[1] as "house" | "library";
+      s.furniture ??= { house: 0, library: 0 };
+      const cur = s.furniture[room] ?? 0, next = (cur + 1 + Math.floor(Math.random() * (LAYOUTS[room].length - 1))) % LAYOUTS[room].length;
+      s.furniture = { ...s.furniture, [room]: next, at: now };
+      action = `rearranged the furniture in the ${room}: now ${LAYOUTS[room][next]}`;
+    }
     s.more ??= {};
     const fun = doMore(s.more, action, s.weather, now);
     if (fun.note) action = `${action} - ${fun.note}`;
@@ -684,6 +708,7 @@ export function applyChoice(
   s.conversations = s.conversations.slice(-150);
   s.thought = thought;
   s.doing = action;
+  s.doingSince = now; // every viewer's screen works out where he is from this
   s.tick += 1;
   return action;
 }
@@ -859,6 +884,7 @@ export function talkPrompt(s: State, chats: { you: string; pino: string }[], tex
 export function publicView(s: State, unread: number, now: number, chats: { at: number; you: string; pino: string }[] = []) {
   return {
     chats,
+    doingSince: s.doingSince ?? s.last_tick_at ?? now, serverNow: now, furniture: { house: s.furniture?.house ?? 0, library: s.furniture?.library ?? 0 },
     name: NAME, species: SPECIES,
     clock: clockStr(s, now), night: isNight(now), weekday: localTime(now).weekday,
     place: s.place, needs: s.needs, thought: s.thought, doing: s.doing,

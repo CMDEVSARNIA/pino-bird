@@ -854,8 +854,10 @@ function buildWorld() {
     return a;
   };
   const rug = (group, pos, r, col, col2) => {
-    add(new THREE.Mesh(new THREE.CircleGeometry(r, 28).rotateX(-Math.PI / 2), M(col)), group, { cast: false, receive: true }).position.copy(pos).setY(0.02);
-    add(new THREE.Mesh(new THREE.RingGeometry(r * 0.62, r * 0.75, 28).rotateX(-Math.PI / 2), M(col2)), group, { cast: false }).position.copy(pos).setY(0.025);
+    const rg = new THREE.Group(); rg.position.copy(pos).setY(0); group.add(rg);
+    add(new THREE.Mesh(new THREE.CircleGeometry(r, 28).rotateX(-Math.PI / 2), M(col)), rg, { cast: false, receive: true }).position.y = 0.02;
+    add(new THREE.Mesh(new THREE.RingGeometry(r * 0.62, r * 0.75, 28).rotateX(-Math.PI / 2), M(col2)), rg, { cast: false }).position.y = 0.025;
+    return rg;
   };
   const bookTex = (() => {
     const c = Object.assign(document.createElement("canvas"), { width: 256, height: 64 }), x = c.getContext("2d");
@@ -887,7 +889,7 @@ function buildWorld() {
   add(box(1.42, 0.08, 1.4, M(0xc8643b)), bed).position.set(0, 0.55, 0.4);
   add(box(0.9, 0.16, 0.4, M(0xffffff)), bed).position.set(0, 0.6, -0.8);
   add(box(1.5, 0.9, 0.12, M(0x8b5a3c)), bed).position.set(0, 0.45, -1.15);
-  rug(hroom, V(0, 0, 0.4), 1.2, 0xd2604b, 0xf2c94c);
+  const hrug = rug(hroom, V(0, 0, 0.4), 1.2, 0xd2604b, 0xf2c94c);
   fireplace(hroom, V(-HW + 0.38, 0, 1.3), Math.PI / 2);
   const tbl = new THREE.Group(); tbl.position.set(-1.0, 0, 2.2); hroom.add(tbl);
   add(new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.6, 0.08, 16), M(0xc58b4d)), tbl).position.y = 0.7;
@@ -945,8 +947,8 @@ function buildWorld() {
   const palette = add(new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 0.03, 16), M(0xf5ecd8)), dtab); palette.position.set(-0.9, 0.79, -0.3);
   ["#e74c3c", "#f1c40f", "#3498db", "#2ecc71"].forEach((c, i) => add(new THREE.Mesh(new THREE.SphereGeometry(0.035, 6, 6), M(new THREE.Color(c).getHex())), palette).position.set(Math.cos(i * 1.4) * 0.12, 0.02, Math.sin(i * 1.4) * 0.12));
   roomProps["thing-paints"] = palette;
-  const stool = (g, pos) => { const st = new THREE.Group(); st.position.copy(pos); g.add(st); add(new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.25, 0.08, 12), M(0x8b5a3c)), st).position.y = 0.32; for (const a of [0, 2.1, 4.2]) add(new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.32, 5), M(0x6b4a2e)), st).position.set(Math.cos(a) * 0.16, 0.16, Math.sin(a) * 0.16); };
-  stool(lroom, V(-2.2, 0, -0.35));
+  const stool = (g, pos) => { const st = new THREE.Group(); st.position.copy(pos); g.add(st); add(new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.25, 0.08, 12), M(0x8b5a3c)), st).position.y = 0.32; for (const a of [0, 2.1, 4.2]) add(new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.32, 5), M(0x6b4a2e)), st).position.set(Math.cos(a) * 0.16, 0.16, Math.sin(a) * 0.16); return st; };
+  stool(dtab, V(0, 0, -0.95)); // moves with the table
   // writing desk with his journal and a candle
   const desk = new THREE.Group(); desk.position.set(1.6, 0, -2.9); lroom.add(desk);
   add(box(1.5, 0.08, 0.8, M(0x8b5a3c)), desk).position.y = 0.72;
@@ -955,7 +957,7 @@ function buildWorld() {
   add(new THREE.Mesh(new THREE.PlaneGeometry(0.46, 0.32).rotateX(-Math.PI / 2), M(0xfffdf6)), desk, { cast: false }).position.set(-0.1, 0.805, 0.05);
   add(new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.18, 8), M(0xfff6dc)), desk).position.set(0.5, 0.85, -0.1);
   const candle = add(new THREE.Mesh(new THREE.ConeGeometry(0.03, 0.08, 6), new THREE.MeshBasicMaterial({ color: 0xffc04a })), desk, { cast: false }); candle.position.set(0.5, 0.98, -0.1); flames.push(candle);
-  stool(lroom, V(1.5, 0, -2.0));
+  stool(desk, V(-0.1, 0, 0.9)); // moves with the desk
   // THE READING NOOK: tucked in the back corner - squashy armchair, lamp, crackling fireplace, rug, a pile of books
   const NOOK = V(3.9, 0, -2.6);
   rug(lroom, NOOK.clone().add(V(-0.3, 0, 0.6)), 1.3, 0x7a4a8a, 0xe8b04a);
@@ -1055,6 +1057,39 @@ function buildWorld() {
     [/journal/, V(1.5, 0.36, -2.0), V(1.5, 0, -4)],
     [/nook|read|nap|sleep/, NOOK.clone().add(V(0.1, 0.4, 0.1)), NOOK.clone().add(V(-2.5, 0, 2.5))],
   ];
+  // FURNITURE LAYOUTS: Pino can rearrange his house and the library (the server picks which layout is in use)
+  const TVPOS = V(2.3, 0, -2.55), faceTV = (x, z) => Math.atan2(TVPOS.x - x, TVPOS.z - z);
+  const HOUSE_LAYOUTS = [
+    { chair: [2.3, 1.3, Math.PI], table: [-1.0, 2.2], rug: [0, 0.4] },
+    { chair: [-2.2, 1.8, faceTV(-2.2, 1.8)], table: [1.2, -1.1], rug: [0.6, 0.9] },
+    { chair: [0.6, 1.9, faceTV(0.6, 1.9)], table: [-1.7, 0.4], rug: [1.6, -0.4] },
+  ];
+  const LIB_LAYOUTS = [
+    { table: [-2.2, 0.6], desk: [1.6, -2.9] },
+    { table: [0.6, 1.4], desk: [-1.4, -2.9] },
+    { table: [-2.8, -1.8], desk: [3.4, 1.2] },
+  ];
+  const spotOf = (list, re) => list.find(([r]) => r.source === re);
+  let layoutNow = { house: -1, library: -1 };
+  function setLayouts(f) {
+    const h = HOUSE_LAYOUTS[f?.house ?? 0] || HOUSE_LAYOUTS[0], l = LIB_LAYOUTS[f?.library ?? 0] || LIB_LAYOUTS[0];
+    if (layoutNow.house !== (f?.house ?? 0)) {
+      layoutNow.house = f?.house ?? 0;
+      hchair.position.set(h.chair[0], 0, h.chair[1]); hchair.rotation.y = h.chair[2];
+      tbl.position.set(h.table[0], 0, h.table[1]); hrug.position.set(h.rug[0], 0, h.rug[1]);
+      if (typeof puzzle !== "undefined") puzzle.position.set(h.table[0], 0.75, h.table[1]);
+      const tv = spotOf(HOUSE_SPOTS, "blanket|TV"); tv[1].set(h.chair[0], 0.45, h.chair[1] - 0.05); tv[2].copy(TVPOS).setY(0.45);
+      const jig = spotOf(HOUSE_SPOTS, "jigsaw"); jig[1].set(h.table[0], 0, h.table[1] - 0.9); jig[2].set(h.table[0], 0, h.table[1]);
+      for (const re of ["harmonica", "rain on the roof"]) { const sp = spotOf(HOUSE_SPOTS, re); sp[1].set(h.rug[0], 0, h.rug[1]); sp[2].set(h.rug[0], 0, h.rug[1] + 3); }
+    }
+    if (layoutNow.library !== (f?.library ?? 0)) {
+      layoutNow.library = f?.library ?? 0;
+      dtab.position.set(l.table[0], 0, l.table[1]); desk.position.set(l.desk[0], 0, l.desk[1]);
+      const dr = spotOf(LIB_SPOTS, "draw|paint|studied|study the drawing"); dr[1].set(l.table[0], 0.36, l.table[1] - 0.95); dr[2].set(l.table[0], 0, l.table[1] + 3);
+      const jo = spotOf(LIB_SPOTS, "journal"); jo[1].set(l.desk[0] - 0.1, 0.36, l.desk[1] + 0.9); jo[2].set(l.desk[0], 0, l.desk[1] - 1);
+    }
+  }
+
   // places he pootles over to when he's free in the library: [stand here, look at that]
   const LIB_ROAM = [
     [V(-3.6, 0, -3.4), V(-3.6, 1, -6)], [V(-2.6, 0, -3.4), V(-2.6, 1, -6)],   // browsing the big bookcase
@@ -1062,7 +1097,7 @@ function buildWorld() {
     [V(4.9, 0, 1.9), V(8, 1, 1.9)],                                             // the shelf by the door
     [V(-0.6, 0, -3.5), V(-0.6, 2, -6)],                                         // gazing out of the window
     [V(4.6, 0, -1.1), V(8, 0.5, -1.1)],                                         // warming up by the nook's fire
-    [V(0.6, 0, 1.4), V(0.6, 0, -4)], [V(-2.2, 0, 2.0), V(-2.2, 0, 0.6)],        // the middle of the room, the drawing table
+    [V(0.6, 0, 0.2), V(0.6, 0, -4)],                                             // the middle of the room
   ];
   const SEATED = /nook|read|draw|paint|studied|study|journal|nap|sleep/; // things he does sitting down: he stays put
   // where the teddy sits when he puts it down at each place
@@ -1646,7 +1681,21 @@ function buildWorld() {
     const o = ROOMS[name].origin, hit = (name === "house" ? HOUSE_SPOTS : LIB_SPOTS).find(([re]) => re.test(doing));
     return hit ? { pos: hit[1].clone().add(o), look: hit[2].clone().add(o) } : { pos: o.clone().add(V(0, 0, 1.2)), look: o.clone().add(V(0, 0, -5)) };
   }
-  function setActivity(place, doing, instant) {
+  // Everyone watching sees the same Pino: positions are worked out from the server's clock and the
+  // moment he started his activity, and his pottering about uses the same "random" choices on every screen.
+  let clockOffset = 0;
+  const wallSec = () => (Date.now() + clockOffset) / 1000;
+  const seeded = (n) => { let a = n >>> 0; return () => { a = (a + 0x6D2B79F5) | 0; let x = Math.imul(a ^ (a >>> 15), 1 | a); x = (x + Math.imul(x ^ (x >>> 7), 61 | x)) ^ x; return ((x ^ (x >>> 14)) >>> 0) / 4294967296; }; };
+  function fastForward(seconds) {
+    let left = Math.max(0, Math.min(120, seconds)) * 1.9; const g = pino.group;
+    while (left > 0 && state.path.length) {
+      const tg = state.path[0], dx = tg.x - g.position.x, dz = tg.z - g.position.z, d = Math.hypot(dx, dz);
+      if (d <= left) { g.position.x = tg.x; g.position.z = tg.z; left -= d; state.path.shift(); }
+      else { g.position.x += (dx / d) * left; g.position.z += (dz / d) * left; left = 0; }
+    }
+  }
+  function setActivity(place, doing, instant, since) {
+    if (since) { if (since / 1000 !== state.since) state.wSlot = -1; state.since = since / 1000; }
     // everything he does at the house, the library or the museum happens inside
     const roomName = ROOMS[place] ? place : null;
     if (state.room && state.room !== roomName) { pino.group.position.copy(ROOMS[state.room].door); state.place = state.room; state.room = null; }
@@ -1668,6 +1717,7 @@ function buildWorld() {
       pino.group.position.copy(target); state.path = [];
     } else if (!same) {
       state.path = place !== state.place ? [JUNCTION.clone(), SPOTS[place].clone(), target.clone()] : [target.clone()];
+      if (state.since) fastForward(wallSec() - state.since); // if you got the news late, catch him up to where he really is
       if (place !== state.place && pino.group.position.distanceTo(JUNCTION) > 6) state.path.unshift(SPOTS[state.place].clone());
     }
     state.look = look; state.place = place; state.doing = doing; state.base = target.clone(); state.wandering = false;
@@ -1743,24 +1793,28 @@ function buildWorld() {
     const g = pino.group;
 
     // between decisions, potter about near where he is so he always feels alive
-    if (!state.path.length && t > state.nextWander && state.room === "library" && !SEATED.test(state.doing)) {
+    const slotLen = state.room === "library" ? 8 : state.room === "museum" ? 9 : 6;
+    const slot = state.since ? Math.floor((wallSec() - state.since) / slotLen) : -1;
+    const newSlot = slot >= 1 && slot !== state.wSlot && !(state.path.length && !state.wandering);
+    const rnd = seeded(Math.floor(state.since || 0) * 131 + slot * 7919 + 17);
+    if (newSlot) state.wSlot = slot;
+    if (newSlot && state.room === "library" && !SEATED.test(state.doing)) {
       // free in the library: wander from shelf to shelf, to the window, to the fire
-      const hub = V(0.6, 0, 1.6).add(LROOM), via = (to) => (g.position.distanceTo(hub) > 1 && to.distanceTo(hub) > 1 ? [hub.clone(), to] : [to]); // walk round the furniture, through the middle
-      if (state.wandering && Math.random() < 0.3) { state.path = via(state.base.clone().setY(0)); state.wandering = false; state.glance = null; }
+      const hub = V(0.6, 0, 0.2).add(LROOM), via = (to) => (g.position.distanceTo(hub) > 1 && to.distanceTo(hub) > 1 ? [hub.clone(), to] : [to]); // walk round the furniture, through the middle
+      if (slot % 3 === 0) { state.path = via(state.base.clone().setY(0)); state.wandering = false; state.glance = null; }
       else {
-        const [at, look] = LIB_ROAM[Math.floor(Math.random() * LIB_ROAM.length)];
+        const [at, look] = LIB_ROAM[Math.floor(rnd() * LIB_ROAM.length)];
         state.path = via(at.clone().add(LROOM)); state.glance = look.clone().add(LROOM); state.wandering = true;
-        if (Math.random() < 0.2) state.hop = 0.6;
+        if (rnd() < 0.2) state.hop = 0.6;
       }
-      state.nextWander = t + (state.wandering ? 5 + Math.random() * 6 : 7 + Math.random() * 6);
     }
-    if (!state.path.length && t > state.nextWander && state.room === "museum" && !state.sleeping) {
+    if (newSlot && state.room === "museum" && !state.sleeping) {
       // in the museum he roams the hall freely, stopping to peer at whatever catches his eye
-      if (state.wandering && Math.random() < 0.35) { state.path = [state.base.clone()]; state.wandering = false; state.glance = null; }
+      if (slot % 3 === 0) { state.path = [state.base.clone()]; state.wandering = false; state.glance = null; }
       else {
         let p = null;
         for (let k = 0; k < 16 && !p; k++) {
-          const c = ROOM.clone().add(V((Math.random() - 0.5) * 14, 0, -4.4 + Math.random() * 10.8));
+          const c = ROOM.clone().add(V((rnd() - 0.5) * 14, 0, -4.4 + rnd() * 10.8));
           const clear = Object.entries(exhibitGroups).every(([id, e]) => e.look.distanceTo(c) > (id === "trex" ? 3.2 : id === "flyer" ? 0.6 : 1.6))
             && c.distanceTo(ROOM.clone().add(V(0, 0, 2.2))) > 1.5;
           if (clear) p = c;
@@ -1769,22 +1823,20 @@ function buildWorld() {
           state.path = [p]; state.wandering = true;
           const near = Object.values(exhibitGroups).sort((a, b) => a.look.distanceTo(p) - b.look.distanceTo(p))[0];
           state.glance = near ? near.look : null;
-          if (Math.random() < 0.25) state.hop = 0.6;
+          if (rnd() < 0.25) state.hop = 0.6;
         }
       }
-      state.nextWander = t + (state.wandering ? 6 + Math.random() * 6 : 9 + Math.random() * 8);
     }
-    if (!state.path.length && t > state.nextWander) {
-      const still = state.sleeping || state.indoor || state.base.y > 0.05 || /swing|dance|gramophone|next song/.test(state.doing);
+    if (newSlot && !state.room) {
+      const still = state.sleeping || state.indoor || state.base.y > 0.05 || /swing|dance|gramophone|next song|sledding|frozen pond/.test(state.doing);
       if (!still) {
-        if (state.wandering) { state.path = [state.base.clone()]; state.wandering = false; }
+        if (slot % 2 === 0) { state.path = [state.base.clone()]; state.wandering = false; }
         else {
-          const a = Math.random() * Math.PI * 2, r = 0.5 + Math.random() * 0.9;
+          const a = rnd() * Math.PI * 2, r = 0.5 + rnd() * 0.9;
           state.path = [state.base.clone().add(V(Math.cos(a) * r, 0, Math.sin(a) * r))]; state.wandering = true;
         }
-        if (Math.random() < 0.3) state.hop = 0.6;
+        if (rnd() < 0.3) state.hop = 0.6;
       }
-      state.nextWander = t + (state.wandering ? 3 + Math.random() * 4 : 6 + Math.random() * 8);
     }
 
     // stepping through the museum door: he reappears inside the museum hall
@@ -2033,7 +2085,8 @@ function buildWorld() {
     setGallery,
     setWeather,
     setTeddy: (t) => (teddyState = t),
-    setGarden, setWearing, setTreasures, setWalls, setMore,
+    setClock: (serverNow) => { const off = serverNow - Date.now(); clockOffset = Math.abs(off - clockOffset) > 2000 || !clockOffset ? off : clockOffset * 0.8 + off * 0.2; },
+    setGarden, setWearing, setTreasures, setWalls, setMore, setLayouts,
     setHoliday: (id) => { holidayNow = id; deco.winter.visible = id === "winter"; deco.halloween.visible = id === "halloween"; },
     setMail: (up) => (mailUp = up),
     setTV: (p) => { tvProg = p; tvDrawn = -1; if (view.mode !== "house") drawTV(0); },
@@ -2106,7 +2159,7 @@ function snacksTexture() {
 // ================================================================ UI + DATA
 const BADGES = [[/reading nook/, "🛋️"], [/sleep|nap/, "💤"], [/drawing manual/, "🖌️"], [/read/, "📖"], [/journal/, "✏️"], [/draw/, "🎨"], [/seed bar/, "🍫"], [/crisps/, "🥨"], [/juice/, "🧃"],
   [/leaf/, "🍂"], [/ducks/, "🦆"], [/bench|sit/, "💭"], [/window/, "🪟"], [/tidy/, "🧹"], [/talked/, "💬"], [/petted/, "❤️"], [/treat/, "🍪"], [/reflect/, "🌙"], [/walked/, "👣"], [/swing/, "🎠"], [/telescope/, "🔭"], [/toy train/, "🚂"], [/birdbath/, "💦"], [/kite/, "🪁"], [/given/, "🎁"], [/gramophone|next song/, "🎶"], [/dance/, "💃"], [/hung my drawing|art on the walls|hang/, "🖼️"],
-  [/exhibit|museum/, "🏛️"], [/penguin teddy/, "🐧"], [/postcard/, "📮"], [/bird feeder|birds at/, "🐦"], [/jigsaw/, "🧩"], [/constellation/, "🌌"], [/harmonica/, "🎵"], [/sledding/, "🛷"], [/fairy lights/, "✨"], [/found .* (and kept it|pocket)|treasure shelf/, "✨"], [/letter/, "✉️"], [/plant a|water my garden|look at my garden/, "🌱"], [/harvest|pick the/, "🧺"], [/\bTV\b/, "📺"], [/snow-kiwi|soft snow/, "☃️"], [/snowflakes|snow fall/, "❄️"], [/frozen pond/, "⛸️"], [/puddles|rain on the roof/, "🌧️"], [/shelter/, "🌳"], [/spring flowers/, "🌷"], [/paddle/, "💦"]];
+  [/exhibit|museum/, "🏛️"], [/penguin teddy/, "🐧"], [/rearranged the furniture|rearrange the furniture/, "🛋️"], [/postcard/, "📮"], [/bird feeder|birds at/, "🐦"], [/jigsaw/, "🧩"], [/constellation/, "🌌"], [/harmonica/, "🎵"], [/sledding/, "🛷"], [/fairy lights/, "✨"], [/found .* (and kept it|pocket)|treasure shelf/, "✨"], [/letter/, "✉️"], [/plant a|water my garden|look at my garden/, "🌱"], [/harvest|pick the/, "🧺"], [/\bTV\b/, "📺"], [/snow-kiwi|soft snow/, "☃️"], [/snowflakes|snow fall/, "❄️"], [/frozen pond/, "⛸️"], [/puddles|rain on the roof/, "🌧️"], [/shelter/, "🌳"], [/spring flowers/, "🌷"], [/paddle/, "💦"]];
 let latest = null, first = true, speaking = 0, followOn = false;
 
 // ---- who you are: a random id this browser keeps, plus the name you tell Pino
@@ -2216,7 +2269,8 @@ function render(s) {
 
   if (world) {
     world.setNight(!!s.night || s.weather?.day === false); // it gets dark at the real sunset in Sarnia
-    world.setActivity(s.place, s.doing, first);
+    world.setClock(s.serverNow || Date.now());
+    world.setActivity(s.place, s.doing, first, s.doingSince);
     if (Date.now() > speaking) {
       const b = BADGES.find(([re]) => re.test(s.doing));
       showBubble("thought", s.thought ? short(s.thought) : "", b ? b[1] : "💭");
@@ -2246,7 +2300,7 @@ function render(s) {
   list("journal", s.journal, (j) => { const li = el("li"); li.append(el("span", "meta", j.t), document.createTextNode(j.text)); return li; }, "He hasn't written anything yet.");
   renderGallery(s.drawings || []);
   renderBooks(s);
-  if (world) { world.setOwned(s.owned || []); world.setGallery(s.galleryWall || []); world.setWalls(s.walls); world.setMore(s.more, s.owned || []); }
+  if (world) { world.setOwned(s.owned || []); world.setGallery(s.galleryWall || []); world.setWalls(s.walls); world.setMore(s.more, s.owned || []); world.setLayouts(s.furniture); }
   renderWeather(s);
   renderMuseum(s);
   if (world) { world.setTeddy(s.teddy || null); world.setGarden(s.garden); world.setWearing(s.wearing); world.setTreasures(s.treasures); world.setHoliday(s.holiday || null); world.setMail((s.me?.letters || []).some((l) => !l.read)); }
@@ -2781,7 +2835,17 @@ $("nowLine").addEventListener("click", () => {
 });
 
 // check in more often while he's thinking fast
-(function poll() { refresh().finally(() => setTimeout(poll, latest && latest.pace <= 1 ? 6000 : 15000)); })();
+// check in every 15s - and a few seconds after his next thought is due, so everyone sees it at about the same time
+(function poll() {
+  refresh().finally(() => {
+    let wait = latest && latest.pace <= 1 ? 6000 : 15000;
+    if (latest?.doingSince && latest?.pace) {
+      const skew = (latest.serverNow || Date.now()) - Date.now(), due = latest.doingSince + latest.pace * 60_000 + 8000 - (Date.now() + skew);
+      if (due > 1500 && due < wait) wait = due;
+    }
+    setTimeout(poll, wait);
+  });
+})();
 document.addEventListener("visibilitychange", () => { if (!document.hidden) refresh(); });
 </script>
 </body>
