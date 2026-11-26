@@ -1122,7 +1122,7 @@ export function drawingPrompt(d: Drawing, art: { drawn: number; lessons: string[
     (lessons ? `Things you've learned (from your own drawings and from drawing manuals) - try to use them:\n${lessons}\n` : "") +
     "\nDraw it as an SVG with viewBox=\"0 0 300 300\" (keep it under about 8000 characters; no external images or scripts). " +
     "Give it a title, and afterwards write one short note to yourself about what to try or improve next time.\n" +
-    'Reply with JSON exactly like this: {"title": "your title", "svg": "<svg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 300 300\'>...</svg>", "lesson": "note to yourself for next time"}'
+    'Reply with JSON exactly like this (title and lesson first, then the picture): {"title": "your title", "lesson": "note to yourself for next time", "svg": "<svg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 300 300\'>...</svg>"}'
   );
 }
 
@@ -1140,6 +1140,33 @@ export function sanitizeSvg(raw: unknown): string | null {
     .replace(/url\(\s*(['"]?)(?!#)[^)]*\)/gi, "none");
   if (!/xmlns=/.test(svg.slice(0, 200))) svg = svg.replace(/<svg/i, '<svg xmlns="http://www.w3.org/2000/svg"');
   return tidySvg(svg);
+}
+
+// A drawing that got cut off part-way (he ran out of room): keep every complete stroke, close whatever was
+// still open, and finish the picture there - like putting the pencil down. Also pulls out the title/lesson if it can.
+export function salvageDrawing(raw: string): { svg: string; title?: string; lesson?: string } | null {
+  let text = String(raw ?? "");
+  if (/\\"/.test(text)) text = text.replace(/\\"/g, '"').replace(/\\n/g, "\n").replace(/\\'/g, "'");
+  const start = text.search(/<svg[\s>]/i);
+  if (start < 0) return null;
+  let body = text.slice(start);
+  const cut = body.lastIndexOf(">");
+  if (cut < 0) return null;
+  body = body.slice(0, cut + 1);
+  const stack: string[] = [];
+  for (const m of body.matchAll(/<(\/?)([a-zA-Z][\w:-]*)\b[^>]*?(\/?)>/g)) {
+    const [, close, name, self] = m;
+    if (self) continue;
+    if (close) { const i = stack.lastIndexOf(name); if (i >= 0) stack.splice(i); }
+    else stack.push(name);
+  }
+  if (stack[0]?.toLowerCase() !== "svg") return null;
+  body += stack.slice(1).reverse().map((n) => `</${n}>`).join("") + "</svg>";
+  if ((body.match(/<(path|circle|rect|ellipse|line|polyline|polygon|text)\b/gi) ?? []).length < 3) return null; // too little to keep
+  const svg = sanitizeSvg(body);
+  if (!svg) return null;
+  const pick = (k: string) => text.match(new RegExp(`"${k}"\\s*:\\s*"([^"]{1,200})"`))?.[1];
+  return { svg, title: pick("title"), lesson: pick("lesson") };
 }
 
 // Make a drawing smaller without changing how it looks: drop comments and extra spaces, and round

@@ -2,7 +2,7 @@ import type { Config, Context } from "@netlify/functions";
 import {
   applyChoice, applyReflection, buildOptions, decisionPrompt, identityPrompt, instinct,
   parseJSON, readChoice, reflectionPrompt, REFLECT_EVERY, applyVisits, paceMinutes, type State,
-  drawingPrompt, sanitizeSvg, artSkill, mustSleep, clockStr, drawingInProgress, tidySvg, learnFrom, stillAsleep, sleepOn, bedtimeOptions,
+  drawingPrompt, sanitizeSvg, artSkill, mustSleep, clockStr, drawingInProgress, tidySvg, learnFrom, stillAsleep, sleepOn, bedtimeOptions, salvageDrawing,
 } from "../lib/pino.mts";
 import { ask, hasBrain, lookUp, NoBrain } from "../lib/brain.mts";
 import { fetchWeather, needsRefresh, wet } from "../lib/weather.mts";
@@ -311,8 +311,17 @@ async function finishDrawing(s: State, ms: number) {
   try {
     s.art ??= { drawn: 0, lessons: [] };
     const { text } = await ask(identityPrompt(s), drawingPrompt(d, s.art), ms, 4000);
-    const parsed = parseJSON(text);
-    const svg = sanitizeSvg(parsed?.svg ?? text);
+    let parsed = parseJSON(text);
+    let svg = sanitizeSvg(parsed?.svg ?? text);
+    let unfinished = false;
+    if (!svg) {
+      // cut off part-way: keep what he managed to draw, and learn to keep it simpler next time
+      const saved = salvageDrawing(text);
+      if (saved) {
+        svg = saved.svg; unfinished = true;
+        parsed = { title: saved.title, lesson: saved.lesson ?? "My last picture ran out of room before I finished - fewer, bolder shapes next time." };
+      }
+    }
     if (svg) {
       d.svg = svg;
       // he doesn't finish it in a flash: one stroke at a time, a few minutes per drawing, and anyone can watch
@@ -327,7 +336,8 @@ async function finishDrawing(s: State, ms: number) {
         s.art.lessons = [...s.art.lessons, lesson].slice(-12);
       }
       s.art.drawn += 1;
-      console.log(`Pino is drawing "${d.title ?? d.text}" (${Math.round((d.drawMs ?? 0) / 60_000)} min, ${strokes} strokes)`);
+      if (unfinished) d.text = `${d.text} (he put his pencil down before it was quite finished)`;
+      console.log(`Pino is drawing "${d.title ?? d.text}" (${Math.round((d.drawMs ?? 0) / 60_000)} min, ${strokes} strokes)${unfinished ? " - unfinished, saved what he drew" : ""}`);
     } else console.log("Pino's drawing came out unreadable; he'll leave it as a sketch idea.");
     s.pendingDrawing = null;
   } catch (e) {
