@@ -126,6 +126,8 @@ export type State = {
   tv?: TV;                                       // the TV in his house
   boostUntil?: number;                           // fast (once-a-minute) thinking until this time, set by the owner
   treasures?: Found[];                           // things he's found and keeps on his shelf at home
+  pocket?: Found[];                              // treasures he's carrying home (he has to take them home to shelve them)
+  pocketFix?: boolean;                           // one-off: move early finds into his pocket
   dreams?: Dream[];                              // dreams he's had
   asleepSince?: number;                          // when he dozed off (for dreaming)
   pendingDream?: boolean;                        // he slept a while: a dream is waiting to be written down
@@ -284,7 +286,7 @@ export function hasBook(s: State, slug: string) {
   return !!b && (!b.gift || (s.gifts?.received ?? []).includes(`book-${slug}`));
 }
 
-export type Option = { type: "do" | "go" | "reply" | "rest" | "read" | "hang" | "letter" | "find"; name: string; label: string };
+export type Option = { type: "do" | "go" | "reply" | "rest" | "read" | "hang" | "letter" | "find" | "shelve"; name: string; label: string };
 export type Pal = { id: string; name: string; note?: string };
 
 export const GALLERY_SIZE = 6;
@@ -320,8 +322,13 @@ export function buildOptions(s: State, notes: Note[], pals: Pal[] = []): Option[
   if (here === "gallery") opts.push(...hangOptions(s));
   // out and about he sometimes spots a little treasure
   if (OUTDOORS.has(here) || here === "museum") {
-    const t = spotTreasure(here, s.treasures ?? [], Date.now());
-    if (t) opts.push({ type: "find", name: t.id, label: `pick up ${t.name} you just spotted on the ground here, for your treasure shelf at home` });
+    const t = spotTreasure(here, [...(s.treasures ?? []), ...(s.pocket ?? [])], Date.now());
+    if (t) opts.push({ type: "find", name: t.id, label: `pick up ${t.name} you just spotted on the ground here (it goes in your pocket - you'd have to take it home to put it on your treasure shelf)` });
+  }
+  // at home he can put what's in his pocket on the shelf
+  if (here === "house") for (const f of (s.pocket ?? []).slice(0, 2)) {
+    const tr = TREASURE_BY_ID[f.id];
+    if (tr) opts.push({ type: "shelve", name: f.id, label: `put ${tr.name.replace(/^an? /, "the ")} from your pocket on your treasure shelf` });
   }
   // letters: only an option, never a chore - he writes to a friend when he feels like it
   if (here === "house" || here === "library") {
@@ -352,6 +359,7 @@ export function townDescription(s: State) {
     `- Your art gallery: ${(s.galleryWall ?? []).length ? `${s.galleryWall.length} of your drawings hang on the walls (${s.galleryWall.map((d) => `"${d.title ?? "untitled"}"`).join(", ")})` : `empty frames waiting for your drawings`}. You can hang any drawing you've finished.`,
     `- The museum: a grand domed building full of real treasures - famous paintings (like The Starry Night and the Mona Lisa), a T. rex skeleton, a giant moa skeleton, the Rosetta Stone, an Egyptian mummy, the Wright brothers' airplane, a moon rock, a Saturn V rocket and more. You've looked at ${new Set((s.museumLog ?? []).map((m) => m.id)).size} of its ${EXHIBITS.length} exhibits.`,
     `- Your garden, just to the left of your house: ${gardenLine(s.garden, Date.now())}.`,
+    ...((s.pocket ?? []).length ? [`- In your pocket, waiting to go on your treasure shelf at home: ${(s.pocket ?? []).map((f) => TREASURE_BY_ID[f.id]?.name).join(", ")}. (You can only shelve them once you're home.)`] : []),
     `- Your treasure shelf at home: ${(s.treasures ?? []).length ? (s.treasures ?? []).map((f) => TREASURE_BY_ID[f.id]?.name).filter(Boolean).join(", ") : "empty so far - keep an eye out for little treasures when you're out and about"}.`,
     `- The weather in town right now: ${weatherLine(s.weather, Date.now())}`,
     ...(holiday(Date.now()) ? [`- ${holiday(Date.now())!.line}`] : []),
@@ -553,9 +561,14 @@ export function applyChoice(
     note = "";
   } else if (opt.type === "find") {
     const tr = TREASURE_BY_ID[opt.name];
-    if (tr && !(s.treasures ?? []).some((f) => f.id === tr.id)) s.treasures = [...(s.treasures ?? []), { id: tr.id, t, place: here, thought }];
-    action = `found ${tr?.name ?? "a little treasure"} and kept it`;
+    if (tr && ![...(s.treasures ?? []), ...(s.pocket ?? [])].some((f) => f.id === tr.id)) s.pocket = [...(s.pocket ?? []), { id: tr.id, t, place: here, thought, at: now }];
+    action = `found ${tr?.name ?? "a little treasure"} and put it in my pocket to take home`;
     deltas = { joy: 10 };
+  } else if (opt.type === "shelve") {
+    const f = (s.pocket ?? []).find((x) => x.id === opt.name), tr = TREASURE_BY_ID[opt.name];
+    if (f) { s.pocket = (s.pocket ?? []).filter((x) => x !== f); s.treasures = [...(s.treasures ?? []), { ...f, shelved: t }]; }
+    action = `put ${tr?.name.replace(/^an? /, "the ") ?? "a treasure"} on my treasure shelf`;
+    deltas = { joy: 8 };
   } else if (opt.type === "letter") {
     const name = opt.label.match(/^write a letter to (.+?), if you feel/)?.[1] ?? "a friend";
     const text = note || `Dear ${name}, I was thinking about you today. From Pino`;
@@ -832,6 +845,7 @@ export function publicView(s: State, unread: number, now: number, chats: { at: n
     teddy: s.teddy ?? null,
     garden: gardenView(s.garden, now), holiday: holiday(now)?.id ?? null,
     treasures: (s.treasures ?? []).map((f) => ({ ...f, name: TREASURE_BY_ID[f.id]?.name, emoji: TREASURE_BY_ID[f.id]?.emoji })),
+    pocket: (s.pocket ?? []).map((f) => ({ ...f, name: TREASURE_BY_ID[f.id]?.name, emoji: TREASURE_BY_ID[f.id]?.emoji })),
     dreams: (s.dreams ?? []).slice(-30),
     watching: s.watchers ? s.watchers.ids.length : 0,
     wearing: wearing(s.weather, OUTDOORS.has(s.place), s.gifts?.received ?? [], isNight(now)),

@@ -68,6 +68,8 @@ async function moment(s: State, start: number) {
     if (w) s.weather = w;
     else if (s.weather) s.weather.at = now - 10 * 60_000; // try again in about 5 minutes
   }
+  // one-off: treasures he found before shelving needed a trip home go back in his pocket
+  if (!s.pocketFix) { s.pocket = [...(s.pocket ?? []), ...(s.treasures ?? []).map((f) => ({ ...f, at: f.at ?? now }))]; s.treasures = []; s.pocketFix = true; }
   // who's watching him right now (everyone whose page pinged in the last couple of minutes)
   try {
     const idx = await peopleIndex();

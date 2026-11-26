@@ -24,11 +24,13 @@ export const TREASURES: Treasure[] = [
   { id: "seaglass", name: "a sparkly piece of sea glass", emoji: "💎", places: ["park"] },
 ];
 export const TREASURE_BY_ID = Object.fromEntries(TREASURES.map((t) => [t.id, t]));
-export type Found = { id: string; t: string; place: string; thought: string; fav?: boolean };
+export type Found = { id: string; t: string; place: string; thought: string; at?: number; shelved?: string };
 
-// Maybe he spots something new here (about one moment in eight, never something he already has)
+// Maybe he spots something new here. Treasures are rare: about one moment in 25 outdoors, one in 50 in
+// the museum, never more than two a day, and never something he already has (on his shelf or in his pocket).
 export function spotTreasure(place: string, have: Found[], now: number): Treasure | null {
-  if (Math.random() > 0.13) return null;
+  if (Math.random() > (place === "museum" ? 0.02 : 0.04)) return null;
+  if (have.filter((f) => f.at && now - f.at < 86_400_000).length >= 2) return null;
   const sea = season(now).name, owned = new Set(have.map((f) => f.id));
   const choices = TREASURES.filter((t) => t.places.includes(place) && !owned.has(t.id) && (!t.seasons || t.seasons.includes(sea)));
   return choices.length ? choices[Math.floor(Math.random() * choices.length)] : null;

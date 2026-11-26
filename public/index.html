@@ -1949,7 +1949,7 @@ function snacksTexture() {
 // ================================================================ UI + DATA
 const BADGES = [[/reading nook/, "🛋️"], [/sleep|nap/, "💤"], [/drawing manual/, "🖌️"], [/read/, "📖"], [/journal/, "✏️"], [/draw/, "🎨"], [/seed bar/, "🍫"], [/crisps/, "🥨"], [/juice/, "🧃"],
   [/leaf/, "🍂"], [/ducks/, "🦆"], [/bench|sit/, "💭"], [/window/, "🪟"], [/tidy/, "🧹"], [/talked/, "💬"], [/petted/, "❤️"], [/treat/, "🍪"], [/reflect/, "🌙"], [/walked/, "👣"], [/swing/, "🎠"], [/telescope/, "🔭"], [/toy train/, "🚂"], [/birdbath/, "💦"], [/kite/, "🪁"], [/given/, "🎁"], [/gramophone|next song/, "🎶"], [/dance/, "💃"], [/hung my drawing|art on the walls|hang/, "🖼️"],
-  [/exhibit|museum/, "🏛️"], [/penguin teddy/, "🐧"], [/found .* and kept it|treasure shelf/, "✨"], [/letter/, "✉️"], [/plant a|water my garden|look at my garden/, "🌱"], [/harvest|pick the/, "🧺"], [/\bTV\b/, "📺"], [/snow-kiwi|soft snow/, "☃️"], [/snowflakes|snow fall/, "❄️"], [/frozen pond/, "⛸️"], [/puddles|rain on the roof/, "🌧️"], [/shelter/, "🌳"], [/spring flowers/, "🌷"], [/paddle/, "💦"]];
+  [/exhibit|museum/, "🏛️"], [/penguin teddy/, "🐧"], [/found .* (and kept it|pocket)|treasure shelf/, "✨"], [/letter/, "✉️"], [/plant a|water my garden|look at my garden/, "🌱"], [/harvest|pick the/, "🧺"], [/\bTV\b/, "📺"], [/snow-kiwi|soft snow/, "☃️"], [/snowflakes|snow fall/, "❄️"], [/frozen pond/, "⛸️"], [/puddles|rain on the roof/, "🌧️"], [/shelter/, "🌳"], [/spring flowers/, "🌷"], [/paddle/, "💦"]];
 let latest = null, first = true, speaking = 0, followOn = false;
 
 // ---- who you are: a random id this browser keeps, plus the name you tell Pino
@@ -2251,17 +2251,23 @@ function gardenSummary(g) {
 // ---- dreams and treasures (Life tab)
 let dreamSig = "";
 function renderDreams(s) {
-  const sig = (s.dreams || []).length + "|" + (s.treasures || []).length; if (sig === dreamSig) return; dreamSig = sig;
+  const sig = (s.dreams || []).length + "|" + (s.treasures || []).length + "|" + (s.pocket || []).length; if (sig === dreamSig) return; dreamSig = sig;
   const dl = $("dreamList"); dl.replaceChildren();
   if (!(s.dreams || []).length) dl.append(el("li", null, "No dreams yet. He'll have his first one after a good long sleep."));
   [...(s.dreams || [])].reverse().forEach((d) => { const li = el("li", "dream"); li.append(el("small", null, d.t), el("b", null, `💭 ${d.title}`), el("i", null, d.text)); dl.append(li); });
   const tl = $("treasureList"); tl.replaceChildren();
-  if (!(s.treasures || []).length) tl.append(el("p", "muted", "Nothing yet. Keep watching: when he's outside he sometimes spots something shiny."));
-  [...(s.treasures || [])].reverse().forEach((f) => {
+  const card = (f, where) => {
     const c = el("div", "treasure"), body = el("div");
-    body.append(el("b", null, (f.name || f.id).replace(/^an? /, "").replace(/^./, (ch) => ch.toUpperCase())), el("small", null, `Found at the ${f.place} · ${f.t}`), document.createTextNode(`“${f.thought}”`));
-    c.append(el("span", "te", f.emoji || "✨"), body); tl.append(c);
-  });
+    body.append(el("b", null, (f.name || f.id).replace(/^an? /, "").replace(/^./, (ch) => ch.toUpperCase())), el("small", null, where), document.createTextNode(`“${f.thought}”`));
+    c.append(el("span", "te", f.emoji || "✨"), body); return c;
+  };
+  if ((s.pocket || []).length) {
+    tl.append(el("div", "hallname", "In his pocket (he has to take these home)"));
+    (s.pocket || []).forEach((f) => tl.append(card(f, `Found at the ${f.place} · ${f.t}`)));
+    tl.append(el("div", "hallname", "On his shelf at home"));
+  }
+  if (!(s.treasures || []).length) tl.append(el("p", "muted", (s.pocket || []).length ? "Empty, until he takes something home." : "Nothing yet. Treasures are rare: when he's outside he sometimes spots something special."));
+  [...(s.treasures || [])].reverse().forEach((f) => tl.append(card(f, `Found at the ${f.place} · ${f.t}${f.shelved ? ` · shelved ${f.shelved}` : ""}`)));
 }
 
 // ---- the owner's fast-thinking switch (the server only shows it to Pino's owner, and only obeys him)
