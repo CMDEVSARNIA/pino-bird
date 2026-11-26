@@ -2879,12 +2879,28 @@ function renderBooks(s) {
   }, "He hasn't read anything yet. The books are in the library.");
 }
 
+// Pictures are sent once: after that the server sends just a key, and we fill the picture back in from here.
+const artCache = new Map();
+let needFullArt = true;
+function fillArt(j) {
+  let missing = false;
+  const lists = [j.drawings || [], j.galleryWall || [], ...Object.values(j.walls || {})];
+  for (const list of lists) for (const d of list) {
+    if (!d.k) continue;
+    if (d.svg) artCache.set(d.k, d.svg);
+    else if (artCache.has(d.k)) d.svg = artCache.get(d.k);
+    else missing = true;
+  }
+  return missing;
+}
 async function refresh() {
   try {
-    const asked = Date.now();
-    const r = await fetch(`/api/state?who=${encodeURIComponent(me.id)}`, { cache: "no-store" });
+    const asked = Date.now(), full = needFullArt;
+    const r = await fetch(`/api/state?who=${encodeURIComponent(me.id)}${full ? "&art=full" : ""}`, { cache: "no-store" });
     if (!r.ok) throw new Error(r.status);
     const j = await r.json(); j._asked = asked; j._got = Date.now();
+    needFullArt = false;
+    if (fillArt(j)) { needFullArt = true; if (!full) return refresh(); } // a new drawing: fetch it straight away
     render(j);
   } catch { $("banner").hidden = false; $("banner").textContent = "Can't reach Pino's town right now. Retrying…"; }
 }

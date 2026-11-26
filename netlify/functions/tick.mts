@@ -2,7 +2,7 @@ import type { Config, Context } from "@netlify/functions";
 import {
   applyChoice, applyReflection, buildOptions, decisionPrompt, identityPrompt, instinct,
   parseJSON, readChoice, reflectionPrompt, REFLECT_EVERY, applyVisits, paceMinutes, type State,
-  drawingPrompt, sanitizeSvg, artSkill, mustSleep, clockStr, drawingInProgress,
+  drawingPrompt, sanitizeSvg, artSkill, mustSleep, clockStr, drawingInProgress, tidySvg,
 } from "../lib/pino.mts";
 import { ask, hasBrain, lookUp, NoBrain } from "../lib/brain.mts";
 import { fetchWeather, needsRefresh, wet } from "../lib/weather.mts";
@@ -135,6 +135,11 @@ Then reply with ONLY a JSON object, no other text: {"question": "the question he
         } else console.log("Look-up gave no answer:", r.text.slice(0, 200));
       } catch (e) { console.log("Look-up failed:", (e as Error).message); }
     }
+  }
+  // once: make the drawings he's already made smaller (they look exactly the same)
+  if (!s.svgTidy) {
+    for (const d of [...s.drawings, ...(s.galleryWall ?? []), ...Object.values(s.walls ?? {}).flat()]) if (d.svg) d.svg = tidySvg(d.svg);
+    s.svgTidy = true;
   }
   // the garden grows (rain waters it for him)
   if (s.garden) grow(s.garden, now, wet(s.weather));

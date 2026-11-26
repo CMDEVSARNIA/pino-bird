@@ -135,6 +135,7 @@ export type State = {
   more?: More;                                   // postcards, bird feeder, puzzle, star chart, harmonica, sled
   justLearned?: string | null;
   doingSince?: number;                           // when he started what he's doing (keeps everyone's view in step)
+  svgTidy?: boolean;                             // older drawings have been made smaller
   furniture?: { house: number; library: number; at?: number }; // which furniture layout each room is in                   // something he just learned (a constellation) - he reacts next moment
   dreams?: Dream[];                              // dreams he's had
   asleepSince?: number;                          // when he dozed off (for dreaming)
@@ -1014,7 +1015,26 @@ export function sanitizeSvg(raw: unknown): string | null {
     .replace(/(href|xlink:href)\s*=\s*("|')(?!#)[^"']*\2/gi, "")
     .replace(/url\(\s*(['"]?)(?!#)[^)]*\)/gi, "none");
   if (!/xmlns=/.test(svg.slice(0, 200))) svg = svg.replace(/<svg/i, '<svg xmlns="http://www.w3.org/2000/svg"');
-  return svg;
+  return tidySvg(svg);
+}
+
+// Make a drawing smaller without changing how it looks: drop comments and extra spaces, and round
+// coordinates to one decimal place (a tenth of a pixel on a 300px picture is invisible).
+export function tidySvg(svg: string) {
+  return svg
+    .replace(/<!--[\s\S]*?-->/g, "")
+    .replace(/>\s+</g, "><")
+    .replace(/\s{2,}/g, " ")
+    .replace(/<[^>]+>/g, (tag) => tag.replace(/(\d*\.\d)\d+/g, "$1")) // only inside tags, never in written words
+    .trim();
+}
+
+// Drawings are by far the biggest part of what viewers download. Each one gets a key, and a viewer
+// that already has a picture is sent just the key (it keeps the picture it downloaded before).
+type Art = { t: string; svg?: string; k?: string };
+export function liteArt<V extends { drawings: Art[]; galleryWall: Art[]; walls: Record<string, Art[]> }>(v: V, full: boolean): V {
+  const one = (d: Art) => (d.svg ? { ...d, k: `${d.t}:${d.svg.length}`, svg: full ? d.svg : undefined } : d);
+  return { ...v, drawings: v.drawings.map(one), galleryWall: v.galleryWall.map(one), walls: Object.fromEntries(Object.entries(v.walls).map(([p, l]) => [p, l.map(one)])) };
 }
 
 // When he runs completely out of energy he can't help it: he dozes off wherever he is.

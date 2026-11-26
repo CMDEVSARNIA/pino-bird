@@ -1,5 +1,5 @@
 import type { Config, Context } from "@netlify/functions";
-import { earn, EARN, identityPrompt, isNight, parseJSON, publicView, seedsOf, START_SEEDS, talkPrompt, type Person } from "../lib/pino.mts";
+import { earn, EARN, identityPrompt, isNight, liteArt, parseJSON, publicView, seedsOf, START_SEEDS, talkPrompt, type Person } from "../lib/pino.mts";
 import { ask, hasBrain } from "../lib/brain.mts";
 import { GIFTS, GIFT_BY_ID, QUICK_TREAT_PRICE, repeatable } from "../lib/gifts.mts";
 import { cocoaWeather } from "../lib/more.mts";
@@ -47,7 +47,7 @@ export default async (req: Request, context: Context) => {
     mePerson = await grantSeeds(mePerson, people, now);
     const gone = new Set([...claimed, ...(s.gifts?.received ?? [])].filter((id) => !GIFT_BY_ID[id] || !repeatable(GIFT_BY_ID[id])));
     return json({
-      ...publicView(s, unread, now, chats.map(({ at, you, pino, name, react }) => ({ at, you, pino, name, react }))),
+      ...liteArt(publicView(s, unread, now, chats.map(({ at, you, pino, name, react }) => ({ at, you, pino, name, react }))), url.searchParams.get("art") === "full"),
       version: context?.deploy?.id ?? "",
       giftsAvailable: GIFTS.filter((g) => !gone.has(g.id) && (g.kind !== "cocoa" || cocoaWeather(s.weather, now)) && (g.kind !== "birdcake" || (s.gifts?.received ?? []).includes("thing-feeder"))).map(({ id, kind, name, emoji, desc, price }) => ({ id, kind, name, emoji, desc, price })),
       me: { owner: OWNERS.has(meId), boostUntil: OWNERS.has(meId) ? boost : undefined, letters: (mePerson?.letters ?? []).slice(-20), name: mePerson?.name ?? null, seeds: seedsOf(mePerson), earned: mePerson?.earned ?? null, rules: EARN, treatPrice: QUICK_TREAT_PRICE },
@@ -224,7 +224,9 @@ async function museumImage(id: string) {
   const ex = EXHIBIT_BY_ID[id];
   if (!ex?.wiki) return new Response("No such painting", { status: 404 });
   const key = `museum-img/${id}`;
-  const headers = (type: string) => ({ "Content-Type": type, "Cache-Control": "public, max-age=604800, immutable" });
+  // the pictures never change: Netlify's edge keeps a copy, so most views never wake this function up
+  const headers = (type: string) => ({ "Content-Type": type, "Cache-Control": "public, max-age=2592000, immutable",
+    "Netlify-CDN-Cache-Control": "public, durable, max-age=31536000, immutable", "Netlify-Vary": "query=id" });
   const cached = await store().getWithMetadata(key, { type: "arrayBuffer" });
   if (cached?.data) return new Response(cached.data, { headers: headers(String(cached.metadata?.type ?? "image/jpeg")) });
   try {
