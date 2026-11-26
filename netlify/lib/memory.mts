@@ -38,6 +38,7 @@ function items(s: State, skipRecent: number): Item[] {
   (s.insights ?? []).forEach((n) => out.push({ when: n.t, kind: "something I realised", text: n.text, boost: 0.4, recentRank: 50 }));
   (s.conversations ?? []).forEach((c) => out.push({ when: c.t, kind: "a letter", text: `someone wrote "${c.visitor}" and I wrote back "${c.reply}"`, boost: 0.3, recentRank: 50 }));
   (s.gifts?.log ?? []).forEach((g) => out.push({ when: g.t, kind: "a gift", text: `${g.from} gave me ${g.name}`, boost: 0.5, recentRank: 50 }));
+  (s.knowledge ?? []).forEach((k) => out.push({ when: k.t, kind: "something I learned", text: `${k.topic} - ${k.fact}`, boost: 0.4, recentRank: 50 }));
   return out;
 }
 
@@ -67,4 +68,14 @@ export function recall(s: State, cue: string, k = 4, skipRecent = 8): string {
     if (picked.length >= k) break;
   }
   return picked.map((it) => `- [${it.when}] (${it.kind}) ${it.text.slice(0, 260)}`).join("\n");
+}
+
+// Just his research: facts he's learned that match a cue (for answering visitors' questions)
+export function recallKnowledge(s: State, cue: string, k = 3): string {
+  const want = terms(cue);
+  if (!want.length || !(s.knowledge ?? []).length) return "";
+  return s.knowledge!.map((f) => {
+    const have = new Set(terms(`${f.topic} ${f.fact}`));
+    return { f, hits: want.filter((t) => have.has(t)).length };
+  }).filter((x) => x.hits > 0).sort((a, b) => b.hits - a.hits).slice(0, k).map((x) => `- ${x.f.fact}`).join("\n");
 }

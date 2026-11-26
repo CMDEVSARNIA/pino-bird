@@ -28,13 +28,13 @@ export function stageWord(p: NonNullable<Plot>) {
 }
 
 // Let time pass in the garden (called every moment). Rain waters everything for him.
-export function grow(g: Garden, now: number, raining: boolean) {
+export function grow(g: Garden, now: number, raining: boolean, speed = 1) { // speed: a skilled gardener's plants grow faster
   const hours = Math.max(0, Math.min(6, (now - (g.lastGrow || now)) / 3_600_000));
   g.lastGrow = now;
   for (const p of g.plots) {
     if (!p) continue;
     if (raining) p.watered = now;
-    if (now - p.watered < DRY_H * 3_600_000 && !ready(p)) p.growth += hours;
+    if (now - p.watered < DRY_H * 3_600_000 && !ready(p)) p.growth += hours * speed;
   }
 }
 

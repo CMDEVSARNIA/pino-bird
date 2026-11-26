@@ -7,7 +7,9 @@ import { holiday } from "./holidays.mts";
 import { spotTreasure, TREASURE_BY_ID, wearing, wearingLine, type Dream, type Found } from "./extras.mts";
 import { birdsAtFeeder, cocoaWeather, doMore, harmonicaSkill, moreActivities, moreLines, PUZZLE_PIECES, type More } from "./more.mts";
 import { SONG_BY_ID, nextSong, randomSong, silence, songsOwned, type Music } from "./music.mts";
-import { recall } from "./memory.mts";
+import { recall, recallKnowledge } from "./memory.mts";
+import { levelOf, LEVELS, SKILLS, skillFor, skillLines, skillsFromHistory, skillsView } from "./skills.mts";
+const SKILL_NAMES: Record<string, string> = Object.fromEntries(SKILLS.map((k) => [k.id, k.name]));
 import { frozenPond, outdoorFeeling, season, snowy, weatherDrain, weatherLine, wet, type Weather } from "./weather.mts";
 import { EXHIBITS, EXHIBIT_BY_ID, exhibitAction, exhibitFromAction } from "./museum.mts";
 import { nextChannel, programme, randomChannel, TV_OFF, type TV } from "./tv.mts";
@@ -150,6 +152,11 @@ export type State = {
   pendingLookup?: boolean;                       // he sat down at the library computer: a web search is waiting
   justLookedUp?: WebFind | null;                 // what he just found online (he reacts next moment)
   webLog?: (WebFind & { reaction?: string })[];  // things he's looked up online
+  knowledge?: Fact[];                            // facts he has learned from his own research (he builds on them)
+  curious?: string[];                            // questions he wants to look up next (from research and reflection)
+  skills?: Record<string, number>;               // practice points per skill (the more he does something, the better he gets)
+  justLeveled?: { skill: string; level: number } | null; // he just got better at something (he notices next moment)
+  skillLog?: { t: string; skill: string; level: number }[]; // when he levelled up
   wants: Want[];                                 // what he wants right now, in his own words
   pastWants: Want[];                             // wishes he's let go of or moved on from
   conversations: { t: string; visitor: string; reply: string }[];
@@ -376,12 +383,28 @@ export function buildOptions(s: State, notes: Note[], pals: Pal[] = []): Option[
 }
 
 // Everything in his town, so he always knows what's where (even when he's elsewhere or chatting)
-export type WebFind = { t: string; at: number; question: string; learned: string; sources: { url: string; title: string }[] };
+export type WebFind = { t: string; at: number; question: string; learned: string; sources: { url: string; title: string }[]; facts?: string[]; next?: string };
+export type Fact = { t: string; fact: string; topic: string; src?: string };
 // the library computer: a few look-ups a day, not back to back
 export function canLookUp(s: State, now = Date.now()) {
   const today = (s.webLog ?? []).filter((w) => now - w.at < 24 * 3_600_000).length;
   const last = (s.webLog ?? []).at(-1)?.at ?? 0;
   return !s.pendingLookup && today < 5 && now - last > 75 * 60_000;
+}
+
+// questions he wants to look up: newest first, no repeats, at most 8 waiting
+export function addCurious(s: State, qs: unknown[]) {
+  const asked = new Set((s.webLog ?? []).map((w) => w.question.toLowerCase()));
+  const fresh = qs.filter((q): q is string => typeof q === "string" && q.trim().length > 4).map((q) => q.trim().slice(0, 120))
+    .filter((q) => !asked.has(q.toLowerCase()));
+  s.curious = [...new Set([...fresh, ...(s.curious ?? [])])].slice(0, 8);
+}
+// a finished look-up becomes lasting knowledge, and its follow-up question goes on his list
+export function learnFrom(s: State, w: WebFind) {
+  const facts = (w.facts?.length ? w.facts : [w.learned]).map((f) => f.trim()).filter(Boolean).slice(0, 3);
+  s.knowledge = [...(s.knowledge ?? []), ...facts.map((fact) => ({ t: w.t, fact: fact.slice(0, 240), topic: w.question, src: w.sources[0]?.url }))].slice(-300);
+  s.curious = (s.curious ?? []).filter((q) => q.toLowerCase() !== w.question.toLowerCase());
+  if (w.next) addCurious(s, [w.next]);
 }
 
 export function townDescription(s: State) {
@@ -429,6 +452,9 @@ export function identityPrompt(s: State) {
     "",
     `Things you want right now:\n${s.wants.map((w) => `- ${w.want}`).join("\n") || "- (you haven't worked that out yet)"}`,
     "",
+    ...(skillLines(s.skills ?? skillsFromHistory(s.tried)) ? [skillLines(s.skills ?? skillsFromHistory(s.tried)), ""] : []),
+    ...((s.knowledge ?? []).length ? [`Things you've learned from your own research (${s.knowledge!.length} so far - this is real knowledge you can use, share and build on):\n${s.knowledge!.slice(-10).map((k) => `- ${k.fact}`).join("\n")}`, ""] : []),
+    ...((s.curious ?? []).length ? [`Questions you're curious to look up on the library computer:\n${s.curious!.slice(0, 5).map((q) => `- ${q}`).join("\n")}`, ""] : []),
     "Always reply with ONLY a JSON object and no other text.",
   ].join("\n");
 }
@@ -461,7 +487,9 @@ export function decisionPrompt(s: State, opts: Option[], notes: Note[], now: num
       ((w.near?.length || w.nearUnnamed) ? ` Right here in the ${PLACES[s.place]?.label ?? s.place} with you, watching up close: ${[...(w.near ?? []), ...(w.nearUnnamed ? [`${w.nearUnnamed} visitor${w.nearUnnamed === 1 ? "" : "s"} you haven't met`] : [])].join(", ")}.` : "") +
       (w.cameIn?.length ? ` ${w.cameIn.join(", ")} just came inside to see you!` : "") + "\n";
   const web = s.justLookedUp;
-  const webNow = web ? `\nYou just looked something up on the library computer. You wondered: "${web.question}"\nWhat you found out: ${web.learned}\n(From ${web.sources.map((x) => x.title).slice(0, 2).join(" and ") || "the web"}.) Let your thought be your honest reaction - what surprised or delighted you, or what you now wonder next.\n` : "";
+  const webNow = web ? `\nYou just looked something up on the library computer. You wondered: "${web.question}"\nWhat you found out: ${web.learned}\n(From ${web.sources.map((x) => x.title).slice(0, 2).join(" and ") || "the web"}.) Let your thought be your honest reaction - what surprised or delighted you, or what you now wonder next.${web.next ? ` (It made you wonder: "${web.next}")` : ""}\n` : "";
+  const lv = s.justLeveled;
+  const levelNow = lv ? `\nYou've practised so much that you just got better: your ${(SKILL_NAMES[lv.skill] ?? lv.skill).toLowerCase()} is now "${LEVELS[lv.level]}" (level ${lv.level} of 6). You can feel the difference.\n` : "";
   const learnedNow = s.justLearned ? `\nYou just found a constellation with your star chart. ${s.justLearned}\nLet your thought be your reaction to it.\n` : "";
   const dreamNow = s.justDreamed ? `\nYou just woke up from a dream called "${s.justDreamed.title}": ${s.justDreamed.text}\n(You may think about it, or not.)\n` : "";
   const dressed = wearingLine(wearing(s.weather, OUTDOORS.has(s.place), s.gifts?.received ?? [], isNight(now)));
@@ -493,7 +521,7 @@ export function decisionPrompt(s: State, opts: Option[], notes: Note[], now: num
     (openers.length ? ` Your recent thoughts started like ${openers.join(", ")} - start this one a different way.` : "") + "\n";
   return (
     `It is ${weekday}, ${clockStr(s, now)} (${night}). You are at the ${PLACES[s.place].label}: ${PLACES[s.place].desc}.\n\n` +
-    `How you feel right now:\n${feel}\n${weather}${company}${dressed ? dressed + "\n" : ""}${dreamNow}${learnedNow}${bored}${note}${reading}${museum}${tvNow}${webNow}\n` +
+    `How you feel right now:\n${feel}\n${weather}${company}${dressed ? dressed + "\n" : ""}${dreamNow}${learnedNow}${bored}${note}${reading}${museum}${tvNow}${webNow}${levelNow}\n` +
     (friends ? `Visitors you know:\n${friends}\n\n` : "") +
     `What happened recently (oldest first):\n${history}\n\n` +
     (remembered ? `Older memories that come to mind:\n${remembered}\n\n` : "") +
@@ -511,6 +539,7 @@ export function reflectionPrompt(s: State) {
     `Look back over what you've done lately:\n${recent}\n\n` +
     `Your current self-description:\n${s.personality}\n\n` +
     `What you wanted last time:\n${s.wants.map((w) => `- ${w.want} (because ${w.why})`).join("\n") || "- (nothing yet)"}\n\n` +
+    ((s.webLog ?? []).length ? `What you've found out lately from your research:\n${(s.webLog ?? []).slice(-5).map((w) => `- ${w.question} ${w.learned}`).join("\n")}\n\n` : "") +
     "Think about what made you feel good or bad, what bored you, and what you're curious to try next. " +
     "Then think about what you WANT - anything at all, big or small, possible or impossible: something for your town, " +
     "something to do, something to learn, a thing, a friend, a feeling. Be honest and specific; keep old wants if you still want them. " +
@@ -518,7 +547,8 @@ export function reflectionPrompt(s: State) {
     "Reply with JSON exactly like this:\n" +
     '{"insights": ["a short realisation about yourself", "another one"], ' +
     '"personality": "your updated self-description: 3-5 sentences, first person, including things you like and dislike", ' +
-    '"wants": [{"want": "what you want, in a few words", "why": "why you want it, one sentence", "size": "tiny, medium or huge"}]}'
+    '"wants": [{"want": "what you want, in a few words", "why": "why you want it, one sentence", "size": "tiny, medium or huge"}], ' +
+    '"questions": ["up to 2 things you\'d love to look up next on the library computer, as short questions"]}'
   );
 }
 
@@ -714,6 +744,22 @@ export function applyChoice(
     }
   }
 
+  // practice makes perfect: practised things feel more rewarding and tire him less, and each go builds the skill
+  s.skills ??= skillsFromHistory(s.tried);
+  s.justLeveled = null;
+  const sk = skillFor(action);
+  if (sk) {
+    const before = levelOf(s.skills[sk.id] ?? 0);
+    if ((deltas.joy ?? 0) > 0) deltas = { ...deltas, joy: deltas.joy! + before };
+    if ((deltas.energy ?? 0) < 0) deltas = { ...deltas, energy: Math.round(deltas.energy! * (1 - 0.07 * before)) };
+    s.skills = { ...s.skills, [sk.id]: (s.skills[sk.id] ?? 0) + 1 };
+    const after = levelOf(s.skills[sk.id]);
+    if (after > before) {
+      s.justLeveled = { skill: sk.id, level: after };
+      s.skillLog = [...(s.skillLog ?? []), { t, skill: sk.id, level: after }].slice(-60);
+      deltas = { ...deltas, joy: (deltas.joy ?? 0) + 5 };
+    }
+  }
   for (const [k, v] of Object.entries(deltas)) s.needs[k as Need] = clamp(s.needs[k as Need] + (v ?? 0));
 
   // the passage of time: needs drain by real minutes passed, not by decisions made
@@ -756,6 +802,7 @@ export function applyReflection(s: State, reply: any, now: number) {
   s.insights = s.insights.slice(-60);
   const p = reply?.personality;
   if (typeof p === "string" && p.length > 20 && p.length < 1500) s.personality = p.trim();
+  if (Array.isArray(reply?.questions)) addCurious(s, reply.questions);
   if (Array.isArray(reply?.wants)) {
     const fresh: Want[] = reply.wants.slice(0, 5)
       .filter((w: any) => typeof w?.want === "string" && w.want.trim())
@@ -890,10 +937,12 @@ export function talkPrompt(s: State, chats: { you: string; pino: string }[], tex
   const recentLife = s.memories.slice(-6).map(memoryLine).join("\n") || "- (nothing yet)";
   const who = person?.name || "Visitor";
   const convo = chats.slice(-6).map((c) => `${who}: ${c.you}\n${NAME}: ${c.pino}`).join("\n") || "(this is the start of the conversation)";
+  const knows = recallKnowledge(s, text, 3);
   return (
     `It is ${clockStr(s, now)} (${isNight(now) ? "night" : "day"}). You are at the ${PLACES[s.place].label}, ` +
     `currently "${s.doing}". You feel: ${feel}.\n\n` +
     `What you've been up to:\n${recentLife}\n\n` +
+    (knows ? `Things you learned from your research that might help here:\n${knows}\n\n` : "") +
     `${describePerson(person, now)}\n\n` +
     ((() => { const r = recall(s, `${text} ${person?.name ?? ""}`, 4, 6); return r ? `Memories that come to mind as they speak:\n${r}\n(You can bring these up naturally, with roughly when they happened.)\n\n` : ""; })()) +
     `Your conversation with them so far:\n${convo}\n\n` +
@@ -944,7 +993,8 @@ export function publicView(s: State, unread: number, now: number, chats: { at: n
     wearing: wearing(s.weather, OUTDOORS.has(s.place), s.gifts?.received ?? [], isNight(now)),
     tv: s.tv?.on ? programme(s.tv.channel, s, now) : null,
     tvLog: (s.tvLog ?? []).slice(-30),
-    webLog: (s.webLog ?? []).slice(-30), lookingUp: !!s.pendingLookup,
+    webLog: (s.webLog ?? []).slice(-30), lookingUp: !!s.pendingLookup, knows: (s.knowledge ?? []).length, curious: (s.curious ?? []).slice(0, 5),
+    skills: skillsView(s.skills ?? skillsFromHistory(s.tried)), skillLog: (s.skillLog ?? []).slice(-10),
     exhibit: s.place === "museum" ? exhibitFromAction(s.doing)?.id ?? null : null,
   };
 }

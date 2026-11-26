@@ -186,6 +186,10 @@
   .meta { font-size: 12px; color: var(--muted); display: block; margin-bottom: 2px; }
   .tag { font-size: 11px; padding: 1px 6px; border-radius: 6px; background: #f0e9db; color: var(--muted); margin-left: 4px; }
   .empty { color: var(--muted); font-size: 14px; padding: 6px 0; }
+  .skill { display: grid; grid-template-columns: 26px 1fr auto; gap: 2px 8px; align-items: center; margin: 0 0 9px; }
+  .skill .se { font-size: 18px; grid-row: span 2; } .skill b { font-size: 14px; } .skill small { color: #8a7a62; font-size: 12px; }
+  .skill .bar { grid-column: 2 / 4; height: 7px; border-radius: 99px; background: #efe4cc; overflow: hidden; }
+  .skill .bar i { display: block; height: 100%; background: linear-gradient(90deg, #7fae5a, #4f7a3a); border-radius: 99px; }
   .personality { font-size: 15px; line-height: 1.5; margin: 0 0 10px; }
   h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); margin: 6px 0; }
   .you { color: var(--muted); }
@@ -388,6 +392,9 @@
     <section data-sub="life-mind" hidden>
       <h3>Who I am (written by me)</h3>
       <p class="personality" id="personality"></p>
+      <h3>My skills</h3>
+      <p class="muted" style="margin:0 0 6px">The more he does something, the better he gets at it.</p>
+      <div id="skillList"></div>
       <h3>Things I've realised</h3>
       <ul class="list" id="insights"></ul>
       <p class="fineprint"><span id="brain">—</span> · <span id="heartbeat"></span></p>
@@ -2385,6 +2392,7 @@ function render(s) {
   }, s.unread ? "Your note is waiting in his mailbox. He'll answer when he gets to it." : "No notes yet. Leave him one!");
   $("unread").hidden = !s.unread; $("unread").textContent = s.unread;
   $("personality").textContent = s.personality;
+  renderSkills(s);
   list("insights", s.insights, (i) => { const li = el("li"); li.append(el("span", "meta", i.t), document.createTextNode(i.text)); return li; }, "He reflects about once an hour.");
 }
 
@@ -2558,16 +2566,35 @@ function gardenSummary(g) {
   return `In his garden: ${plots.length ? plots.join(" · ") : "nothing planted yet"}. ${packs.length ? `Seeds in his pocket: ${packs.join(", ")}.` : ""}`;
 }
 
+// ---- skills (Life > Mind): practice makes him better
+let skillSig = "";
+function renderSkills(s) {
+  const list = s.skills || [], sig = list.map((k) => k.id + k.xp).join(); if (sig === skillSig) return; skillSig = sig;
+  const box = $("skillList"); box.replaceChildren();
+  if (!list.length) { box.append(el("p", "muted", "No skills yet. They grow as he practises.")); return; }
+  list.forEach((k) => {
+    const row = el("div", "skill"), bar = el("div", "bar"), fill = el("i");
+    const pct = k.next ? Math.round(((k.xp - k.from) / (k.next - k.from)) * 100) : 100;
+    fill.style.width = `${Math.max(4, Math.min(100, pct))}%`; bar.append(fill);
+    row.append(el("span", "se", k.emoji), el("b", null, k.name), el("small", null, `${k.label} · lvl ${k.level}/6`), bar);
+    row.title = k.next ? `${k.xp} practice · next level at ${k.next} · gets better at: ${k.perk}` : `Mastered! ${k.perk}`;
+    box.append(row);
+  });
+}
+
 // ---- things he's looked up online (Art tab)
 let webSig = "";
 function renderWeb(s) {
-  const log = s.webLog || [], sig = log.length + "|" + (log.at(-1)?.reaction || "") + "|" + !!s.lookingUp; if (sig === webSig) return; webSig = sig;
+  const log = s.webLog || [], sig = log.length + "|" + (log.at(-1)?.reaction || "") + "|" + !!s.lookingUp + "|" + (s.curious || []).join(); if (sig === webSig) return; webSig = sig;
   const ul = $("webList"); ul.replaceChildren();
+  if (s.knows) ul.append(el("li", "dream", `🧠 He knows ${s.knows} thing${s.knows === 1 ? "" : "s"} from his own research, and builds on them each time.`));
+  if ((s.curious || []).length) { const li = el("li", "dream"); li.append(el("b", null, "💭 Wondering next"), el("i", null, s.curious.join(" · "))); ul.append(li); }
   if (s.lookingUp) ul.append(el("li", "dream", "💻 He's at the library computer looking something up right now…"));
   if (!log.length && !s.lookingUp) ul.append(el("li", null, "Nothing yet. He'll look something up the next time he's curious in the library."));
   [...log].reverse().forEach((w) => {
     const li = el("li", "dream");
     li.append(el("small", null, w.t), el("b", null, `🔍 ${w.question}`), el("i", null, w.learned));
+    if ((w.facts || []).length) li.append(el("span", "meta", `Remembered: ${w.facts.join(" ")}`));
     if (w.reaction) li.append(el("span", "meta", `Pino: “${w.reaction}”`));
     if ((w.sources || []).length) {
       const src = el("small", "srcs");
