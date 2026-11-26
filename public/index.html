@@ -1797,6 +1797,7 @@ function buildWorld() {
       if (o) window.dispatchEvent(new CustomEvent("pino:exhibit", { detail: o.userData.exhibit }));
     }
     else if (view.mode === "house" && ray.intersectObject(tvSet, true).length) window.dispatchEvent(new CustomEvent("pino:tv"));
+    else if (view.mode === "library" && ray.intersectObject(dtab, true).length) window.dispatchEvent(new CustomEvent("pino:drawtable"));
     else if (view.mode !== "town") { /* inside the house or library: nothing else to tap but Pino */ }
     else if (ray.intersectObject(mus, true).length) enterRoom("museum");
     else if (ray.intersectObject(house, true).length) enterRoom("house");
@@ -2548,6 +2549,16 @@ function renderDreams(s) {
 }
 
 $("drawChip").addEventListener("click", () => { const d = drawingNow(latest); if (d) openLive(d); });
+// tapping his drawing table in the library: watch him draw, or see his latest picture
+window.addEventListener("pino:drawtable", () => {
+  const d = drawingNow(latest); if (d) { openLive(d); return; }
+  const last = [...(latest?.drawings || [])].reverse().find((x) => x.svg);
+  if (!last) { toast("Pino hasn't drawn anything yet. When he does, tap here to watch!"); return; }
+  toast("Pino isn't drawing right now. Here's his latest picture!");
+  $("viewerImg").src = artUrl(last); $("viewerImg").alt = last.title || last.text;
+  $("viewerCap").textContent = `${last.title || "Untitled"} · ${last.t} — “${last.text}”`;
+  $("viewer").hidden = false;
+});
 $("liveClose").addEventListener("click", () => { $("liveBox").hidden = true; });
 
 // ---- the owner's fast-thinking switch (the server only shows it to Pino's owner, and only obeys him)
