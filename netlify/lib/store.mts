@@ -127,8 +127,8 @@ async function indexPerson(p: Person) {
   // conditional write + retry, so two visitors pinging at once don't knock each other out of the index
   for (let attempt = 0; attempt < 6; attempt++) {
     const cur = await store().getWithMetadata("people-index", { type: "json" });
-    const idx = ((cur?.data as Record<string, { name: string; lastSeen: number; note: string; visits: number }> | undefined) ?? {});
-    idx[k] = { name: p.name, lastSeen: p.lastSeen, note: p.facts.at(-1) ?? (p.gave.length ? `gave me ${p.gave.at(-1)}` : ""), visits: p.visits };
+    const idx = ((cur?.data as Record<string, { name: string; lastSeen: number; note: string; visits: number; viewing?: string }> | undefined) ?? {});
+    idx[k] = { name: p.name, lastSeen: p.lastSeen, note: p.facts.at(-1) ?? (p.gave.length ? `gave me ${p.gave.at(-1)}` : ""), visits: p.visits, viewing: p.viewing };
     const r = attempt === 5 ? await store().setJSON("people-index", idx)
       : cur?.etag ? await store().setJSON("people-index", idx, { onlyIfMatch: cur.etag }) : await store().setJSON("people-index", idx, { onlyIfNew: true });
     if (attempt === 5 || r.modified) return;
@@ -136,7 +136,7 @@ async function indexPerson(p: Person) {
   }
 }
 export async function peopleIndex() {
-  return ((await store().get("people-index", { type: "json" })) as Record<string, { name: string; lastSeen: number; note: string; visits: number }> | null) ?? {};
+  return ((await store().get("people-index", { type: "json" })) as Record<string, { name: string; lastSeen: number; note: string; visits: number; viewing?: string }> | null) ?? {};
 }
 // Touch (or create) a person whenever they do something
 // Change someone's record without counting it as a visit (e.g. Pino's letters arriving in their mailbox)

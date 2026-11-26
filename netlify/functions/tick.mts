@@ -75,7 +75,13 @@ async function moment(s: State, start: number) {
     const idx = await peopleIndex();
     const live = Object.entries(idx).filter(([, p]) => now - p.lastSeen < 150_000);
     const ids = live.map(([id]) => id), before = s.watchers?.ids ?? [];
+    // who's inside the same building as him (looking into the house, library or museum while he's there)
+    const room = ["house", "library", "museum"].includes(s.place) ? s.place : "";
+    const near = room ? live.filter(([, p]) => p.viewing === room) : [];
+    const nearBefore = new Set(s.watchers?.near ?? []);
     s.watchers = {
+      near: near.map(([, p]) => p.name).filter(Boolean), nearUnnamed: near.filter(([, p]) => !p.name).length,
+      cameIn: near.map(([, p]) => p.name).filter((n) => n && !nearBefore.has(n)),
       ids, names: live.map(([, p]) => p.name).filter(Boolean), unnamed: live.filter(([, p]) => !p.name).length, at: now,
       arrived: live.filter(([id]) => !before.includes(id)).map(([, p]) => p.name || "a new visitor"),
       left: before.filter((id) => !ids.includes(id)).map((id) => idx[id]?.name || "a visitor"),

@@ -132,7 +132,7 @@ export type State = {
   asleepSince?: number;                          // when he dozed off (for dreaming)
   pendingDream?: boolean;                        // he slept a while: a dream is waiting to be written down
   justDreamed?: Dream | null;                    // the dream he just woke from (he can think about it once)
-  watchers?: { ids: string[]; names: string[]; unnamed: number; at: number; arrived: string[]; left: string[] }; // who's watching him right now
+  watchers?: { ids: string[]; names: string[]; unnamed: number; at: number; arrived: string[]; left: string[]; near?: string[]; nearUnnamed?: number; cameIn?: string[] }; // who's watching him right now
   garden?: Garden;                               // his garden beds, seed packets and harvest
   lettersSent?: Record<string, number>;          // person id -> when he last wrote to them
   outbox?: { to: string; name: string; text: string; t: string; at: number }[]; // letters waiting to be delivered
@@ -413,7 +413,9 @@ export function decisionPrompt(s: State, opts: Option[], notes: Note[], now: num
   const w = s.watchers, n = w ? w.ids.length : 0;
   const company = !w ? "" : n === 0 ? "\nNobody is watching you right now - it's just you and the town.\n"
     : `\nWatching you right now: ${[...w.names, ...(w.unnamed ? [`${w.unnamed} visitor${w.unnamed === 1 ? "" : "s"} you haven't met yet`] : [])].join(", ").replace(/, ([^,]*)$/, " and $1")}.` +
-      (w.arrived.length ? ` Just arrived: ${w.arrived.join(", ")}!` : "") + (w.left.length ? ` Just left: ${w.left.join(", ")}.` : "") + "\n";
+      (w.arrived.length ? ` Just arrived: ${w.arrived.join(", ")}!` : "") + (w.left.length ? ` Just left: ${w.left.join(", ")}.` : "") +
+      ((w.near?.length || w.nearUnnamed) ? ` Right here in the ${PLACES[s.place]?.label ?? s.place} with you, watching up close: ${[...(w.near ?? []), ...(w.nearUnnamed ? [`${w.nearUnnamed} visitor${w.nearUnnamed === 1 ? "" : "s"} you haven't met`] : [])].join(", ")}.` : "") +
+      (w.cameIn?.length ? ` ${w.cameIn.join(", ")} just came inside to see you!` : "") + "\n";
   const dreamNow = s.justDreamed ? `\nYou just woke up from a dream called "${s.justDreamed.title}": ${s.justDreamed.text}\n(You may think about it, or not.)\n` : "";
   const dressed = wearingLine(wearing(s.weather, OUTDOORS.has(s.place), s.gifts?.received ?? [], isNight(now)));
   const ex = s.lastSaw ? EXHIBIT_BY_ID[s.lastSaw] : undefined;
@@ -767,6 +769,7 @@ export type Person = {
   earned?: { day: string; watch: number; chat: number; pet: number }; // today's earnings, for daily caps
   lastWatch?: number;
   letters?: { at: number; t: string; text: string; read?: boolean }[]; // letters Pino wrote to them
+  viewing?: string;                              // where they're looking: "town", "house", "library" or "museum"
 };
 
 // ---- seeds 🌱: earned by watching and interacting, spent on gifts

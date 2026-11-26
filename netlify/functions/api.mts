@@ -78,8 +78,11 @@ export default async (req: Request, context: Context) => {
   if (pathname === "/api/watch") {
     if (!who) return json({ ok: false }, 400);
     let got = 0;
+    const view = ["town", "house", "library", "museum"].includes(b.view) ? b.view : undefined;
     const p = await meet(who, (p) => {
-      if (now - (p.lastWatch ?? 0) >= 50_000) { got = earn(p, "watch", now); p.lastWatch = now; }
+      if (view) p.viewing = view;
+      // a ping that only says "I've moved to another room" doesn't earn seeds
+      if (!b.moved && now - (p.lastWatch ?? 0) >= 50_000) { got = earn(p, "watch", now); p.lastWatch = now; }
     });
     return json({ ok: true, got, seeds: seedsOf(p) });
   }

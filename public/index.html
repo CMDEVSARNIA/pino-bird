@@ -2374,6 +2374,7 @@ const ROOM_TEXT = {
   library: ["📚 The library · his reading nook is at the back", "You're in the library with Pino. His cozy reading nook is in the back corner.", "You're in the library. Pino isn't here right now; his reading nook is in the back corner."],
 };
 window.addEventListener("pino:view", (e) => {
+  post("/api/watch", { view: e.detail, moved: true }).catch(() => {}); // let Pino know which room you're looking into
   const where = e.detail, inside = where !== "town", txt = ROOM_TEXT[where];
   $("stage").classList.toggle("inmuseum", inside);
   $("museumBar").hidden = !inside; $("plaque").hidden = true;
@@ -2431,7 +2432,7 @@ $("meChip").addEventListener("click", () => {
 // watching earns seeds: one ping a minute while the page is open and visible
 setInterval(async () => {
   if (document.hidden) return;
-  const j = await post("/api/watch").catch(() => ({}));
+  const j = await post("/api/watch", { view: world ? world.viewMode() : "town" }).catch(() => ({}));
   if (typeof j.seeds === "number") setSeeds(j.seeds, j.got);
 }, 60_000);
 
