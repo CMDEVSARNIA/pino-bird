@@ -106,6 +106,12 @@
   .plaque .pino { margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--line); font-style: italic; }
   .plaque .x { position: absolute; right: 8px; top: 6px; border: 0; background: none; font-size: 18px; cursor: pointer; color: var(--muted); }
   .muted { color: var(--muted); font-size: 13px; margin: 2px 0 10px; }
+  .treasures { display: grid; gap: 8px; }
+  .treasure { display: flex; gap: 10px; align-items: flex-start; border: 1px solid var(--line); border-radius: 12px; padding: 9px 11px; background: #fff; font-size: 13px; line-height: 1.4; }
+  .treasure .te { font-size: 28px; line-height: 1; }
+  .treasure small { color: var(--muted); display: block; }
+  .dream b { display: block; }
+  .dream i { display: block; margin-top: 3px; }
   .letterwrap { position: fixed; inset: 0; z-index: 60; background: rgba(43,42,39,.45); display: flex; align-items: center; justify-content: center; padding: 20px; }
   .letterwrap[hidden] { display: none; }
   .letterpaper { background: #fffaf0; background-image: repeating-linear-gradient(transparent 0 27px, #eadfca 27px 28px); border-radius: 6px; padding: 20px 22px 16px; max-width: 420px; width: 100%;
@@ -343,7 +349,7 @@
   </div>
 
   <div class="card panel" id="p-life" hidden>
-    <div class="subs"><button class="sub" data-sub="life-diary" aria-selected="true">Diary</button><button class="sub" data-sub="life-mind">Mind</button><button class="sub" data-sub="life-wants">Wants</button></div>
+    <div class="subs"><button class="sub" data-sub="life-diary" aria-selected="true">Diary</button><button class="sub" data-sub="life-mind">Mind</button><button class="sub" data-sub="life-wants">Wants</button><button class="sub" data-sub="life-dreams">Dreams</button><button class="sub" data-sub="life-treasures">Treasures</button></div>
     <section data-sub="life-diary"><ul class="list" id="diary"></ul></section>
     <section data-sub="life-mind" hidden>
       <h3>Who I am (written by me)</h3>
@@ -352,6 +358,8 @@
       <ul class="list" id="insights"></ul>
       <p class="fineprint"><span id="brain">—</span> · <span id="heartbeat"></span></p>
     </section>
+    <section data-sub="life-dreams" hidden><p class="muted">When Pino sleeps for a while, he dreams. Here's what he remembers.</p><ul class="list" id="dreamList"></ul></section>
+    <section data-sub="life-treasures" hidden><p class="muted">Little things Pino has found while out and about. He keeps them on a shelf in his house.</p><div class="treasures" id="treasureList"></div></section>
     <section data-sub="life-wants" hidden>
       <div id="wants"></div>
       <h3 style="margin-top:14px">Things he used to want</h3>
@@ -890,6 +898,19 @@ function buildWorld() {
   tvScreen.position.set(0, 1.03, 0.075); tvSet.userData.tv = true;
   const blanket = add(box(0.9, 0.06, 0.8, M(0xe8b04a)), hchair); blanket.position.set(0, 0.62, 0.05); blanket.rotation.x = -0.15;
   roomProps["thing-blanket"] = blanket;
+  const tshelf = new THREE.Group(); tshelf.position.set(HW - 0.2, 1.85, 0.1); tshelf.rotation.y = -Math.PI / 2; hroom.add(tshelf);
+  add(box(1.9, 0.06, 0.3, M(0x8b5a3c)), tshelf).position.y = 0;
+  for (const x of [-0.8, 0.8]) add(box(0.05, 0.2, 0.05, M(0x6b4a2e)), tshelf).position.set(x, -0.12, -0.08);
+  const treasureSprites = new THREE.Group(); tshelf.add(treasureSprites);
+  let treasureSig = "";
+  function setTreasures(list) {
+    const sig = (list || []).map((f) => f.id).join(","); if (sig === treasureSig) return; treasureSig = sig;
+    treasureSprites.clear();
+    (list || []).slice(-10).forEach((f, i, arr) => {
+      const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: emojiTexture(f.emoji || "✨"), transparent: true }));
+      sp.scale.setScalar(0.26); sp.position.set(-0.8 + (i + 0.5) * (1.6 / Math.max(arr.length, 5)), 0.15, 0.02); treasureSprites.add(sp);
+    });
+  }
   const broom = new THREE.Group(); broom.position.set(-HW + 0.35, 0, -0.1); broom.rotation.z = -0.15; hroom.add(broom);
   add(new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 1.3, 6), M(0x8b5a3c)), broom).position.y = 0.75;
   add(new THREE.Mesh(new THREE.ConeGeometry(0.18, 0.35, 8), M(0xd9b45a)), broom).position.y = 0.15;
@@ -1388,6 +1409,45 @@ function buildWorld() {
   // ================================================================ PINO
   const pino = makeKiwi(M); pino.group.scale.setScalar(1.45); scene.add(pino.group);
 
+  // ---- his clothes: a toque and scarf when it's cold, an umbrella in the rain, and gifts (bow tie, sun hat, rain boots)
+  const outfit = {};
+  {
+    const red = M(0xc8343a, { flatShading: false }), white = M(0xf6f4ee, { flatShading: false });
+    const toque = new THREE.Group(); toque.position.set(0, 0.09, -0.03); pino.head.add(toque);
+    add(new THREE.Mesh(new THREE.SphereGeometry(0.185, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2), red), toque).scale.y = 1.15;
+    add(new THREE.Mesh(new THREE.TorusGeometry(0.18, 0.04, 6, 18).rotateX(Math.PI / 2), white), toque);
+    add(new THREE.Mesh(new THREE.SphereGeometry(0.065, 10, 8), white), toque).position.y = 0.23;
+    outfit.toque = toque;
+    const scarf = new THREE.Group(); scarf.position.set(0, 0.69, 0.27); scarf.rotation.x = 0.35; pino.body.add(scarf);
+    add(new THREE.Mesh(new THREE.TorusGeometry(0.2, 0.06, 8, 18).rotateX(Math.PI / 2), red), scarf);
+    add(new THREE.Mesh(new THREE.TorusGeometry(0.2, 0.025, 6, 18).rotateX(Math.PI / 2), white), scarf).position.y = 0.02;
+    const tail = add(box(0.09, 0.3, 0.04, red), scarf); tail.position.set(0.1, -0.14, 0.2); tail.rotation.z = 0.2;
+    outfit.scarf = scarf;
+    const sunhat = new THREE.Group(); sunhat.position.set(0, 0.12, -0.02); pino.head.add(sunhat);
+    const straw = M(0xe8cf8a);
+    add(new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.36, 0.025, 20), straw), sunhat);
+    add(new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.18, 0.15, 16), straw), sunhat).position.y = 0.08;
+    add(new THREE.Mesh(new THREE.CylinderGeometry(0.182, 0.182, 0.04, 16), M(0x3f7a4a)), sunhat).position.y = 0.03;
+    outfit.sunhat = sunhat;
+    const bow = new THREE.Group(); bow.position.set(0, 0.62, 0.5); pino.body.add(bow);
+    for (const x of [-1, 1]) add(new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.1, 4).rotateZ(x * Math.PI / 2), M(0x2c4f8a)), bow).position.x = x * 0.05;
+    add(new THREE.Mesh(new THREE.SphereGeometry(0.025, 6, 6), M(0x2c4f8a)), bow);
+    outfit.bowtie = bow;
+    outfit.boots = pino.legs.map((leg) => { const b = add(new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.055, 0.16, 8), M(0xf2c230)), leg); b.position.y = -0.24; return b; });
+    const umb = new THREE.Group(); umb.position.set(0.28, 0.35, 0.05); pino.group.add(umb);
+    add(new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 1.15, 5), M(0x5a4a3a)), umb).position.y = 0.57;
+    const canopy = add(new THREE.Mesh(new THREE.ConeGeometry(0.62, 0.28, 8, 1, true), new THREE.MeshStandardMaterial({ color: 0x3f8fd8, side: THREE.DoubleSide, flatShading: true })), umb);
+    canopy.position.y = 1.2; umb.rotation.z = 0.18;
+    outfit.umbrella = umb;
+  }
+  let wearState = {};
+  function setWearing(w) {
+    wearState = w || {};
+    for (const k of ["toque", "scarf", "sunhat", "bowtie", "umbrella"]) outfit[k].visible = !!wearState[k];
+    outfit.boots.forEach((b) => (b.visible = !!wearState.boots));
+  }
+  setWearing({});
+
   // ---- his penguin teddy (a free gift): carried in his wing, hugged, or left wherever he puts it down
   const teddy = new THREE.Group(); teddy.visible = false; scene.add(teddy);
   {
@@ -1816,7 +1876,7 @@ function buildWorld() {
     setGallery,
     setWeather,
     setTeddy: (t) => (teddyState = t),
-    setGarden,
+    setGarden, setWearing, setTreasures,
     setHoliday: (id) => { holidayNow = id; deco.winter.visible = id === "winter"; deco.halloween.visible = id === "halloween"; },
     setMail: (up) => (mailUp = up),
     setTV: (p) => { tvProg = p; tvDrawn = -1; if (view.mode !== "house") drawTV(0); },
@@ -1889,7 +1949,7 @@ function snacksTexture() {
 // ================================================================ UI + DATA
 const BADGES = [[/reading nook/, "🛋️"], [/sleep|nap/, "💤"], [/drawing manual/, "🖌️"], [/read/, "📖"], [/journal/, "✏️"], [/draw/, "🎨"], [/seed bar/, "🍫"], [/crisps/, "🥨"], [/juice/, "🧃"],
   [/leaf/, "🍂"], [/ducks/, "🦆"], [/bench|sit/, "💭"], [/window/, "🪟"], [/tidy/, "🧹"], [/talked/, "💬"], [/petted/, "❤️"], [/treat/, "🍪"], [/reflect/, "🌙"], [/walked/, "👣"], [/swing/, "🎠"], [/telescope/, "🔭"], [/toy train/, "🚂"], [/birdbath/, "💦"], [/kite/, "🪁"], [/given/, "🎁"], [/gramophone|next song/, "🎶"], [/dance/, "💃"], [/hung my drawing|art on the walls|hang/, "🖼️"],
-  [/exhibit|museum/, "🏛️"], [/penguin teddy/, "🐧"], [/letter/, "✉️"], [/plant a|water my garden|look at my garden/, "🌱"], [/harvest|pick the/, "🧺"], [/\bTV\b/, "📺"], [/snow-kiwi|soft snow/, "☃️"], [/snowflakes|snow fall/, "❄️"], [/frozen pond/, "⛸️"], [/puddles|rain on the roof/, "🌧️"], [/shelter/, "🌳"], [/spring flowers/, "🌷"], [/paddle/, "💦"]];
+  [/exhibit|museum/, "🏛️"], [/penguin teddy/, "🐧"], [/found .* and kept it|treasure shelf/, "✨"], [/letter/, "✉️"], [/plant a|water my garden|look at my garden/, "🌱"], [/harvest|pick the/, "🧺"], [/\bTV\b/, "📺"], [/snow-kiwi|soft snow/, "☃️"], [/snowflakes|snow fall/, "❄️"], [/frozen pond/, "⛸️"], [/puddles|rain on the roof/, "🌧️"], [/shelter/, "🌳"], [/spring flowers/, "🌷"], [/paddle/, "💦"]];
 let latest = null, first = true, speaking = 0, followOn = false;
 
 // ---- who you are: a random id this browser keeps, plus the name you tell Pino
@@ -1991,7 +2051,7 @@ function render(s) {
   const asleep = /^sleep|nap/.test(s.doing);
   const [, hh, mm] = /(\d\d):(\d\d)/.exec(s.clock) || [];
   const time = hh ? `${(+hh % 12) || 12}:${mm} ${+hh < 12 ? "am" : "pm"}` : "";
-  $("status").textContent = `${asleep ? "Asleep" : "Awake"} · ${String(s.weekday).slice(0, 3)} ${time}`;
+  $("status").textContent = `${asleep ? "Asleep" : "Awake"} · ${String(s.weekday).slice(0, 3)} ${time}${s.watching > 1 ? ` · 👀 ${s.watching}` : ""}`;
   $("status").title = s.clock;
   $("dot").classList.toggle("off", onInstinct);
   $("brain").textContent = onInstinct ? "Running on instinct (no brain connected)" : `Thinks with ${last.brain}`;
@@ -2032,9 +2092,10 @@ function render(s) {
   if (world) { world.setOwned(s.owned || []); world.setGallery(s.galleryWall || []); }
   renderWeather(s);
   renderMuseum(s);
-  if (world) { world.setTeddy(s.teddy || null); world.setGarden(s.garden); world.setHoliday(s.holiday || null); world.setMail((s.me?.letters || []).some((l) => !l.read)); }
+  if (world) { world.setTeddy(s.teddy || null); world.setGarden(s.garden); world.setWearing(s.wearing); world.setTreasures(s.treasures); world.setHoliday(s.holiday || null); world.setMail((s.me?.letters || []).some((l) => !l.read)); }
   checkLetters(s);
   renderBoost(s);
+  renderDreams(s);
   if (world && JSON.stringify(s.tv) !== tvSig) { tvSig = JSON.stringify(s.tv); world.setTV(s.tv || null); }
   syncMusic(s.music || { on: false });
   renderGive(s);
@@ -2185,6 +2246,22 @@ function gardenSummary(g) {
   const plots = g.plots.filter(Boolean).map((p) => `${EMO[p.crop] || "🌱"} ${p.ready ? "ready!" : p.stage < 0.1 ? "just planted" : `${Math.round(p.stage * 100)}% grown`}${p.thirsty ? " (thirsty)" : ""}`);
   const packs = Object.entries(g.packets || {}).filter(([, n]) => n > 0).map(([c, n]) => `${n} ${EMO[c] || ""}`);
   return `In his garden: ${plots.length ? plots.join(" · ") : "nothing planted yet"}. ${packs.length ? `Seeds in his pocket: ${packs.join(", ")}.` : ""}`;
+}
+
+// ---- dreams and treasures (Life tab)
+let dreamSig = "";
+function renderDreams(s) {
+  const sig = (s.dreams || []).length + "|" + (s.treasures || []).length; if (sig === dreamSig) return; dreamSig = sig;
+  const dl = $("dreamList"); dl.replaceChildren();
+  if (!(s.dreams || []).length) dl.append(el("li", null, "No dreams yet. He'll have his first one after a good long sleep."));
+  [...(s.dreams || [])].reverse().forEach((d) => { const li = el("li", "dream"); li.append(el("small", null, d.t), el("b", null, `💭 ${d.title}`), el("i", null, d.text)); dl.append(li); });
+  const tl = $("treasureList"); tl.replaceChildren();
+  if (!(s.treasures || []).length) tl.append(el("p", "muted", "Nothing yet. Keep watching: when he's outside he sometimes spots something shiny."));
+  [...(s.treasures || [])].reverse().forEach((f) => {
+    const c = el("div", "treasure"), body = el("div");
+    body.append(el("b", null, (f.name || f.id).replace(/^an? /, "").replace(/^./, (ch) => ch.toUpperCase())), el("small", null, `Found at the ${f.place} · ${f.t}`), document.createTextNode(`“${f.thought}”`));
+    c.append(el("span", "te", f.emoji || "✨"), body); tl.append(c);
+  });
 }
 
 // ---- the owner's fast-thinking switch (the server only shows it to Pino's owner, and only obeys him)
@@ -2353,7 +2430,7 @@ setInterval(async () => {
 }, 60_000);
 
 // ---- give tab
-const KINDS = [["toy", "Toys (free!)"], ["seedpack", "Seed packets for his garden (buy as many as you like)"], ["artbook", "Art books (he learns to draw from them)"], ["holiday", "Holiday books 🎄🎃🦃🐣"], ["book", "Books for his library"], ["song", "Records for his gramophone"], ["treat", "Treats (eaten right away)"], ["snack", "New snacks for the vending machine"], ["thing", "Things for his town"]];
+const KINDS = [["toy", "Toys (free!)"], ["outfit", "Things to wear (he dresses for the weather)"], ["seedpack", "Seed packets for his garden (buy as many as you like)"], ["artbook", "Art books (he learns to draw from them)"], ["holiday", "Holiday books 🎄🎃🦃🐣"], ["book", "Books for his library"], ["song", "Records for his gramophone"], ["treat", "Treats (eaten right away)"], ["snack", "New snacks for the vending machine"], ["thing", "Things for his town"]];
 let giveSig = "";
 function renderGive(s) {
   const avail = s.giftsAvailable || [];

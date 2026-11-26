@@ -124,9 +124,16 @@ export async function savePerson(p: Person) {
 async function indexPerson(p: Person) {
   const k = safeId(p.id); if (!k) return;
   // small index so the heartbeat can think about friends without reading every record
-  const idx = ((await store().get("people-index", { type: "json" })) as Record<string, { name: string; lastSeen: number; note: string; visits: number }> | null) ?? {};
-  idx[k] = { name: p.name, lastSeen: p.lastSeen, note: p.facts.at(-1) ?? (p.gave.length ? `gave me ${p.gave.at(-1)}` : ""), visits: p.visits };
-  await store().setJSON("people-index", idx);
+  // conditional write + retry, so two visitors pinging at once don't knock each other out of the index
+  for (let attempt = 0; attempt < 6; attempt++) {
+    const cur = await store().getWithMetadata("people-index", { type: "json" });
+    const idx = ((cur?.data as Record<string, { name: string; lastSeen: number; note: string; visits: number }> | undefined) ?? {});
+    idx[k] = { name: p.name, lastSeen: p.lastSeen, note: p.facts.at(-1) ?? (p.gave.length ? `gave me ${p.gave.at(-1)}` : ""), visits: p.visits };
+    const r = attempt === 5 ? await store().setJSON("people-index", idx)
+      : cur?.etag ? await store().setJSON("people-index", idx, { onlyIfMatch: cur.etag }) : await store().setJSON("people-index", idx, { onlyIfNew: true });
+    if (attempt === 5 || r.modified) return;
+    await new Promise((res) => setTimeout(res, 50 + Math.random() * 100));
+  }
 }
 export async function peopleIndex() {
   return ((await store().get("people-index", { type: "json" })) as Record<string, { name: string; lastSeen: number; note: string; visits: number }> | null) ?? {};

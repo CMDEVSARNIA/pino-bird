@@ -4,6 +4,7 @@ import { BOOKS } from "./library.mts";
 import { GIFT_BY_ID, TEDDY_ID } from "./gifts.mts";
 import { CROPS, doGarden, gardenActivities, gardenLine, gardenView, newGarden, type Garden } from "./garden.mts";
 import { holiday } from "./holidays.mts";
+import { spotTreasure, TREASURE_BY_ID, wearing, wearingLine, type Dream, type Found } from "./extras.mts";
 import { SONG_BY_ID, nextSong, randomSong, silence, songsOwned, type Music } from "./music.mts";
 import { recall } from "./memory.mts";
 import { frozenPond, outdoorFeeling, season, snowy, weatherDrain, weatherLine, wet, type Weather } from "./weather.mts";
@@ -124,6 +125,12 @@ export type State = {
   teddy?: { holding: boolean; place: string };   // his penguin teddy: in his wing, or left somewhere in town
   tv?: TV;                                       // the TV in his house
   boostUntil?: number;                           // fast (once-a-minute) thinking until this time, set by the owner
+  treasures?: Found[];                           // things he's found and keeps on his shelf at home
+  dreams?: Dream[];                              // dreams he's had
+  asleepSince?: number;                          // when he dozed off (for dreaming)
+  pendingDream?: boolean;                        // he slept a while: a dream is waiting to be written down
+  justDreamed?: Dream | null;                    // the dream he just woke from (he can think about it once)
+  watchers?: { ids: string[]; names: string[]; unnamed: number; at: number; arrived: string[]; left: string[] }; // who's watching him right now
   garden?: Garden;                               // his garden beds, seed packets and harvest
   lettersSent?: Record<string, number>;          // person id -> when he last wrote to them
   outbox?: { to: string; name: string; text: string; t: string; at: number }[]; // letters waiting to be delivered
@@ -245,6 +252,7 @@ export function activitiesAt(s: State, place: string): Record<string, Effects> {
       acts["put my penguin teddy down here"] = { joy: 1 };
     } else if (s.teddy.place === place) acts["pick up my penguin teddy"] = { joy: 4 };
   }
+  if (place === "house" && (s.treasures?.length ?? 0) > 0) acts["admire my treasure shelf"] = { joy: 5, energy: 1 };
   if (place === "house") {
     // the TV: five free channels
     if (!s.tv?.on) acts["turn on the TV"] = { joy: 3 };
@@ -276,7 +284,7 @@ export function hasBook(s: State, slug: string) {
   return !!b && (!b.gift || (s.gifts?.received ?? []).includes(`book-${slug}`));
 }
 
-export type Option = { type: "do" | "go" | "reply" | "rest" | "read" | "hang" | "letter"; name: string; label: string };
+export type Option = { type: "do" | "go" | "reply" | "rest" | "read" | "hang" | "letter" | "find"; name: string; label: string };
 export type Pal = { id: string; name: string; note?: string };
 
 export const GALLERY_SIZE = 6;
@@ -310,6 +318,11 @@ export function buildOptions(s: State, notes: Note[], pals: Pal[] = []): Option[
   }
   if (here === "library") opts.push(...bookOptions(s));
   if (here === "gallery") opts.push(...hangOptions(s));
+  // out and about he sometimes spots a little treasure
+  if (OUTDOORS.has(here) || here === "museum") {
+    const t = spotTreasure(here, s.treasures ?? [], Date.now());
+    if (t) opts.push({ type: "find", name: t.id, label: `pick up ${t.name} you just spotted on the ground here, for your treasure shelf at home` });
+  }
   // letters: only an option, never a chore - he writes to a friend when he feels like it
   if (here === "house" || here === "library") {
     const recent = (id: string) => Date.now() - (s.lettersSent?.[id] ?? 0) < 20 * 3_600_000;
@@ -339,6 +352,7 @@ export function townDescription(s: State) {
     `- Your art gallery: ${(s.galleryWall ?? []).length ? `${s.galleryWall.length} of your drawings hang on the walls (${s.galleryWall.map((d) => `"${d.title ?? "untitled"}"`).join(", ")})` : `empty frames waiting for your drawings`}. You can hang any drawing you've finished.`,
     `- The museum: a grand domed building full of real treasures - famous paintings (like The Starry Night and the Mona Lisa), a T. rex skeleton, a giant moa skeleton, the Rosetta Stone, an Egyptian mummy, the Wright brothers' airplane, a moon rock, a Saturn V rocket and more. You've looked at ${new Set((s.museumLog ?? []).map((m) => m.id)).size} of its ${EXHIBITS.length} exhibits.`,
     `- Your garden, just to the left of your house: ${gardenLine(s.garden, Date.now())}.`,
+    `- Your treasure shelf at home: ${(s.treasures ?? []).length ? (s.treasures ?? []).map((f) => TREASURE_BY_ID[f.id]?.name).filter(Boolean).join(", ") : "empty so far - keep an eye out for little treasures when you're out and about"}.`,
     `- The weather in town right now: ${weatherLine(s.weather, Date.now())}`,
     ...(holiday(Date.now()) ? [`- ${holiday(Date.now())!.line}`] : []),
     ...(s.teddy ? [`- Your penguin teddy: ${s.teddy.holding ? "you're carrying it with you right now" : `you left it at the ${PLACES[s.teddy.place]?.label ?? s.teddy.place}`}. You can pick it up, hug it, and put it down wherever you like.`] : []),
@@ -388,6 +402,12 @@ export function decisionPrompt(s: State, opts: Option[], notes: Note[], now: num
   const tvNow = s.lastWatched
     ? `\nYou just watched "${s.lastWatched.title}" on ${s.lastWatched.channel}:\n${s.lastWatched.lines.map((l) => `- ${l}`).join("\n")}\nLet your thought be your honest reaction to what you watched.\n`
     : s.tv?.on && s.place === "house" ? `\nThe TV is on (${programme(s.tv.channel, s, now).name}).\n` : "";
+  const w = s.watchers, n = w ? w.ids.length : 0;
+  const company = !w ? "" : n === 0 ? "\nNobody is watching you right now - it's just you and the town.\n"
+    : `\nWatching you right now: ${[...w.names, ...(w.unnamed ? [`${w.unnamed} visitor${w.unnamed === 1 ? "" : "s"} you haven't met yet`] : [])].join(", ").replace(/, ([^,]*)$/, " and $1")}.` +
+      (w.arrived.length ? ` Just arrived: ${w.arrived.join(", ")}!` : "") + (w.left.length ? ` Just left: ${w.left.join(", ")}.` : "") + "\n";
+  const dreamNow = s.justDreamed ? `\nYou just woke up from a dream called "${s.justDreamed.title}": ${s.justDreamed.text}\n(You may think about it, or not.)\n` : "";
+  const dressed = wearingLine(wearing(s.weather, OUTDOORS.has(s.place), s.gifts?.received ?? [], isNight(now)));
   const ex = s.lastSaw ? EXHIBIT_BY_ID[s.lastSaw] : undefined;
   const museum = ex
     ? `\nYou just looked at "${ex.name}" (${ex.by}) in the museum. The plaque says: "${ex.fact}"\nLet your thought be your honest reaction to it - what amazes, puzzles or delights you, in your own words.\n`
@@ -416,7 +436,7 @@ export function decisionPrompt(s: State, opts: Option[], notes: Note[], now: num
     (openers.length ? ` Your recent thoughts started like ${openers.join(", ")} - start this one a different way.` : "") + "\n";
   return (
     `It is ${weekday}, ${clockStr(s, now)} (${night}). You are at the ${PLACES[s.place].label}: ${PLACES[s.place].desc}.\n\n` +
-    `How you feel right now:\n${feel}\n${weather}${bored}${note}${reading}${museum}${tvNow}\n` +
+    `How you feel right now:\n${feel}\n${weather}${company}${dressed ? dressed + "\n" : ""}${dreamNow}${bored}${note}${reading}${museum}${tvNow}\n` +
     (friends ? `Visitors you know:\n${friends}\n\n` : "") +
     `What happened recently (oldest first):\n${history}\n\n` +
     (remembered ? `Older memories that come to mind:\n${remembered}\n\n` : "") +
@@ -505,6 +525,11 @@ export function applyChoice(
     s.tvLog = [...(s.tvLog ?? []), { t, channel: s.lastWatched.channel, title: s.lastWatched.title, reaction: thought }].slice(-120);
   }
   s.lastWatched = null;
+  // dreaming: a doze of 10+ minutes leaves a dream behind when he wakes
+  const asleepNow = /^(sleep|take a nap|nap)/.test(opt.name) || /nap/.test(opt.name);
+  if (asleepNow) s.asleepSince ??= now;
+  else if (s.asleepSince) { if (now - s.asleepSince >= 10 * 60_000) s.pendingDream = true; s.asleepSince = undefined; }
+  s.justDreamed = null;
 
   if (opt.type === "hang") {
     const d = (s.drawings ?? []).find((x) => x.t === opt.name);
@@ -526,6 +551,11 @@ export function applyChoice(
     deltas = { joy: 6 + (first ? 6 : 0) + (page === b.pages.length ? 10 : 0), energy: -1 };
     action = `${b.art ? "studied the drawing manual" : "read"} "${b.title}" (page ${page} of ${b.pages.length})`;
     note = "";
+  } else if (opt.type === "find") {
+    const tr = TREASURE_BY_ID[opt.name];
+    if (tr && !(s.treasures ?? []).some((f) => f.id === tr.id)) s.treasures = [...(s.treasures ?? []), { id: tr.id, t, place: here, thought }];
+    action = `found ${tr?.name ?? "a little treasure"} and kept it`;
+    deltas = { joy: 10 };
   } else if (opt.type === "letter") {
     const name = opt.label.match(/^write a letter to (.+?), if you feel/)?.[1] ?? "a friend";
     const text = note || `Dear ${name}, I was thinking about you today. From Pino`;
@@ -703,6 +733,7 @@ export function applyVisits(s: State, visits: Visit[], now: number) {
       : g.kind === "artbook" ? `${g.name} - a drawing manual to learn from`
       : g.kind === "song" ? `${g.name} - it's playing on my gramophone right now!`
       : g.kind === "toy" ? `${g.name} - I'm holding it in my wings right now`
+      : g.kind === "outfit" ? `${g.name} to wear - I'll put it on when the weather's right`
       : g.kind === "seedpack" ? `${g.name} for my garden - I can plant it in the beds by my house`
       : g.kind === "snack" ? `${g.name} - now I can "${g.activity}"`
       : g.kind === "thing" ? `${g.name} at the ${PLACES[g.place!]?.label} - now I can "${g.activity}"` : g.name;
@@ -800,6 +831,10 @@ export function publicView(s: State, unread: number, now: number, chats: { at: n
     museumLog: (s.museumLog ?? []).slice(-40),
     teddy: s.teddy ?? null,
     garden: gardenView(s.garden, now), holiday: holiday(now)?.id ?? null,
+    treasures: (s.treasures ?? []).map((f) => ({ ...f, name: TREASURE_BY_ID[f.id]?.name, emoji: TREASURE_BY_ID[f.id]?.emoji })),
+    dreams: (s.dreams ?? []).slice(-30),
+    watching: s.watchers ? s.watchers.ids.length : 0,
+    wearing: wearing(s.weather, OUTDOORS.has(s.place), s.gifts?.received ?? [], isNight(now)),
     tv: s.tv?.on ? programme(s.tv.channel, s, now) : null,
     tvLog: (s.tvLog ?? []).slice(-30),
     exhibit: s.place === "museum" ? exhibitFromAction(s.doing)?.id ?? null : null,

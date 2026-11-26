@@ -2,11 +2,12 @@ import type { Config, Context } from "@netlify/functions";
 import {
   applyChoice, applyReflection, buildOptions, decisionPrompt, identityPrompt, instinct,
   parseJSON, readChoice, reflectionPrompt, REFLECT_EVERY, applyVisits, paceMinutes, type State,
-  drawingPrompt, sanitizeSvg, artSkill, mustSleep,
+  drawingPrompt, sanitizeSvg, artSkill, mustSleep, clockStr,
 } from "../lib/pino.mts";
 import { ask, hasBrain, NoBrain } from "../lib/brain.mts";
 import { fetchWeather, needsRefresh, wet } from "../lib/weather.mts";
 import { grow, newGarden } from "../lib/garden.mts";
+import { dreamPrompt, dreamSystem } from "../lib/extras.mts";
 import { acquireLock, deleteKeys, deleteNote, getBoost, listEvents, listNotes, loadState, peopleIndex, releaseLock, saveState, updatePerson } from "../lib/store.mts";
 
 // Pino's heartbeat. Netlify wakes this every minute (its shortest schedule).
@@ -66,6 +67,36 @@ async function moment(s: State, start: number) {
     const w = await fetchWeather(now);
     if (w) s.weather = w;
     else if (s.weather) s.weather.at = now - 10 * 60_000; // try again in about 5 minutes
+  }
+  // who's watching him right now (everyone whose page pinged in the last couple of minutes)
+  try {
+    const idx = await peopleIndex();
+    const live = Object.entries(idx).filter(([, p]) => now - p.lastSeen < 150_000);
+    const ids = live.map(([id]) => id), before = s.watchers?.ids ?? [];
+    s.watchers = {
+      ids, names: live.map(([, p]) => p.name).filter(Boolean), unnamed: live.filter(([, p]) => !p.name).length, at: now,
+      arrived: live.filter(([id]) => !before.includes(id)).map(([, p]) => p.name || "a new visitor"),
+      left: before.filter((id) => !ids.includes(id)).map((id) => idx[id]?.name || "a visitor"),
+    };
+  } catch { /* keep what we knew */ }
+  // he slept a while: write down the dream he woke from
+  if (s.pendingDream && hasBrain()) {
+    s.pendingDream = false;
+    try {
+      const bits = [
+        ...s.memories.slice(-25).map((m) => `${m.action}: ${m.thought}`.slice(0, 160)),
+        ...(s.museumLog ?? []).slice(-3).map((m) => `the museum's ${m.name}`),
+        ...(s.readingLog ?? []).slice(-3).map((r) => `the book "${r.title}"`),
+        ...(s.treasures ?? []).slice(-3).map((f) => `a treasure he found: ${f.id}`),
+      ].sort(() => Math.random() - 0.5).slice(0, 9);
+      const { text } = await ask(dreamSystem, dreamPrompt(bits), Math.min(12_000, timeLeft()), 450);
+      const d = parseJSON(text);
+      if (d?.title && d?.text) {
+        const dream = { t: clockStr(s, now), title: String(d.title).slice(0, 80), text: String(d.text).slice(0, 900) };
+        s.dreams = [...(s.dreams ?? []), dream].slice(-60); s.justDreamed = dream;
+        console.log(`Pino dreamed: ${dream.title}`);
+      }
+    } catch (e) { console.log("Dream failed:", (e as Error).message); }
   }
   // the garden grows (rain waters it for him)
   if (s.garden) grow(s.garden, now, wet(s.weather));
