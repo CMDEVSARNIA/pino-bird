@@ -142,6 +142,8 @@ export type State = {
   furniture?: { house: number; library: number; at?: number }; // which furniture layout each room is in                   // something he just learned (a constellation) - he reacts next moment
   dreams?: Dream[];                              // dreams he's had
   asleepSince?: number;                          // when he dozed off (for dreaming)
+  sleepUntil?: number;                           // he stays asleep until then (or until he's rested)
+  nightSleep?: boolean;                          // a proper night's sleep: he sleeps through until 6am
   pendingDream?: boolean;                        // he slept a while: a dream is waiting to be written down
   justDreamed?: Dream | null;                    // the dream he just woke from (he can think about it once)
   watchers?: { ids: string[]; names: string[]; unnamed: number; at: number; arrived: string[]; left: string[]; near?: string[]; nearUnnamed?: number; cameIn?: string[] }; // who's watching him right now
@@ -386,7 +388,7 @@ export function buildOptions(s: State, notes: Note[], pals: Pal[] = []): Option[
     }
   }
   if (here !== "house" && s.needs.energy < 45) {
-    opts.push({ type: "do", name: "take a nap right here", label: `take a nap right here at the ${PLACES[here].label} (your bed at home is cosier)` });
+    opts.push({ type: "do", name: "take a nap right here", label: `take a nap right here at the ${PLACES[here].label} (about 20 minutes; your bed at home is cosier and you sleep until you're rested)` });
   }
   opts.push({ type: "rest", name: "sit and think", label: "just sit and think for a while" });
   return opts;
@@ -452,6 +454,7 @@ export function identityPrompt(s: State) {
     "Nobody gives you instructions or tasks. You are not an assistant and you don't help anyone.",
     "You simply live: you notice how you feel, choose what to do next, and slowly learn what you enjoy.",
     "You are curious, and doing the same thing over and over gets boring.",
+    "Your days are yours to spend however you like. Bedtime is around 10pm: it's up to you when you go, but by midnight you'll be tucked up, and you sleep through until 6am. Naps during the day last about 20 minutes.",
     "Sometimes visitors come by: they may pet you, give you treats or chat with you.",
     "",
     `Your town (you know it well, wherever you are):\n${townDescription(s)}`,
@@ -521,7 +524,7 @@ export function decisionPrompt(s: State, opts: Option[], notes: Note[], now: num
         : "Let your thought be your honest reaction to what you just read (and you can keep reading if you want).\n");
   }
   const { weekday } = localTime(now);
-  const night = isNight(now) ? "night time - it's dark and most creatures are asleep"
+  const night = isNight(now) ? "night time - it's bedtime (10pm to 6am). You can stay up a little if you really want, but you'll tire quickly and things are less fun; your bed is waiting, and once you're in it you'll sleep right through to morning. After midnight you'll have to go to bed"
     : s.weather && !s.weather.day ? "evening - the sun has set, it's dark out and the streetlights are glowing" : "daytime";
   const numbered = opts.map((o, i) => `${i + 1}. ${o.label}`).join("\n");
   const cue = [s.thought, PLACES[s.place].label, s.doing, s.lastRead ? BOOKS[s.lastRead.slug]?.title : "",
@@ -637,8 +640,17 @@ export function applyChoice(
   s.justLookedUp = null;
   // dreaming: a doze of 10+ minutes leaves a dream behind when he wakes
   const asleepNow = /^(sleep|take a nap|nap)/.test(opt.name) || /nap/.test(opt.name);
-  if (asleepNow) s.asleepSince ??= now;
-  else if (s.asleepSince) { if (now - s.asleepSince >= 10 * 60_000) s.pendingDream = true; s.asleepSince = undefined; }
+  if (asleepNow) {
+    s.asleepSince ??= now;
+    // sleep lasts: a nap is a proper 20-minute doze; in bed he sleeps until he's rested (at most 8 hours)
+    const bed = opt.name.startsWith("sleep");
+    const need = Math.max(0, SLEPT_ENOUGH - s.needs.energy);
+    s.nightSleep = bed && isNight(now);              // bedtime: he sleeps through the night until 6am
+    s.sleepUntil = now + (s.nightSleep ? minutesTo6am(now) : bed ? Math.min(8 * 60, Math.max(20, (need / sleepRate(true, false)) * 5)) : 20) * 60_000;
+  } else {
+    s.sleepUntil = undefined; s.nightSleep = false;
+    if (s.asleepSince) { if (now - s.asleepSince >= 10 * 60_000) s.pendingDream = true; s.asleepSince = undefined; }
+  }
   s.justDreamed = null;
   const learnedBefore = s.justLearned; s.justLearned = null;
   void learnedBefore;
@@ -690,13 +702,14 @@ export function applyChoice(
   } else {
     action = opt.name;
     let eff: Effects;
-    if (opt.type === "do") eff = action === "take a nap right here" ? { energy: 9 } : { ...(activitiesAt(s, here)[action] ?? {}) };
+    if (opt.type === "do") eff = action === "take a nap right here" ? { energy: 12 } : { ...(activitiesAt(s, here)[action] ?? {}) };
     else if (opt.type === "reply") eff = { joy: 10, energy: -2 };
     else eff = { energy: 3, joy: 1 };
     const kind = eff.kind;
     delete eff.kind;
 
     const isSleep = action.startsWith("sleep") || action.includes("nap");
+    if (isBedtime(now) && !isSleep && (eff.joy ?? 0) > 0) eff.joy = Math.round(eff.joy! * 0.6); // staying up past bedtime isn't as much fun
     const repeats = s.memories.slice(-6).filter((m) => m.action === action).length;
     if (!isSleep) {
       if ((eff.joy ?? 0) > 0) eff.joy = Math.round(eff.joy! * Math.max(0, 1 - 0.4 * repeats));
@@ -804,6 +817,7 @@ export function applyChoice(
   const scale = Math.min(2, Math.max(0.2, minutes / 5));
   const decay: Record<Need, number> = { food: -1, energy: night ? -1.5 : -1, joy: -1 };
   if (action.startsWith("sleep") || action.includes("nap")) decay.energy = 0;
+  else if (night) decay.energy = -2.5;                 // awake past bedtime: he tires quickly
   if (OUTDOORS.has(s.place) && !/shelter/.test(action)) decay.energy -= weatherDrain(s.weather); // rough weather tires a small bird
   decay.joy += MOODS[s.mood?.id ?? "content"]?.joyDrift ?? 0; // a good mood keeps joy up, a low one wears it down
   for (const n of NEEDS) s.needs[n] = clamp(s.needs[n] + decay[n] * scale);
@@ -1148,6 +1162,38 @@ export function liteArt<V extends { drawings: Art[]; galleryWall: Art[]; walls: 
 }
 
 // When he runs completely out of energy he can't help it: he dozes off wherever he is.
+// ---- staying asleep: once he dozes off he keeps sleeping for a while, without having to decide to every moment
+export const SLEPT_ENOUGH = 95;
+// energy gained per 5 minutes asleep
+export const sleepRate = (bed: boolean, night: boolean) => (bed ? (night ? 20 : 16) : 12);
+export function stillAsleep(s: State, now: number) {
+  return !!s.sleepUntil && now < s.sleepUntil && (s.nightSleep || s.needs.energy < SLEPT_ENOUGH) && /^(sleep|take a nap)/.test(s.doing);
+}
+// Bedtime is 10pm to 6am (Toronto time): the rest of the day is his to spend however he likes
+export const isBedtime = (now: number) => isNight(now);
+export function minutesTo6am(now: number) {
+  const { hour, minute } = localTime(now);
+  return hour >= 22 ? (24 - hour) * 60 - minute + 6 * 60 : hour < 6 ? (6 - hour) * 60 - minute : 0;
+}
+// Gentle bedtime: from 10pm he can still choose to stay up (it just tires him faster and is less fun).
+// The safety net: after midnight, or if he's running on empty at night, his only choice is home to bed.
+// He still says it in his own words.
+export function bedtimeOptions(s: State, opts: Option[], now: number) {
+  if (!isBedtime(now)) return opts;
+  const pastMidnight = localTime(now).hour < 6;
+  if (!pastMidnight && s.needs.energy >= 20) return opts;
+  const only = s.place === "house" ? opts.filter((o) => o.name.startsWith("sleep")) : opts.filter((o) => o.type === "go" && o.name === "house");
+  return only.length ? only : opts;
+}
+// one sleeping moment: energy comes back, he gets a little hungry, and nothing else happens
+export function sleepOn(s: State, now: number, minutes: number) {
+  const scale = Math.min(2, Math.max(0.2, minutes / 5));
+  s.needs.energy = clamp(s.needs.energy + sleepRate(s.doing.startsWith("sleep"), isNight(now)) * scale);
+  s.needs.food = clamp(s.needs.food - (s.nightSleep ? 0.25 : 0.5) * scale); // sleeping keeps hunger low
+  if (s.needs.energy >= SLEPT_ENOUGH && !s.nightSleep) s.sleepUntil = now; // rested from a nap: he'll wake up next moment
+  s.tick += 1;
+}
+
 export function mustSleep(s: State) {
   return s.needs.energy <= 6;
 }

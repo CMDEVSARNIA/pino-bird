@@ -2,7 +2,7 @@ import type { Config, Context } from "@netlify/functions";
 import {
   applyChoice, applyReflection, buildOptions, decisionPrompt, identityPrompt, instinct,
   parseJSON, readChoice, reflectionPrompt, REFLECT_EVERY, applyVisits, paceMinutes, type State,
-  drawingPrompt, sanitizeSvg, artSkill, mustSleep, clockStr, drawingInProgress, tidySvg, learnFrom,
+  drawingPrompt, sanitizeSvg, artSkill, mustSleep, clockStr, drawingInProgress, tidySvg, learnFrom, stillAsleep, sleepOn, bedtimeOptions,
 } from "../lib/pino.mts";
 import { ask, hasBrain, lookUp, NoBrain } from "../lib/brain.mts";
 import { fetchWeather, needsRefresh, wet } from "../lib/weather.mts";
@@ -187,6 +187,13 @@ Then reply with ONLY a JSON object, no other text: {"question": "the question he
     await persist();
     return;
   }
+  // asleep: he keeps sleeping (no decision needed) until his nap is over or he's rested
+  if (stillAsleep(s, now)) {
+    sleepOn(s, now, minutes);
+    await persist();
+    console.log(`Pino is still asleep (${s.doing}), energy ${Math.round(s.needs.energy)}`);
+    return;
+  }
   const busy = drawingInProgress(s, now);
   if (busy) {
     s.tick += 1;
@@ -214,7 +221,7 @@ Then reply with ONLY a JSON object, no other text: {"question": "the question he
 
     const notes = await listNotes();
     const pals = await palsFor(now);
-    const opts = buildOptions(s, notes, pals);
+    const opts = bedtimeOptions(s, buildOptions(s, notes, pals), now); // 10pm-6am: home to bed
     let idx = -1, thought = "", note = "", brain = "instinct";
 
     if (mustSleep(s)) {
