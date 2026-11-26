@@ -2,6 +2,7 @@ import type { Config, Context } from "@netlify/functions";
 import { earn, EARN, identityPrompt, isNight, parseJSON, publicView, seedsOf, START_SEEDS, talkPrompt, type Person } from "../lib/pino.mts";
 import { ask, hasBrain } from "../lib/brain.mts";
 import { GIFTS, GIFT_BY_ID, QUICK_TREAT_PRICE, repeatable } from "../lib/gifts.mts";
+import { cocoaWeather } from "../lib/more.mts";
 import {
   addChat, addEvent, addNote, claimGift, claimedGiftIds, countEvents, countNotes, getPerson, loadState, meet,
   getBoost, peopleIndex, recentChats, setBoost, store, updatePerson, type Who,
@@ -48,7 +49,7 @@ export default async (req: Request, context: Context) => {
     return json({
       ...publicView(s, unread, now, chats.map(({ at, you, pino, name, react }) => ({ at, you, pino, name, react }))),
       version: context?.deploy?.id ?? "",
-      giftsAvailable: GIFTS.filter((g) => !gone.has(g.id)).map(({ id, kind, name, emoji, desc, price }) => ({ id, kind, name, emoji, desc, price })),
+      giftsAvailable: GIFTS.filter((g) => !gone.has(g.id) && (g.kind !== "cocoa" || cocoaWeather(s.weather, now)) && (g.kind !== "birdcake" || (s.gifts?.received ?? []).includes("thing-feeder"))).map(({ id, kind, name, emoji, desc, price }) => ({ id, kind, name, emoji, desc, price })),
       me: { owner: OWNERS.has(meId), boostUntil: OWNERS.has(meId) ? boost : undefined, letters: (mePerson?.letters ?? []).slice(-20), name: mePerson?.name ?? null, seeds: seedsOf(mePerson), earned: mePerson?.earned ?? null, rules: EARN, treatPrice: QUICK_TREAT_PRICE },
       friends: Object.values(people).filter((p) => p.visits > 0).sort((a, b) => b.lastSeen - a.lastSeen).slice(0, 30)
         .map(({ name, visits, note, lastSeen }) => ({ name, visits, note, lastSeen })),
@@ -139,9 +140,19 @@ export default async (req: Request, context: Context) => {
     if (!repeatable(gift) && (s.gifts?.received?.includes(gift.id) || !(await claimGift(gift.id, who)))) {
       return json({ ok: false, error: "Someone already gave Pino that one!" }, 409);
     }
-    await addEvent({ type: "gift", id: gift.id, at: now, who });
+    let extra: { text?: string; from?: string } = {};
+    if (gift.kind === "postcard") {
+      extra = { text: clean(b.text, 160), from: clean(b.from, 40) };
+      if (!extra.text || !extra.from) return json({ ok: false, error: "Write where you are and a little message first." }, 400);
+    }
+    if (gift.kind === "cocoa" && !cocoaWeather(s.weather, now)) return json({ ok: false, error: "It's too warm for cocoa right now!" }, 409);
+    if (gift.kind === "birdcake" && !(s.gifts?.received ?? []).includes("thing-feeder")) return json({ ok: false, error: "Pino needs a bird feeder first." }, 409);
+    await addEvent({ type: "gift", id: gift.id, at: now, who, ...extra });
     const after = await meet(who, (p) => { p.gave = [...p.gave, gift.name].slice(-20); p.seeds = seedsOf(p) - gift.price; });
-    const reaction = gift.kind === "seedpack" ? `Pino tucks ${gift.name} into his feathers. ${gift.emoji} He'll plant it in his garden when he's ready.`
+    const reaction = gift.kind === "postcard" ? `Pino reads your postcard twice, then pins it on his wall at home. 📮`
+      : gift.kind === "cocoa" ? `Pino wraps his wings around the warm mug. ☕ Sip... ahhh.`
+      : gift.kind === "birdcake" ? `Pino hangs the seed cake on his feeder. Listen - the birds are already coming! 🪺`
+      : gift.kind === "seedpack" ? `Pino tucks ${gift.name} into his feathers. ${gift.emoji} He'll plant it in his garden when he's ready.`
       : gift.kind === "treat" ? `Pino's eyes go wide at ${gift.name}. He'll dig in any second!`
       : gift.kind === "book" ? `Pino hugs ${gift.name} and carries it off to his library shelf.`
       : gift.kind === "holiday" ? `Pino tucks ${gift.name} under his wing and hurries to the library. ${gift.emoji}`

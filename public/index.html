@@ -203,6 +203,18 @@
   .me button { border: 1px solid var(--line); background: var(--card); border-radius: 999px; padding: 6px 12px; font: inherit; font-size: 13px; cursor: pointer; color: var(--ink); }
   .givehint { font-size: 13px; color: var(--muted); margin: 0 0 10px; line-height: 1.4; }
   .gkind { font-size: 12px; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); margin: 12px 0 6px; }
+  .gsec { border: 1px solid var(--line); border-radius: 14px; background: #fff; margin: 8px 0; overflow: hidden; }
+  .gsec > summary { list-style: none; cursor: pointer; display: grid; grid-template-columns: 28px 1fr auto 14px; align-items: center; column-gap: 8px; padding: 11px 12px; }
+  .gsec > summary::-webkit-details-marker { display: none; }
+  .gsec > summary::after { content: "›"; grid-column: 4; grid-row: 1; font-size: 20px; color: var(--muted); transition: transform .2s; }
+  .gsec[open] > summary::after { transform: rotate(90deg); }
+  .gsec > summary .gse { font-size: 20px; grid-row: 1 / span 2; }
+  .gsec > summary b { font-size: 14px; }
+  .gsec > summary .gcount { grid-column: 3; grid-row: 1; font-size: 12px; font-weight: 700; background: var(--bg, #f6f1e7); border-radius: 999px; padding: 2px 8px; color: var(--muted); }
+  .gsec > summary small { grid-column: 2 / span 2; color: var(--muted); font-size: 12px; }
+  .gsec > .gifts, .gsec > .muted, .gsec > .list { margin: 0 10px 10px; }
+  .gift.wide { grid-column: 1 / -1; }
+  .gift input, .gift textarea { width: 100%; box-sizing: border-box; border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; font: inherit; font-size: 13px; margin-top: 6px; resize: none; }
   .gifts { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
   .gift { border: 1px solid var(--line); background: #fff; border-radius: 12px; padding: 10px; display: flex; flex-direction: column; gap: 4px; }
   .gift .em { font-size: 26px; line-height: 1; }
@@ -385,8 +397,7 @@
   <div class="card panel" id="p-give" hidden>
     <p class="givehint">Gifts cost seeds 🌱. Most are one of a kind: once someone gives it, it's Pino's for good. Seed packets for his garden never run out.</p>
     <div id="giveList"></div>
-    <h3 style="margin-top:14px">Gifts Pino has received</h3>
-    <ul class="list" id="giftLog"></ul>
+    <details class="gsec gotlog"><summary><span class="gse">📜</span><b>Gifts Pino has received</b></summary><ul class="list" id="giftLog"></ul></details>
   </div>
 
   <div class="card panel" id="p-friends" hidden>
@@ -1031,6 +1042,11 @@ function buildWorld() {
     [/^sleep|nap/, V(-2.55, 0.6, -1.8), V(-2.55, 0.6, 2)],
     [/window|snow fall/, V(0.4, 0, -2.2), V(0.4, 0, -6)],
     [/blanket|TV/, V(2.3, 0.45, 1.25), V(2.3, 0.45, -4)],
+    [/fairy lights/, V(-2.55, 0.6, -1.8), V(-2.55, 2, 2)],
+    [/postcards/, V(-2.6, 0, -0.5), V(-4.5, 1.2, -0.9)],
+    [/jigsaw/, V(-1.2, 0, 1.35), V(-1.0, 0, 2.2)],
+    [/bird feeder/, V(0.4, 0, -2.2), V(0.4, 0, -6)],
+    [/harmonica/, V(0, 0, 0.4), V(0, 0, 4)],
     [/rain on the roof/, V(0, 0, 0.4), V(0, 0, 3)],
     [/tidy/, V(-1.0, 0, 0.9), V(-4, 0, 1)],
   ];
@@ -1273,6 +1289,9 @@ function buildWorld() {
     [/puddles/, V(-1.0, 0, 2.9), V(-1.2, 0, 2.8)],
     [/shelter under/, V(-4.2, 0, 2.6), V(-2, 0, 4.2)],
     [/spring flowers/, V(-1.6, 0, 1.4), V(-1.6, 0, 0)],
+    [/sledding/, V(-6.3, 0, 1.4), V(-8, 0, 0.6)],
+    [/constellations/, V(-0.6, 0.52, 7.4), V(-0.6, 3, 4)],
+    [/bird feeder/, V(-8.4, 0, -1.3), V(-9.2, 0, -2.1)],
     [/paddle my feet/, V(-1.9, 0, 7.2), POND],
     [/bench|sit and think/, V(-0.6, 0.52, 7.4), POND],
   ];
@@ -1470,13 +1489,105 @@ function buildWorld() {
     canopy.position.y = 1.2; umb.rotation.z = 0.18;
     outfit.umbrella = umb;
   }
-  let wearState = {};
+  let wearState = {}, santaHat;
   function setWearing(w) {
     wearState = w || {};
     for (const k of ["toque", "scarf", "sunhat", "bowtie", "umbrella"]) outfit[k].visible = !!wearState[k];
+    if (santaHat) santaHat.visible = !!wearState.santa;
     outfit.boots.forEach((b) => (b.visible = !!wearState.boots));
   }
   setWearing({});
+
+  // ---- MORE GIFTS in 3D: bird feeder + wild birds, jigsaw on his table, postcards on his wall,
+  //      a sledding hill (when it snows), a Santa hat, and fairy lights in his house
+  const feeder = new THREE.Group(); feeder.position.set(-9.2, 0, -2.1); feeder.visible = false; scene.add(feeder);
+  add(new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.05, 1.5, 6), M(0x7b5636)), feeder).position.y = 0.75;
+  add(box(0.5, 0.05, 0.5, M(0x9b6b43)), feeder).position.y = 1.5;
+  add(new THREE.Mesh(new THREE.ConeGeometry(0.42, 0.25, 4).rotateY(Math.PI / 4), M(0xb8433a)), feeder).position.y = 1.85;
+  add(new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.25, 8), new THREE.MeshStandardMaterial({ color: 0xd8f0f8, transparent: true, opacity: 0.5 })), feeder).position.y = 1.65;
+  const BIRD_COLS = [[0x8b6a45, 0xd9c6a5], [0xd9312a, 0xb02a24], [0x3f6fd8, 0xf2f2f2], [0xf2c230, 0x2a2a2a], [0x6f6f78, 0xf2f2f2], [0x9a8f86, 0xc9bcae]];
+  const birds = BIRD_COLS.map(([c1, c2], i) => {
+    const b = new THREE.Group(); b.visible = false; feeder.add(b);
+    add(new THREE.Mesh(new THREE.SphereGeometry(0.09, 8, 6), M(c1)), b).scale.set(1, 0.85, 1.3);
+    add(new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 6), M(c1)), b).position.set(0, 0.07, 0.09);
+    add(new THREE.Mesh(new THREE.ConeGeometry(0.02, 0.05, 4).rotateX(Math.PI / 2), M(0xe0a030)), b).position.set(0, 0.07, 0.16);
+    add(new THREE.Mesh(new THREE.SphereGeometry(0.05, 6, 5), M(c2)), b).position.set(0, -0.02, 0.06);
+    const a = (i / BIRD_COLS.length) * Math.PI * 2;
+    b.userData = { a, perch: i < 3, base: i < 3 ? V(Math.cos(a) * 0.22, 1.56, Math.sin(a) * 0.22) : V(Math.cos(a) * 0.7, 0.08, Math.sin(a) * 0.7) };
+    b.position.copy(b.userData.base); b.rotation.y = -a + Math.PI / 2; return b;
+  });
+  let birdCount = 0;
+
+  // the jigsaw on his table: The Great Wave, revealed piece by piece
+  const puzCanvas = Object.assign(document.createElement("canvas"), { width: 200, height: 140 }), puzCtx = puzCanvas.getContext("2d");
+  const puzTex = new THREE.CanvasTexture(puzCanvas); puzTex.colorSpace = THREE.SRGBColorSpace;
+  const puzzle = add(new THREE.Mesh(new THREE.PlaneGeometry(0.72, 0.5).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ map: puzTex, roughness: 0.9 })), hroom, { cast: false });
+  puzzle.position.set(-1.0, 0.75, 2.2); puzzle.rotation.y = 0.2; puzzle.visible = false;
+  const waveImg = new Image(); waveImg.crossOrigin = "anonymous"; let waveReady = false, puzPlaced = -1;
+  waveImg.onload = () => { waveReady = true; drawPuzzle(Math.max(0, puzPlaced)); };
+  function drawPuzzle(placed) {
+    puzPlaced = placed; const x = puzCtx, W = 200, H = 140, cols = 25, rows = 20, cw = W / cols, ch = H / rows;
+    x.fillStyle = "#c9b48f"; x.fillRect(0, 0, W, H);
+    const order = []; for (let i = 0; i < cols * rows; i++) order.push(i);
+    order.sort((a, b) => ((a * 7919) % 997) - ((b * 7919) % 997)); // same scattered order every time
+    if (waveReady) for (let k = 0; k < placed && k < order.length; k++) {
+      const i = order[k], cx = (i % cols) * cw, cy = Math.floor(i / cols) * ch;
+      x.drawImage(waveImg, (cx / W) * waveImg.naturalWidth, (cy / H) * waveImg.naturalHeight, (cw / W) * waveImg.naturalWidth, (ch / H) * waveImg.naturalHeight, cx, cy, cw + 0.5, ch + 0.5);
+    }
+    puzTex.needsUpdate = true;
+  }
+
+  // postcards pinned to a little corkboard over his bed
+  const cork = new THREE.Group(); cork.position.set(-HW + 0.14, 1.65, -0.9); cork.rotation.y = Math.PI / 2; cork.visible = false; hroom.add(cork);
+  add(box(1.1, 0.7, 0.04, M(0xb98a52)), cork, { cast: false });
+  const cardCols = [0xfff6dc, 0xdff1fb, 0xffe1e8, 0xe6f5d8, 0xfff0c8, 0xe8e0ff, 0xffe8d0, 0xdcf7f0];
+  const postcards = cardCols.map((c, i) => {
+    const pc = add(new THREE.Mesh(new THREE.PlaneGeometry(0.24, 0.16), M(c)), cork, { cast: false });
+    pc.position.set(-0.38 + (i % 4) * 0.25, 0.14 - Math.floor(i / 4) * 0.3, 0.03); pc.rotation.z = ((i * 37) % 11 - 5) * 0.03; pc.visible = false;
+    add(new THREE.Mesh(new THREE.SphereGeometry(0.015, 6, 4), M(0xd9312a)), pc).position.set(0, 0.06, 0.01);
+    return pc;
+  });
+
+  // the sledding hill appears behind the park when there's snow (and he has a sled)
+  const hill = new THREE.Group(); hill.position.set(-8.0, 0, 0.6); hill.visible = false; scene.add(hill);
+  const hillGeo = new THREE.SphereGeometry(1.7, 20, 10, 0, Math.PI * 2, 0, Math.PI / 2); hillGeo.scale(1, 0.55, 1);
+  add(new THREE.Mesh(hillGeo, M(0xf2f6f8, { flatShading: false })), hill, { receive: true });
+  const sled = new THREE.Group(); scene.add(sled); sled.visible = false;
+  add(box(0.35, 0.04, 0.7, M(0xb8433a)), sled).position.y = 0.08;
+  for (const x of [-0.15, 0.15]) add(box(0.03, 0.03, 0.8, M(0x5b3a24)), sled).position.set(x, 0.03, 0.02);
+  const SLED_TOP = V(-8.0, 0.92, 0.6), SLED_BOTTOM = V(-6.0, 0.02, 1.4);
+
+  // the Santa hat (on his head in December, if someone gave him one)
+  const santa = new THREE.Group(); santa.position.set(0, 0.1, -0.03); pino.head.add(santa); santa.visible = false; santaHat = santa;
+  add(new THREE.Mesh(new THREE.ConeGeometry(0.17, 0.38, 12), M(0xd9312a, { flatShading: false })), santa).position.set(0, 0.17, -0.04);
+  add(new THREE.Mesh(new THREE.TorusGeometry(0.17, 0.045, 6, 18).rotateX(Math.PI / 2), M(0xf6f4ee, { flatShading: false })), santa);
+  add(new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 6), M(0xf6f4ee)), santa).position.set(0, 0.36, -0.1);
+  santa.children[0].rotation.x = -0.35;
+
+  // fairy lights along the beams of his house
+  const fairy = new THREE.Group(); fairy.visible = false; hroom.add(fairy);
+  const fairyMats = [];
+  for (const z of [-HD + 0.3, HD - 0.3]) for (let i = 0; i <= 16; i++) {
+    const x = -HW + 0.3 + (i / 16) * (HW * 2 - 0.6), sag = Math.sin((i / 16) * Math.PI * 4) * 0.06;
+    const mat = new THREE.MeshBasicMaterial({ color: [0xffd27a, 0xff9ad8, 0x9ad8ff, 0xb8ff9a][i % 4] });
+    add(new THREE.Mesh(new THREE.SphereGeometry(0.035, 6, 5), mat), fairy, { cast: false }).position.set(x, HH - 0.32 - Math.abs(sag), z);
+    fairyMats.push({ mat, base: new THREE.Color(mat.color), ph: i * 0.9 + z });
+  }
+
+  let moreState = null;
+  function setMore(m, owned) {
+    moreState = m || {}; const has = (id) => (owned || []).includes(id);
+    feeder.visible = has("thing-feeder"); birdCount = feeder.visible ? Math.min(birds.length, moreState.birds || 0) : 0;
+    birds.forEach((b, i) => (b.visible = i < birdCount));
+    puzzle.visible = has("thing-puzzle");
+    if (puzzle.visible) { if (!waveImg.src) waveImg.src = "/api/museum-image?id=wave"; const pl = moreState.puzzle?.placed ?? 0; if (pl !== puzPlaced) drawPuzzle(pl); }
+    const n = (moreState.postcards || []).length; cork.visible = n > 0; postcards.forEach((p, i) => (p.visible = i < n));
+    fairy.visible = has("thing-lights");
+    moreState.hasSled = has("thing-sled");
+  }
+  // his harmonica (in his beak while he plays)
+  const harmonica = new THREE.Group(); harmonica.visible = false; pino.head.add(harmonica);
+  add(box(0.18, 0.045, 0.06, M(0xc9ccd2, { metalness: 0.7, roughness: 0.3 })), harmonica).position.set(0, -0.07, 0.2);
 
   // ---- his penguin teddy (a free gift): carried in his wing, hugged, or left wherever he puts it down
   const teddy = new THREE.Group(); teddy.visible = false; scene.add(teddy);
@@ -1771,6 +1882,21 @@ function buildWorld() {
     // the TV picture (only drawn while someone is looking inside the house)
     if (view.mode === "house") { const frame = Math.floor(t * 8); if (frame !== tvDrawn) { tvDrawn = frame; drawTV(t); } }
 
+    // wild birds at the feeder, the sledding hill, fairy lights, the harmonica
+    birds.forEach((b, i) => { if (!b.visible) return; const u = b.userData;
+      b.position.y = u.base.y + Math.max(0, Math.sin(t * (5 + i) + i * 2)) * (u.perch ? 0.03 : 0.08);
+      if (!u.perch) { b.position.x = u.base.x + Math.sin(t * 0.4 + i) * 0.25; b.position.z = u.base.z + Math.cos(t * 0.3 + i) * 0.2; } });
+    hill.visible = !!moreState?.hasSled && wx.snowy;
+    const sledding = hill.visible && /sledding/.test(state.doing) && !state.path.length && !state.room;
+    if (sledding) {
+      const p = (t * 0.4) % 1, q = Math.min(1, p * 1.25);
+      g.position.lerpVectors(SLED_TOP, SLED_BOTTOM, q); g.position.y = SLED_TOP.y * Math.pow(1 - q, 1.6);
+      g.rotation.y = Math.atan2(SLED_BOTTOM.x - SLED_TOP.x, SLED_BOTTOM.z - SLED_TOP.z);
+      sled.visible = true; sled.position.copy(g.position); sled.rotation.y = g.rotation.y; sled.rotation.x = q < 1 ? 0.3 * (1 - q) : 0;
+    } else { sled.visible = hill.visible; sled.position.set(-6.4, 0, 0.2); sled.rotation.set(0, 0.6, 0); }
+    harmonica.visible = /play my harmonica/.test(state.doing) && !state.path.length;
+    if (/constellations/.test(state.doing) && !walking) headX = -0.7;
+
     // the penguin teddy: tucked under his wing, hugged close, or sitting where he left it
     if (teddyState) {
       teddy.visible = true;
@@ -1840,6 +1966,7 @@ function buildWorld() {
     if (holidayNow === "winter") twinkles.forEach((tw) => tw.m.color.copy(tw.c).multiplyScalar(0.55 + 0.45 * (Math.sin(t * 2.2 + tw.ph) > 0 ? 1 : 0.3) * (0.6 + f * 0.6)));
     if (holidayNow === "halloween") lanternMats.forEach((m, i) => (m.emissiveIntensity = 0.2 + f * (1.4 + Math.sin(t * 8 + i) * 0.15)));
     flag.rotation.z += ((mailUp ? 0 : -Math.PI / 2) - flag.rotation.z) * Math.min(1, dt * 4);
+    if (fairy.visible) fairyMats.forEach((fm) => fm.mat.color.copy(fm.base).multiplyScalar(0.35 + (0.4 + f * 0.6) * (0.6 + 0.4 * Math.sin(t * 2.5 + fm.ph))));
     // streetlights switch on one after another as it gets dark, with a little flicker as each one warms up
     for (const L of lamps) {
       const want = f > L.at ? 1 : 0;
@@ -1906,7 +2033,7 @@ function buildWorld() {
     setGallery,
     setWeather,
     setTeddy: (t) => (teddyState = t),
-    setGarden, setWearing, setTreasures, setWalls,
+    setGarden, setWearing, setTreasures, setWalls, setMore,
     setHoliday: (id) => { holidayNow = id; deco.winter.visible = id === "winter"; deco.halloween.visible = id === "halloween"; },
     setMail: (up) => (mailUp = up),
     setTV: (p) => { tvProg = p; tvDrawn = -1; if (view.mode !== "house") drawTV(0); },
@@ -1979,7 +2106,7 @@ function snacksTexture() {
 // ================================================================ UI + DATA
 const BADGES = [[/reading nook/, "🛋️"], [/sleep|nap/, "💤"], [/drawing manual/, "🖌️"], [/read/, "📖"], [/journal/, "✏️"], [/draw/, "🎨"], [/seed bar/, "🍫"], [/crisps/, "🥨"], [/juice/, "🧃"],
   [/leaf/, "🍂"], [/ducks/, "🦆"], [/bench|sit/, "💭"], [/window/, "🪟"], [/tidy/, "🧹"], [/talked/, "💬"], [/petted/, "❤️"], [/treat/, "🍪"], [/reflect/, "🌙"], [/walked/, "👣"], [/swing/, "🎠"], [/telescope/, "🔭"], [/toy train/, "🚂"], [/birdbath/, "💦"], [/kite/, "🪁"], [/given/, "🎁"], [/gramophone|next song/, "🎶"], [/dance/, "💃"], [/hung my drawing|art on the walls|hang/, "🖼️"],
-  [/exhibit|museum/, "🏛️"], [/penguin teddy/, "🐧"], [/found .* (and kept it|pocket)|treasure shelf/, "✨"], [/letter/, "✉️"], [/plant a|water my garden|look at my garden/, "🌱"], [/harvest|pick the/, "🧺"], [/\bTV\b/, "📺"], [/snow-kiwi|soft snow/, "☃️"], [/snowflakes|snow fall/, "❄️"], [/frozen pond/, "⛸️"], [/puddles|rain on the roof/, "🌧️"], [/shelter/, "🌳"], [/spring flowers/, "🌷"], [/paddle/, "💦"]];
+  [/exhibit|museum/, "🏛️"], [/penguin teddy/, "🐧"], [/postcard/, "📮"], [/bird feeder|birds at/, "🐦"], [/jigsaw/, "🧩"], [/constellation/, "🌌"], [/harmonica/, "🎵"], [/sledding/, "🛷"], [/fairy lights/, "✨"], [/found .* (and kept it|pocket)|treasure shelf/, "✨"], [/letter/, "✉️"], [/plant a|water my garden|look at my garden/, "🌱"], [/harvest|pick the/, "🧺"], [/\bTV\b/, "📺"], [/snow-kiwi|soft snow/, "☃️"], [/snowflakes|snow fall/, "❄️"], [/frozen pond/, "⛸️"], [/puddles|rain on the roof/, "🌧️"], [/shelter/, "🌳"], [/spring flowers/, "🌷"], [/paddle/, "💦"]];
 let latest = null, first = true, speaking = 0, followOn = false;
 
 // ---- who you are: a random id this browser keeps, plus the name you tell Pino
@@ -2119,7 +2246,7 @@ function render(s) {
   list("journal", s.journal, (j) => { const li = el("li"); li.append(el("span", "meta", j.t), document.createTextNode(j.text)); return li; }, "He hasn't written anything yet.");
   renderGallery(s.drawings || []);
   renderBooks(s);
-  if (world) { world.setOwned(s.owned || []); world.setGallery(s.galleryWall || []); world.setWalls(s.walls); }
+  if (world) { world.setOwned(s.owned || []); world.setGallery(s.galleryWall || []); world.setWalls(s.walls); world.setMore(s.more, s.owned || []); }
   renderWeather(s);
   renderMuseum(s);
   if (world) { world.setTeddy(s.teddy || null); world.setGarden(s.garden); world.setWearing(s.wearing); world.setTreasures(s.treasures); world.setHoliday(s.holiday || null); world.setMail((s.me?.letters || []).some((l) => !l.read)); }
@@ -2419,6 +2546,26 @@ window.addEventListener("pino:thunder", () => ambience?.thunder());
 // ---- the gramophone: everyone hears the same song at the same moment (after tapping 🔇 to allow sound)
 const gramophone = new Gramophone();
 let soundOn = false, ambience = null;
+// Pino's harmonica: a little tune every few seconds while he plays (with wrong notes until he's practised)
+setInterval(() => {
+  if (!soundOn || !gramophone.ctx || !latest || !/play my harmonica/.test(latest.doing || "") || !world) return;
+  const indoors = ["house", "library", "museum"].includes(latest.place);
+  if (indoors ? world.viewMode() !== latest.place : world.viewMode() !== "town") return;
+  const ctx = gramophone.ctx, skill = latest.more?.harmonica ?? 0, t0 = ctx.currentTime + 0.05;
+  const tune = [0, 2, 4, 5, 7, 5, 4, 2, 0, 4, 7, 12], base = 523.25;
+  const out = ctx.createGain(); out.gain.value = 0.06; out.connect(ctx.destination);
+  tune.forEach((st, i) => {
+    const wrong = Math.random() > 0.35 + skill * 0.65 ? (Math.random() < 0.5 ? 1 : -1) : 0;
+    const f = base * Math.pow(2, (st + wrong) / 12), t = t0 + i * 0.22;
+    const o = ctx.createOscillator(), o2 = ctx.createOscillator(), g = ctx.createGain(), vib = ctx.createOscillator(), vg = ctx.createGain();
+    o.type = "sawtooth"; o2.type = "square"; o.frequency.value = f; o2.frequency.value = f * 1.003;
+    vib.frequency.value = 6; vg.gain.value = f * 0.012; vib.connect(vg); vg.connect(o.frequency); vg.connect(o2.frequency);
+    const lp = ctx.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 1800;
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.5, t + 0.04); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.21);
+    o.connect(lp); o2.connect(lp); lp.connect(g); g.connect(out);
+    [o, o2, vib].forEach((n) => { n.start(t); n.stop(t + 0.23); });
+  });
+}, 4500);
 const chirp = (happy) => { if (soundOn && gramophone.ctx) pinoChirp(gramophone.ctx, gramophone.ctx.destination, happy); };
 function syncMusic(m) {
   if (ambience && latest) ambience.setNight(!!latest.night);
@@ -2468,7 +2615,21 @@ setInterval(async () => {
 }, 60_000);
 
 // ---- give tab
-const KINDS = [["toy", "Toys (free!)"], ["outfit", "Things to wear (he dresses for the weather)"], ["seedpack", "Seed packets for his garden (buy as many as you like)"], ["artbook", "Art books (he learns to draw from them)"], ["holiday", "Holiday books 🎄🎃🦃🐣"], ["book", "Books for his library"], ["song", "Records for his gramophone"], ["treat", "Treats (eaten right away)"], ["snack", "New snacks for the vending machine"], ["thing", "Things for his town"]];
+// gift categories: [kinds, emoji, title, hint]
+const KINDS = [
+  [["postcard", "cocoa", "birdcake"], "💌", "Give again and again", "Postcards, hot cocoa and seed cakes never run out."],
+  [["toy"], "🧸", "Toys", "Free!"],
+  [["thing"], "🏡", "Things for his town", "One of a kind: each comes with new things for him to do."],
+  [["outfit"], "🎀", "Things to wear", "He dresses for the weather."],
+  [["seedpack"], "🌱", "Seed packets for his garden", "Buy as many as you like."],
+  [["treat"], "🍪", "Treats", "Eaten right away."],
+  [["snack"], "🥤", "New snacks for the vending machine", ""],
+  [["song"], "💿", "Records for his gramophone", ""],
+  [["artbook"], "🖌️", "Art books", "He learns to draw from them."],
+  [["holiday"], "🎄", "Holiday books", ""],
+  [["book"], "📚", "Books for his library", ""],
+];
+const openKinds = new Set(); // which categories you've opened (kept open while the list refreshes)
 let giveSig = "";
 function renderGive(s) {
   const avail = s.giftsAvailable || [];
@@ -2476,26 +2637,40 @@ function renderGive(s) {
   if (sig === giveSig) return; giveSig = sig;
   const box = $("giveList"); box.replaceChildren();
   if (!avail.length) box.append(el("div", "empty", "Pino has been given everything! More gifts coming soon."));
-  for (const [kind, label] of KINDS) {
-    const items = avail.filter((g) => g.kind === kind); if (!items.length) continue;
-    box.append(el("div", "gkind", label));
-    if (kind === "seedpack") box.append(el("p", "muted", gardenSummary(s.garden)));
+  for (const [kinds, emo, title, hint] of KINDS) {
+    const items = avail.filter((g) => kinds.includes(g.kind)); if (!items.length) continue;
+    const key = kinds.join("+"), sec = document.createElement("details"); sec.className = "gsec"; sec.open = openKinds.has(key);
+    sec.addEventListener("toggle", () => (sec.open ? openKinds.add(key) : openKinds.delete(key)));
+    const sum = document.createElement("summary");
+    sum.append(el("span", "gse", emo), el("b", null, title), el("span", "gcount", String(items.length)));
+    if (hint) sum.append(el("small", null, hint));
+    sec.append(sum); box.append(sec);
+    if (kinds.includes("seedpack")) sec.append(el("p", "muted", gardenSummary(s.garden)));
     const grid = el("div", "gifts");
     for (const g of items) {
       const label = g.price ? `Give · 🌱 ${g.price}` : "Give · Free";
       const card = el("div", "gift"), btn = el("button", null, label); btn.type = "button";
       if (mySeeds < g.price) { btn.disabled = true; btn.title = `You need 🌱 ${g.price}`; }
-      card.append(el("span", "em", g.emoji), el("b", null, g.name.replace(/^(a |an |the book |the art book |the holiday book |the record )/, "").replace(/^./, (c) => c.toUpperCase()).replace(/ for the vending machine$/, "")), el("small", null, g.desc), btn);
+      card.append(el("span", "em", g.emoji), el("b", null, g.name.replace(/^(a |an |the book |the art book |the holiday book |the record )/, "").replace(/^./, (c) => c.toUpperCase()).replace(/ for the vending machine$/, "")), el("small", null, g.desc));
+      let where, msg;
+      if (g.kind === "postcard") {
+        where = Object.assign(document.createElement("input"), { placeholder: "Where are you? (e.g. Toronto)", maxLength: 40 });
+        msg = Object.assign(document.createElement("textarea"), { placeholder: "Write Pino a line…", maxLength: 160, rows: 2 });
+        card.append(where, msg); card.classList.add("wide");
+      }
+      card.append(btn);
       btn.onclick = async () => {
+        if (g.kind === "postcard" && (!where.value.trim() || !msg.value.trim())) { toast("Write where you are and a little message first."); return; }
         btn.disabled = true; btn.textContent = "Giving…";
-        const j = await post("/api/give", { id: g.id });
+        const j = await post("/api/give", { id: g.id, text: msg?.value.trim(), from: where?.value.trim() });
+        if (j.ok && g.kind === "postcard") { where.value = ""; msg.value = ""; }
         if (typeof j.seeds === "number") setSeeds(j.seeds);
-        if (j.ok) { toast(j.reaction); if (g.kind === "seedpack") { btn.disabled = false; btn.textContent = label; } else card.remove(); if (world) { g.kind === "treat" || g.kind === "snack" ? world.treat() : world.pet(); } setTimeout(refresh, 1500); }
+        if (j.ok) { toast(j.reaction); if (["seedpack", "postcard", "cocoa", "birdcake"].includes(g.kind)) { btn.disabled = false; btn.textContent = label; } else card.remove(); if (world) { g.kind === "treat" || g.kind === "snack" ? world.treat() : world.pet(); } setTimeout(refresh, 1500); }
         else { toast(j.error || "That didn't work. Try again."); btn.disabled = false; btn.textContent = label; if (j.error && /already/.test(j.error)) { card.remove(); } }
       };
       grid.append(card);
     }
-    box.append(grid);
+    sec.append(grid);
   }
   list("giftLog", s.gifts || [], (x) => { const li = el("li"); li.append(el("span", "meta", x.t), document.createTextNode(`${x.emoji} ${x.from} gave Pino ${x.name}`)); return li; }, "No gifts yet. Be the first!");
 }

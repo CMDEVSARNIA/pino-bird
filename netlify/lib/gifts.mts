@@ -6,7 +6,7 @@ import { SONGS } from "./music.mts";
 type Fx = { food?: number; energy?: number; joy?: number; kind?: "journal" | "drawing" };
 export type Gift = {
   id: string;
-  kind: "book" | "artbook" | "holiday" | "treat" | "snack" | "thing" | "song" | "toy" | "seedpack" | "outfit";
+  kind: "book" | "artbook" | "holiday" | "treat" | "snack" | "thing" | "song" | "toy" | "seedpack" | "outfit" | "postcard" | "cocoa" | "birdcake";
   price: number;       // in seeds
   name: string;        // "a telescope"
   emoji: string;
@@ -18,7 +18,7 @@ export type Gift = {
   book?: string;       // books: slug
   song?: string;       // songs: id
 };
-export const PRICES = { treat: 10, song: 20, snack: 25, book: 30, holiday: 30, artbook: 40, toy: 0, seedpack: 12, outfit: 35, thing: 50 } as const;
+export const PRICES = { treat: 10, song: 20, snack: 25, book: 30, holiday: 30, artbook: 40, toy: 0, seedpack: 12, outfit: 35, postcard: 10, cocoa: 5, birdcake: 8, thing: 50 } as const;
 export const QUICK_TREAT_PRICE = 2;
 
 const TREATS: Omit<Gift, "price">[] = [
@@ -46,6 +46,19 @@ const THINGS: Omit<Gift, "price">[] = [
   { id: "thing-kite", kind: "thing", name: "a kite", emoji: "🪁", desc: "A red kite with a long tail.", place: "park", activity: "fly my kite", fx: { joy: 13, energy: -8, food: -3 } },
   { id: "thing-paints", kind: "thing", name: "a set of watercolour paints", emoji: "🎨", desc: "For the drawing table at the library.", place: "library", activity: "paint with watercolours", fx: { joy: 12, energy: -5, kind: "drawing" } },
   { id: "thing-blanket", kind: "thing", name: "a cosy knitted blanket", emoji: "🧶", desc: "For curling up at home.", place: "house", activity: "curl up in my cosy blanket", fx: { energy: 8, joy: 6 } },
+  // these come with their own special things to do (see more.mts)
+  { id: "thing-feeder", kind: "thing", name: "a bird feeder", emoji: "🪺", desc: "Goes up by his garden. Sparrows, juncos and chickadees drop by - and seed cakes bring cardinals and blue jays.", place: "garden" },
+  { id: "thing-puzzle", kind: "thing", name: "a 500-piece jigsaw puzzle", emoji: "🧩", desc: "A puzzle of The Great Wave for his table at home. He works on it a bit at a time over days.", place: "house" },
+  { id: "thing-starchart", kind: "thing", name: "a star chart", emoji: "🌌", desc: "He learns real constellations on clear nights in the park.", place: "house" },
+  { id: "thing-harmonica", kind: "thing", name: "a harmonica", emoji: "🎵", desc: "Everyone watching hears him play - badly at first, better with practice.", place: "house" },
+  { id: "thing-sled", kind: "thing", name: "a wooden sled", emoji: "🛷", desc: "When there's snow in Sarnia, a sledding hill appears behind the park.", place: "park" },
+  { id: "thing-lights", kind: "thing", name: "a string of fairy lights", emoji: "✨", desc: "Twinkly lights for his house that glow in the evening.", place: "house" },
+];
+// Things visitors can give again and again
+const REPEATS: Omit<Gift, "price">[] = [
+  { id: "postcard", kind: "postcard", name: "a postcard", emoji: "📮", desc: "Tell Pino where you are and write him a line. He pins every postcard on his wall at home." },
+  { id: "cocoa", kind: "cocoa", name: "a mug of hot cocoa", emoji: "☕", desc: "Warms him right up on a cold day. (Only when it's chilly out.)" },
+  { id: "birdcake", kind: "birdcake", name: "a bird seed cake", emoji: "🪺", desc: "Hang it on his bird feeder: cardinals, blue jays and woodpeckers visit for the next 3 hours." },
 ];
 
 const BOOK_GIFTS: Gift[] = Object.values(BOOKS).filter((b) => b.gift).map((b) => ({
@@ -73,15 +86,16 @@ const SEEDPACKS: Omit<Gift, "price">[] = Object.values(CROPS).map((c) => ({
   id: `seeds-${c.id}`, kind: "seedpack" as const, name: `a packet of ${c.name} seeds`, emoji: c.emoji,
   desc: `Pino plants them in his garden by the house. ${c.flower ? "They bloom" : "They're ready to eat"} after about ${c.hours / 24 === Math.round(c.hours / 24) ? `${c.hours / 24} day${c.hours === 24 ? "" : "s"}` : `${c.hours} hours`} of growing, if he keeps them watered.`,
 }));
-export const repeatable = (g: { kind: string }) => g.kind === "seedpack";
+export const repeatable = (g: { kind: string }) => ["seedpack", "postcard", "cocoa", "birdcake"].includes(g.kind);
 
 // Things to wear: he puts them on when the weather suits them
 const OUTFITS: Omit<Gift, "price">[] = [
   { id: "outfit-bowtie", kind: "outfit", name: "a dapper bow tie", emoji: "🎀", desc: "A smart little bow tie. Pino wears it every day." },
   { id: "outfit-sunhat", kind: "outfit", name: "a straw sun hat", emoji: "👒", desc: "For warm, sunny days in the park. (In winter it waits in his cupboard.)" },
   { id: "outfit-boots", kind: "outfit", name: "yellow rain boots", emoji: "🥾", desc: "Tiny yellow boots for splashing through rain and snow." },
+  { id: "outfit-santa", kind: "outfit", name: "a Santa hat", emoji: "🎅", desc: "He wears it every day from December 1 to January 6." },
 ];
 
-export const GIFTS: Gift[] = ([...TOYS, ...OUTFITS, ...SEEDPACKS, ...BOOK_GIFTS, ...SONG_GIFTS, ...TREATS, ...SNACKS, ...THINGS] as (Omit<Gift, "price"> & { price?: number })[])
+export const GIFTS: Gift[] = ([...TOYS, ...REPEATS, ...OUTFITS, ...SEEDPACKS, ...BOOK_GIFTS, ...SONG_GIFTS, ...TREATS, ...SNACKS, ...THINGS] as (Omit<Gift, "price"> & { price?: number })[])
   .map((g) => ({ ...g, price: g.price ?? PRICES[g.kind] }));
 export const GIFT_BY_ID: Record<string, Gift> = Object.fromEntries(GIFTS.map((g) => [g.id, g]));

@@ -46,12 +46,15 @@ export function dreamPrompt(bits: string[]) {
 }
 
 // ---- CLOTHES: he dresses for the real weather outside, plus anything visitors have given him to wear
-export type Wearing = { toque: boolean; scarf: boolean; umbrella: boolean; bowtie: boolean; sunhat: boolean; boots: boolean };
-export function wearing(w: Weather | undefined, outdoors: boolean, owned: string[], night: boolean): Wearing {
+export type Wearing = { toque: boolean; scarf: boolean; umbrella: boolean; bowtie: boolean; sunhat: boolean; boots: boolean; santa: boolean };
+export function wearing(w: Weather | undefined, outdoors: boolean, owned: string[], night: boolean, now = Date.now()): Wearing {
   const cold = !!w && w.temp <= 3, raining = outdoors && wet(w);
   const sunny = !!w && w.temp >= 15 && (w.kind === "clear" || w.kind === "partly") && !night;
+  const m = new Date(now).getUTCMonth() + 1, d = new Date(now).getUTCDate();
+  const santa = owned.includes("outfit-santa") && (m === 12 || (m === 1 && d <= 6));
   return {
-    toque: outdoors && cold && !(owned.includes("outfit-sunhat") && sunny),
+    santa,
+    toque: outdoors && cold && !santa && !(owned.includes("outfit-sunhat") && sunny),
     scarf: outdoors && cold,
     umbrella: raining,
     bowtie: owned.includes("outfit-bowtie"),
@@ -60,7 +63,7 @@ export function wearing(w: Weather | undefined, outdoors: boolean, owned: string
   };
 }
 export function wearingLine(x: Wearing) {
-  const on = [x.toque && "your red woolly toque", x.scarf && "your stripy scarf", x.sunhat && "your straw sun hat",
+  const on = [x.santa && "your Santa hat", x.toque && "your red woolly toque", x.scarf && "your stripy scarf", x.sunhat && "your straw sun hat",
     x.bowtie && "your bow tie", x.boots && "your yellow rain boots", x.umbrella && "holding your little umbrella"].filter(Boolean);
   return on.length ? `You're wearing ${on.join(", ").replace(/, ([^,]*)$/, " and $1")}.` : "";
 }

@@ -5,6 +5,7 @@ import { GIFT_BY_ID, TEDDY_ID } from "./gifts.mts";
 import { CROPS, doGarden, gardenActivities, gardenLine, gardenView, newGarden, type Garden } from "./garden.mts";
 import { holiday } from "./holidays.mts";
 import { spotTreasure, TREASURE_BY_ID, wearing, wearingLine, type Dream, type Found } from "./extras.mts";
+import { birdsAtFeeder, cocoaWeather, doMore, harmonicaSkill, moreActivities, moreLines, PUZZLE_PIECES, type More } from "./more.mts";
 import { SONG_BY_ID, nextSong, randomSong, silence, songsOwned, type Music } from "./music.mts";
 import { recall } from "./memory.mts";
 import { frozenPond, outdoorFeeling, season, snowy, weatherDrain, weatherLine, wet, type Weather } from "./weather.mts";
@@ -129,6 +130,8 @@ export type State = {
   treasures?: Found[];                           // things he's found and keeps on his shelf at home
   pocket?: Found[];                              // treasures he's carrying home (he has to take them home to shelve them)
   pocketFix?: boolean;                           // one-off: move early finds into his pocket
+  more?: More;                                   // postcards, bird feeder, puzzle, star chart, harmonica, sled
+  justLearned?: string | null;                   // something he just learned (a constellation) - he reacts next moment
   dreams?: Dream[];                              // dreams he's had
   asleepSince?: number;                          // when he dozed off (for dreaming)
   pendingDream?: boolean;                        // he slept a while: a dream is waiting to be written down
@@ -279,6 +282,7 @@ export function activitiesAt(s: State, place: string): Record<string, Effects> {
     const g = GIFT_BY_ID[id];
     if (g?.place === place && g.activity) acts[g.activity] = { ...(g.fx ?? {}) };
   }
+  Object.assign(acts, moreActivities(s.more ?? {}, place, s.gifts?.received ?? [], w, isNight(Date.now()) || s.weather?.day === false, Date.now()));
   return acts;
 }
 
@@ -366,6 +370,7 @@ export function townDescription(s: State) {
     `- Your art gallery: ${(s.galleryWall ?? []).length ? `${s.galleryWall.length} of your drawings hang on the walls (${s.galleryWall.map((d) => `"${d.title ?? "untitled"}"`).join(", ")})` : `empty frames waiting for your drawings`}. You can hang any drawing you've finished.`,
     `- The museum: a grand domed building full of real treasures - famous paintings (like The Starry Night and the Mona Lisa), a T. rex skeleton, a giant moa skeleton, the Rosetta Stone, an Egyptian mummy, the Wright brothers' airplane, a moon rock, a Saturn V rocket and more. You've looked at ${new Set((s.museumLog ?? []).map((m) => m.id)).size} of its ${EXHIBITS.length} exhibits.`,
     `- Your garden, just to the left of your house: ${gardenLine(s.garden, Date.now())}.`,
+    ...moreLines(s.more ?? {}, s.gifts?.received ?? [], s.weather, isNight(Date.now()) || s.weather?.day === false, Date.now()).map((l) => `- ${l}`),
     ...((s.pocket ?? []).length ? [`- In your pocket, waiting to go on your treasure shelf at home: ${(s.pocket ?? []).map((f) => TREASURE_BY_ID[f.id]?.name).join(", ")}. (You can only shelve them once you're home.)`] : []),
     `- Your treasure shelf at home: ${(s.treasures ?? []).length ? (s.treasures ?? []).map((f) => TREASURE_BY_ID[f.id]?.name).filter(Boolean).join(", ") : "empty so far - keep an eye out for little treasures when you're out and about"}.`,
     `- The weather in town right now: ${weatherLine(s.weather, Date.now())}`,
@@ -423,6 +428,7 @@ export function decisionPrompt(s: State, opts: Option[], notes: Note[], now: num
       (w.arrived.length ? ` Just arrived: ${w.arrived.join(", ")}!` : "") + (w.left.length ? ` Just left: ${w.left.join(", ")}.` : "") +
       ((w.near?.length || w.nearUnnamed) ? ` Right here in the ${PLACES[s.place]?.label ?? s.place} with you, watching up close: ${[...(w.near ?? []), ...(w.nearUnnamed ? [`${w.nearUnnamed} visitor${w.nearUnnamed === 1 ? "" : "s"} you haven't met`] : [])].join(", ")}.` : "") +
       (w.cameIn?.length ? ` ${w.cameIn.join(", ")} just came inside to see you!` : "") + "\n";
+  const learnedNow = s.justLearned ? `\nYou just found a constellation with your star chart. ${s.justLearned}\nLet your thought be your reaction to it.\n` : "";
   const dreamNow = s.justDreamed ? `\nYou just woke up from a dream called "${s.justDreamed.title}": ${s.justDreamed.text}\n(You may think about it, or not.)\n` : "";
   const dressed = wearingLine(wearing(s.weather, OUTDOORS.has(s.place), s.gifts?.received ?? [], isNight(now)));
   const ex = s.lastSaw ? EXHIBIT_BY_ID[s.lastSaw] : undefined;
@@ -453,7 +459,7 @@ export function decisionPrompt(s: State, opts: Option[], notes: Note[], now: num
     (openers.length ? ` Your recent thoughts started like ${openers.join(", ")} - start this one a different way.` : "") + "\n";
   return (
     `It is ${weekday}, ${clockStr(s, now)} (${night}). You are at the ${PLACES[s.place].label}: ${PLACES[s.place].desc}.\n\n` +
-    `How you feel right now:\n${feel}\n${weather}${company}${dressed ? dressed + "\n" : ""}${dreamNow}${bored}${note}${reading}${museum}${tvNow}\n` +
+    `How you feel right now:\n${feel}\n${weather}${company}${dressed ? dressed + "\n" : ""}${dreamNow}${learnedNow}${bored}${note}${reading}${museum}${tvNow}\n` +
     (friends ? `Visitors you know:\n${friends}\n\n` : "") +
     `What happened recently (oldest first):\n${history}\n\n` +
     (remembered ? `Older memories that come to mind:\n${remembered}\n\n` : "") +
@@ -547,6 +553,8 @@ export function applyChoice(
   if (asleepNow) s.asleepSince ??= now;
   else if (s.asleepSince) { if (now - s.asleepSince >= 10 * 60_000) s.pendingDream = true; s.asleepSince = undefined; }
   s.justDreamed = null;
+  const learnedBefore = s.justLearned; s.justLearned = null;
+  void learnedBefore;
 
   if (opt.type === "hang") {
     const d = (s.drawings ?? []).find((x) => x.t === opt.name);
@@ -628,6 +636,10 @@ export function applyChoice(
       const did = doGarden(s.garden, action, now);
       if (did) action = `${action} - ${did}`;
     }
+    s.more ??= {};
+    const fun = doMore(s.more, action, s.weather, now);
+    if (fun.note) action = `${action} - ${fun.note}`;
+    if (fun.learned) s.justLearned = fun.learned;
     s.tv ??= { ...TV_OFF };
     if (action === "turn on the TV") s.tv = { on: true, channel: s.tv.channel || randomChannel(), since: now };
     else if (action === "flip to the next TV channel") s.tv = { on: true, channel: nextChannel(s.tv.channel), since: now };
@@ -711,7 +723,7 @@ export function applyReflection(s: State, reply: any, now: number) {
 // ---------------------------------------------------------------------------
 // Visitors: pets, treats and conversations
 // ---------------------------------------------------------------------------
-type Visit = { type: "pet" | "treat" | "talk" | "gift"; at: number; text?: string; reply?: string; id?: string; who?: { id: string; name: string } };
+type Visit = { type: "pet" | "treat" | "talk" | "gift"; at: number; text?: string; reply?: string; id?: string; who?: { id: string; name: string }; from?: string };
 const whoName = (v: Visit) => v.who?.name || "a visitor";
 
 // Folds what visitors did since the last tick into Pino's needs and memories.
@@ -740,7 +752,15 @@ export function applyVisits(s: State, visits: Visit[], now: number) {
   for (const v of visits.filter((x) => x.type === "gift")) {
     const g = v.id ? GIFT_BY_ID[v.id] : undefined;
     if (!g) continue;
-    if (g.kind === "seedpack") {
+    if (g.kind === "postcard") {
+      s.more ??= {};
+      s.more.postcards = [...(s.more.postcards ?? []), { from: whoName(v), place: v.from || "somewhere", text: v.text || "Hello!", t, at: now }].slice(-40);
+    } else if (g.kind === "cocoa") {
+      // drunk straight away
+    } else if (g.kind === "birdcake") {
+      s.more ??= {};
+      s.more.birdCakeUntil = Math.max(now, s.more.birdCakeUntil ?? 0) + 3 * 3_600_000;
+    } else if (g.kind === "seedpack") {
       const crop = g.id.replace(/^seeds-/, "");
       s.garden ??= newGarden(now);
       s.garden.packets[crop] = (s.garden.packets[crop] ?? 0) + 1;
@@ -759,10 +779,13 @@ export function applyVisits(s: State, visits: Visit[], now: number) {
       : g.kind === "outfit" ? `${g.name} to wear - I'll put it on when the weather's right`
       : g.kind === "seedpack" ? `${g.name} for my garden - I can plant it in the beds by my house`
       : g.kind === "snack" ? `${g.name} - now I can "${g.activity}"`
-      : g.kind === "thing" ? `${g.name} at the ${PLACES[g.place!]?.label} - now I can "${g.activity}"` : g.name;
+      : g.kind === "postcard" ? `a postcard from ${v.from || "somewhere"} saying "${(v.text ?? "").slice(0, 160)}" - I pinned it on my wall at home`
+      : g.kind === "cocoa" ? `a mug of hot cocoa - so warm!`
+      : g.kind === "birdcake" ? `a bird seed cake for my feeder - special birds will visit for the next few hours`
+      : g.kind === "thing" ? `${g.name} at the ${PLACES[g.place!]?.label}${g.activity ? ` - now I can "${g.activity}"` : ""}` : g.name;
     remember(`was given ${what} by ${whoName(v)}`,
       g.kind === "treat" ? `${whoName(v)} gave me ${g.name}! I gobbled it right up.` : `${whoName(v)} gave me ${g.name}! I can't wait to try it.`,
-      g.kind === "treat" ? { ...(g.effects ?? {}) } : { joy: 15 });
+      g.kind === "treat" ? { ...(g.effects ?? {}) } : g.kind === "cocoa" ? { energy: 12, food: 5, joy: 8 } : { joy: 15 });
   }
   for (const v of visits.filter((x) => x.type === "talk").slice(-5)) {
     remember(`talked with ${whoName(v)}`, `They said "${(v.text ?? "").slice(0, 160)}" and I said "${(v.reply ?? "").slice(0, 160)}"`, { joy: 5 });
@@ -860,6 +883,11 @@ export function publicView(s: State, unread: number, now: number, chats: { at: n
     pocket: (s.pocket ?? []).map((f) => ({ ...f, name: TREASURE_BY_ID[f.id]?.name, emoji: TREASURE_BY_ID[f.id]?.emoji })),
     dreams: (s.dreams ?? []).slice(-30),
     watching: s.watchers ? s.watchers.ids.length : 0,
+    more: {
+      postcards: (s.more?.postcards ?? []).slice(-12), puzzle: { placed: s.more?.puzzle?.placed ?? 0, total: PUZZLE_PIECES, done: s.more?.puzzle?.done ?? 0 },
+      stars: s.more?.stars ?? [], harmonica: harmonicaSkill(s.more?.harmonica ?? 0), sledRuns: s.more?.sledRuns ?? 0,
+      birds: birdsAtFeeder(s.more?.birdCakeUntil ?? 0, now, !(isNight(now) || s.weather?.day === false)).length, cake: now < (s.more?.birdCakeUntil ?? 0),
+    },
     wearing: wearing(s.weather, OUTDOORS.has(s.place), s.gifts?.received ?? [], isNight(now)),
     tv: s.tv?.on ? programme(s.tv.channel, s, now) : null,
     tvLog: (s.tvLog ?? []).slice(-30),

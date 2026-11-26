@@ -52,7 +52,7 @@ export async function deleteNote(key: string) {
 
 // ---- events (pets, treats, chats) that Pino folds into his memory each tick ----
 export type Who = { id: string; name: string };
-export type VisitEvent = { type: "pet" | "treat" | "talk" | "gift"; at: number; text?: string; reply?: string; id?: string; who?: Who };
+export type VisitEvent = { type: "pet" | "treat" | "talk" | "gift"; at: number; text?: string; reply?: string; id?: string; who?: Who; from?: string };
 export async function addEvent(e: VisitEvent) {
   await store().setJSON(newKey("events"), e);
 }
