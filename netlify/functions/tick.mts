@@ -9,7 +9,8 @@ import { fetchWeather, needsRefresh, wet } from "../lib/weather.mts";
 import { grow, newGarden } from "../lib/garden.mts";
 import { dreamPrompt, dreamSystem } from "../lib/extras.mts";
 import { LEVELS, levelOf } from "../lib/skills.mts";
-import { acquireLock, deleteKeys, loadDue, deleteNote, getBoost, listEvents, listNotes, loadState, peopleIndex, releaseLock, saveState, updatePerson } from "../lib/store.mts";
+import { bondLabel, missesThem } from "../lib/life.mts";
+import { acquireLock, deleteKeys, loadDue, rebuildBonds, deleteNote, getBoost, listEvents, listNotes, loadState, peopleIndex, releaseLock, saveState, updatePerson } from "../lib/store.mts";
 
 // Pino's heartbeat. Netlify wakes this every minute (its shortest schedule).
 // While Pino is new (his first few hours) he lives two moments per wake-up,
@@ -154,6 +155,10 @@ Then reply with ONLY a JSON object, no other text: {"question": "the question he
       } catch (e) { console.log("Look-up failed:", (e as Error).message); }
     }
   }
+  // once: friendship levels for the people he already knows
+  if (!s.bondsBuilt) {
+    try { await rebuildBonds(); s.bondsBuilt = true; } catch (e) { console.log("Couldn't work out friendships yet:", (e as Error).message); }
+  }
   // once: make the drawings he's already made smaller (they look exactly the same)
   if (!s.svgTidy) {
     for (const d of [...s.drawings, ...(s.galleryWall ?? []), ...Object.values(s.walls ?? {}).flat()]) if (d.svg) d.svg = tidySvg(d.svg);
@@ -276,11 +281,17 @@ async function deliverLetters(s: State) {
 async function friendsSummary(now: number) {
   try {
     const idx = await peopleIndex();
-    return Object.values(idx).filter((p) => p.visits > 0).sort((a, b) => b.lastSeen - a.lastSeen).slice(0, 6)
+    const people = Object.values(idx).filter((p) => p.visits > 0);
+    // the people he's closest to, plus whoever came by most recently
+    const close = [...people].sort((a, b) => (b.bond ?? 0) - (a.bond ?? 0)).slice(0, 5);
+    const recent = [...people].sort((a, b) => b.lastSeen - a.lastSeen).slice(0, 4);
+    return [...new Set([...close, ...recent])].slice(0, 8)
       .map((p) => {
         const mins = Math.round((now - p.lastSeen) / 60_000);
-        const when = mins < 10 ? "here just now" : mins < 120 ? `${mins} min ago` : `${Math.round(mins / 60)} h ago`;
-        return `- ${p.name || "a visitor whose name you don't know"} (visited ${p.visits}x, last ${when})${p.note ? `: ${p.note}` : ""}`;
+        const when = mins < 10 ? "here just now" : mins < 120 ? `${mins} min ago` : mins < 2880 ? `${Math.round(mins / 60)} h ago` : `${Math.round(mins / 1440)} days ago`;
+        const miss = missesThem(p.bond ?? 0, p.lastSeen, now) ? " - you miss them" : "";
+        const likes = p.topics?.length ? `; likes talking about ${p.topics.join(", ")}` : "";
+        return `- ${p.name || "a visitor whose name you don't know"} (${bondLabel(p.bond ?? 0)}; visited ${p.visits}x, last ${when}${miss}${likes})${p.note ? `: ${p.note}` : ""}`;
       }).join("\n");
   } catch { return ""; }
 }

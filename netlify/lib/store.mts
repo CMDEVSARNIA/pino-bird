@@ -1,4 +1,6 @@
 import { getStore } from "@netlify/blobs";
+import { bondOf, topTopics } from "./life.mts";
+export type IndexEntry = { name: string; lastSeen: number; note: string; visits: number; viewing?: string; bond?: number; topics?: string[] };
 import { newState, START_SEEDS, type Note, type Person, type State } from "./pino.mts";
 
 // Site-wide store. Only the scheduled "tick" function writes "state".
@@ -133,8 +135,9 @@ async function indexPerson(p: Person) {
   // conditional write + retry, so two visitors pinging at once don't knock each other out of the index
   for (let attempt = 0; attempt < 6; attempt++) {
     const cur = await store().getWithMetadata("people-index", { type: "json" });
-    const idx = ((cur?.data as Record<string, { name: string; lastSeen: number; note: string; visits: number; viewing?: string }> | undefined) ?? {});
-    idx[k] = { name: p.name, lastSeen: p.lastSeen, note: p.facts.at(-1) ?? (p.gave.length ? `gave me ${p.gave.at(-1)}` : ""), visits: p.visits, viewing: p.viewing };
+    const idx = ((cur?.data as Record<string, IndexEntry> | undefined) ?? {});
+    idx[k] = { name: p.name, lastSeen: p.lastSeen, note: p.facts.at(-1) ?? (p.gave.length ? `gave me ${p.gave.at(-1)}` : ""), visits: p.visits, viewing: p.viewing,
+      bond: bondOf(p), topics: topTopics(p.topics) };
     const r = attempt === 5 ? await store().setJSON("people-index", idx)
       : cur?.etag ? await store().setJSON("people-index", idx, { onlyIfMatch: cur.etag }) : await store().setJSON("people-index", idx, { onlyIfNew: true });
     if (attempt === 5 || r.modified) return;
@@ -142,7 +145,7 @@ async function indexPerson(p: Person) {
   }
 }
 export async function peopleIndex() {
-  return ((await store().get("people-index", { type: "json" })) as Record<string, { name: string; lastSeen: number; note: string; visits: number; viewing?: string }> | null) ?? {};
+  return ((await store().get("people-index", { type: "json" })) as Record<string, IndexEntry> | null) ?? {};
 }
 // Touch (or create) a person whenever they do something
 // Change someone's record without counting it as a visit (e.g. Pino's letters arriving in their mailbox)
@@ -180,5 +183,14 @@ export async function meet(who: Who | null, change: (p: Person) => void) {
       : cur?.etag ? await store().setJSON(key, p, { onlyIfMatch: cur.etag }) : await store().setJSON(key, p, { onlyIfNew: true });
     if (last || r.modified) { await indexPerson(p); return p; }
     await new Promise((res) => setTimeout(res, 60 + Math.random() * 120));
+  }
+}
+
+// Once: work out friendship levels for everyone he already knew (the index didn't have them before)
+export async function rebuildBonds() {
+  const { blobs } = await store().list({ prefix: "people/" });
+  for (const b of blobs) {
+    const p = (await store().get(b.key, { type: "json" })) as Person | null;
+    if (p?.id && p.visits > 0) await indexPerson(p);
   }
 }

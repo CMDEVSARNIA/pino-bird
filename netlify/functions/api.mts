@@ -8,6 +8,7 @@ import {
   getBoost, peopleIndex, recentChats, setBoost, store, updatePerson, type Who,
 } from "../lib/store.mts";
 import { EXHIBIT_BY_ID } from "../lib/museum.mts";
+import { bondLabel, noteTopics } from "../lib/life.mts";
 
 // GET  /api/state   -> what the viewer page shows
 // POST /api/talk    -> talk to him, instant reply      {"text", "who": {"id","name"}}
@@ -52,7 +53,7 @@ export default async (req: Request, context: Context) => {
       giftsAvailable: GIFTS.filter((g) => !gone.has(g.id) && (g.kind !== "cocoa" || cocoaWeather(s.weather, now)) && (g.kind !== "birdcake" || (s.gifts?.received ?? []).includes("thing-feeder"))).map(({ id, kind, name, emoji, desc, price }) => ({ id, kind, name, emoji, desc, price })),
       me: { owner: OWNERS.has(meId), boostUntil: OWNERS.has(meId) ? boost : undefined, letters: (mePerson?.letters ?? []).slice(-20), name: mePerson?.name ?? null, seeds: seedsOf(mePerson), earned: mePerson?.earned ?? null, rules: EARN, treatPrice: QUICK_TREAT_PRICE },
       friends: Object.values(people).filter((p) => p.visits > 0).sort((a, b) => b.lastSeen - a.lastSeen).slice(0, 30)
-        .map(({ name, visits, note, lastSeen }) => ({ name, visits, note, lastSeen })),
+        .map(({ name, visits, note, lastSeen, bond }) => ({ name, visits, note, lastSeen, bond: bondLabel(bond ?? 0) })),
     });
   }
 
@@ -201,6 +202,7 @@ export default async (req: Request, context: Context) => {
       addEvent({ type: "talk", at: now, text, reply, who: who ? { id: who.id, name } : undefined }),
       meet(who ? { id: who.id, name } : null, (p) => {
         p.chats += 1;
+        p.topics = noteTopics(p.topics, text);
         got = earn(p, "chat", now); seeds = seedsOf(p);
         if (remember && !p.facts.some((f) => f.toLowerCase() === remember.toLowerCase())) p.facts = [...p.facts, remember].slice(-12);
       }),

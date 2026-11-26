@@ -186,6 +186,11 @@
   .meta { font-size: 12px; color: var(--muted); display: block; margin-bottom: 2px; }
   .tag { font-size: 11px; padding: 1px 6px; border-radius: 6px; background: #f0e9db; color: var(--muted); margin-left: 4px; }
   .empty { color: var(--muted); font-size: 14px; padding: 6px 0; }
+  .moodcard { display: flex; gap: 10px; align-items: center; background: #f6efdf; border-radius: 14px; padding: 10px 12px; margin: 0 0 12px; }
+  .moodcard .me { font-size: 30px; } .moodcard b { display: block; font-size: 16px; text-transform: capitalize; } .moodcard small { color: #7a6a52; }
+  .favs { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 8px; }
+  .favs div { background: #f6efdf; border-radius: 10px; padding: 6px 9px; font-size: 13px; } .favs small { display: block; color: #8a7a62; font-size: 11px; }
+  .goal.done b { text-decoration: none; color: #4f7a3a; }
   .skill { display: grid; grid-template-columns: 26px 1fr auto; gap: 2px 8px; align-items: center; margin: 0 0 9px; }
   .skill .se { font-size: 18px; grid-row: span 2; } .skill b { font-size: 14px; } .skill small { color: #8a7a62; font-size: 12px; }
   .skill .bar { grid-column: 2 / 4; height: 7px; border-radius: 99px; background: #efe4cc; overflow: hidden; }
@@ -390,8 +395,12 @@
     <div class="subs"><button class="sub" data-sub="life-diary" aria-selected="true">Diary</button><button class="sub" data-sub="life-mind">Mind</button><button class="sub" data-sub="life-wants">Wants</button><button class="sub" data-sub="life-dreams">Dreams</button><button class="sub" data-sub="life-treasures">Treasures</button></div>
     <section data-sub="life-diary"><ul class="list" id="diary"></ul></section>
     <section data-sub="life-mind" hidden>
+      <div class="moodcard" id="moodCard" hidden></div>
       <h3>Who I am (written by me)</h3>
       <p class="personality" id="personality"></p>
+      <h3>My favourites</h3>
+      <p class="muted" style="margin:0 0 6px">Not what he says he likes: what has actually made him happiest. They can change.</p>
+      <div class="favs" id="favList"></div>
       <h3>My skills</h3>
       <p class="muted" style="margin:0 0 6px">The more he does something, the better he gets at it.</p>
       <div id="skillList"></div>
@@ -402,6 +411,10 @@
     <section data-sub="life-dreams" hidden><p class="muted">When Pino sleeps for a while, he dreams. Here's what he remembers.</p><ul class="list" id="dreamList"></ul></section>
     <section data-sub="life-treasures" hidden><p class="muted">Little things Pino has found while out and about. He keeps them on a shelf in his house.</p><div class="treasures" id="treasureList"></div></section>
     <section data-sub="life-wants" hidden>
+      <h3>My goals</h3>
+      <p class="muted" style="margin:0 0 6px">Bigger projects he sets for himself when he reflects, and works on over days.</p>
+      <ul class="list" id="goalList"></ul>
+      <h3 style="margin-top:14px">What I want</h3>
       <div id="wants"></div>
       <h3 style="margin-top:14px">Things he used to want</h3>
       <ul class="list" id="pastWants"></ul>
@@ -2374,7 +2387,7 @@ function render(s) {
   renderGive(s);
   list("friends", s.friends || [], (f) => {
     const li = el("li");
-    li.append(el("span", "meta", `${f.visits} visit${f.visits === 1 ? "" : "s"} · last seen ${ago(f.lastSeen)}`), el("strong", null, f.name || "A mystery visitor"));
+    li.append(el("span", "meta", `${BOND_SHORT[f.bond] ? `${BOND_SHORT[f.bond]} · ` : ""}${f.visits} visit${f.visits === 1 ? "" : "s"} · last seen ${ago(f.lastSeen)}`), el("strong", null, f.name || "A mystery visitor"));
     if (f.note) li.append(document.createTextNode(` — ${f.note}`));
     return li;
   }, "No friends yet. Tell Pino your name and say hi!");
@@ -2393,6 +2406,7 @@ function render(s) {
   $("unread").hidden = !s.unread; $("unread").textContent = s.unread;
   $("personality").textContent = s.personality;
   renderSkills(s);
+  renderInner(s);
   list("insights", s.insights, (i) => { const li = el("li"); li.append(el("span", "meta", i.t), document.createTextNode(i.text)); return li; }, "He reflects about once an hour.");
 }
 
@@ -2564,6 +2578,29 @@ function gardenSummary(g) {
   const plots = g.plots.filter(Boolean).map((p) => `${EMO[p.crop] || "🌱"} ${p.ready ? "ready!" : p.stage < 0.1 ? "just planted" : `${Math.round(p.stage * 100)}% grown`}${p.thirsty ? " (thirsty)" : ""}`);
   const packs = Object.entries(g.packets || {}).filter(([, n]) => n > 0).map(([c, n]) => `${n} ${EMO[c] || ""}`);
   return `In his garden: ${plots.length ? plots.join(" · ") : "nothing planted yet"}. ${packs.length ? `Seeds in his pocket: ${packs.join(", ")}.` : ""}`;
+}
+
+const BOND_SHORT = { "someone you've just met": "🌱 just met", "a new friend": "🙂 new friend", "a friend": "😊 friend", "a good friend": "💛 good friend", "a close friend": "💞 close friend", "one of your best friends": "💖 best friend" };
+// ---- mood, favourites and goals (Life tab)
+let innerSig = "";
+const FAV_LABEL = { book: "📖 Book", song: "🎵 Song", snack: "🍪 Snack", activity: "⭐ Thing to do", place: "📍 Place" };
+function renderInner(s) {
+  const sig = JSON.stringify([s.mood, s.favs, s.goals]); if (sig === innerSig) return; innerSig = sig;
+  const mc = $("moodCard"); mc.hidden = !s.mood; mc.replaceChildren();
+  if (s.mood) { const b = el("div"); b.append(el("b", null, `Feeling ${s.mood.word}`), el("small", null, `${s.mood.why} · started ${ago(s.mood.since)}`)); mc.append(el("span", "me", s.mood.emoji || "🙂"), b); }
+  const fl = $("favList"); fl.replaceChildren();
+  const favs = Object.entries(s.favs || {});
+  if (!favs.length) fl.append(el("p", "muted", "Still working them out."));
+  favs.forEach(([k, v]) => { const d = el("div"); d.append(el("small", null, FAV_LABEL[k] || k), document.createTextNode(v)); fl.append(d); });
+  const gl = $("goalList"); gl.replaceChildren();
+  const goals = s.goals || [];
+  if (!goals.length) gl.append(el("li", null, "No goals yet. He'll set some when he reflects."));
+  [...goals.filter((g) => !g.done), ...goals.filter((g) => g.done).reverse()].forEach((g) => {
+    const li = el("li", g.done ? "goal done" : "goal");
+    li.append(el("span", "meta", g.done ? `achieved ${g.done}` : `set ${g.set}`), el("b", null, `${g.done ? "🏆" : "🎯"} ${g.goal}`));
+    if (g.why) li.append(document.createTextNode(` — ${g.why}`));
+    gl.append(li);
+  });
 }
 
 // ---- skills (Life > Mind): practice makes him better

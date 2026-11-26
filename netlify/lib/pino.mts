@@ -8,6 +8,7 @@ import { spotTreasure, TREASURE_BY_ID, wearing, wearingLine, type Dream, type Fo
 import { birdsAtFeeder, cocoaWeather, doMore, harmonicaSkill, moreActivities, moreLines, PUZZLE_PIECES, type More } from "./more.mts";
 import { SONG_BY_ID, nextSong, randomSong, silence, songsOwned, type Music } from "./music.mts";
 import { recall, recallKnowledge } from "./memory.mts";
+import { applyGoals, bondLabel, bondOf, favLines, favourites, FAV_KINDS, goalLines, MOODS, moodLine, nextMood, topTopics, type Favs, type Goal, type Mood } from "./life.mts";
 import { levelOf, LEVELS, SKILLS, skillFor, skillLines, skillsFromHistory, skillsView } from "./skills.mts";
 const SKILL_NAMES: Record<string, string> = Object.fromEntries(SKILLS.map((k) => [k.id, k.name]));
 import { frozenPond, outdoorFeeling, season, snowy, weatherDrain, weatherLine, wet, type Weather } from "./weather.mts";
@@ -154,6 +155,15 @@ export type State = {
   webLog?: (WebFind & { reaction?: string })[];  // things he's looked up online
   knowledge?: Fact[];                            // facts he has learned from his own research (he builds on them)
   curious?: string[];                            // questions he wants to look up next (from research and reflection)
+  mood?: Mood;                                   // how he feels overall - it lingers
+  moodLog?: { t: string; id: string; why: string }[];
+  lastCompany?: number;                          // last time anyone was watching or visiting
+  giftJustNow?: string | null;                   // a gift that just arrived (lifts his mood)
+  goals?: Goal[];                                // long projects he set himself in reflection
+  justFinished?: string | null;                  // a goal he just achieved
+  favs?: Favs;                                   // his favourites, from what has made him happiest
+  favChanged?: { kind: string; from?: string; to: string } | null;
+  bondsBuilt?: boolean;                          // friendship levels worked out for people he already knew
   skills?: Record<string, number>;               // practice points per skill (the more he does something, the better he gets)
   justLeveled?: { skill: string; level: number } | null; // he just got better at something (he notices next moment)
   skillLog?: { t: string; skill: string; level: number }[]; // when he levelled up
@@ -452,6 +462,8 @@ export function identityPrompt(s: State) {
     "",
     `Things you want right now:\n${s.wants.map((w) => `- ${w.want}`).join("\n") || "- (you haven't worked that out yet)"}`,
     "",
+    ...(goalLines(s.goals, Date.now()) ? [goalLines(s.goals, Date.now()), ""] : []),
+    ...(favLines(s.favs) ? [favLines(s.favs), ""] : []),
     ...(skillLines(s.skills ?? skillsFromHistory(s.tried)) ? [skillLines(s.skills ?? skillsFromHistory(s.tried)), ""] : []),
     ...((s.knowledge ?? []).length ? [`Things you've learned from your own research (${s.knowledge!.length} so far - this is real knowledge you can use, share and build on):\n${s.knowledge!.slice(-10).map((k) => `- ${k.fact}`).join("\n")}`, ""] : []),
     ...((s.curious ?? []).length ? [`Questions you're curious to look up on the library computer:\n${s.curious!.slice(0, 5).map((q) => `- ${q}`).join("\n")}`, ""] : []),
@@ -488,6 +500,9 @@ export function decisionPrompt(s: State, opts: Option[], notes: Note[], now: num
       (w.cameIn?.length ? ` ${w.cameIn.join(", ")} just came inside to see you!` : "") + "\n";
   const web = s.justLookedUp;
   const webNow = web ? `\nYou just looked something up on the library computer. You wondered: "${web.question}"\nWhat you found out: ${web.learned}\n(From ${web.sources.map((x) => x.title).slice(0, 2).join(" and ") || "the web"}.) Let your thought be your honest reaction - what surprised or delighted you, or what you now wonder next.${web.next ? ` (It made you wonder: "${web.next}")` : ""}\n` : "";
+  const moodNow = (s.justFinished ? `\nYou just achieved one of your goals: "${s.justFinished}"! Let yourself feel it.\n` : "") + (s.mood ? `\n${moodLine(s.mood, now)}\n` : "");
+  const fc = s.favChanged;
+  const favNow = fc ? `\nYou've realised ${fc.from ? `you now like "${fc.to}" even more than "${fc.from}"` : `"${fc.to}" has become a favourite`} - your favourite ${FAV_KINDS[fc.kind] ?? fc.kind}.\n` : "";
   const lv = s.justLeveled;
   const levelNow = lv ? `\nYou've practised so much that you just got better: your ${(SKILL_NAMES[lv.skill] ?? lv.skill).toLowerCase()} is now "${LEVELS[lv.level]}" (level ${lv.level} of 6). You can feel the difference.\n` : "";
   const learnedNow = s.justLearned ? `\nYou just found a constellation with your star chart. ${s.justLearned}\nLet your thought be your reaction to it.\n` : "";
@@ -521,7 +536,7 @@ export function decisionPrompt(s: State, opts: Option[], notes: Note[], now: num
     (openers.length ? ` Your recent thoughts started like ${openers.join(", ")} - start this one a different way.` : "") + "\n";
   return (
     `It is ${weekday}, ${clockStr(s, now)} (${night}). You are at the ${PLACES[s.place].label}: ${PLACES[s.place].desc}.\n\n` +
-    `How you feel right now:\n${feel}\n${weather}${company}${dressed ? dressed + "\n" : ""}${dreamNow}${learnedNow}${bored}${note}${reading}${museum}${tvNow}${webNow}${levelNow}\n` +
+    `How you feel right now:\n${feel}\n${moodNow}${favNow}${weather}${company}${dressed ? dressed + "\n" : ""}${dreamNow}${learnedNow}${bored}${note}${reading}${museum}${tvNow}${webNow}${levelNow}\n` +
     (friends ? `Visitors you know:\n${friends}\n\n` : "") +
     `What happened recently (oldest first):\n${history}\n\n` +
     (remembered ? `Older memories that come to mind:\n${remembered}\n\n` : "") +
@@ -539,6 +554,7 @@ export function reflectionPrompt(s: State) {
     `Look back over what you've done lately:\n${recent}\n\n` +
     `Your current self-description:\n${s.personality}\n\n` +
     `What you wanted last time:\n${s.wants.map((w) => `- ${w.want} (because ${w.why})`).join("\n") || "- (nothing yet)"}\n\n` +
+    `Your goals (projects you set for yourself):\n${(s.goals ?? []).filter((g) => !g.done).map((g) => `- ${g.goal} (because ${g.why})`).join("\n") || "- (none yet)"}\n\n` +
     ((s.webLog ?? []).length ? `What you've found out lately from your research:\n${(s.webLog ?? []).slice(-5).map((w) => `- ${w.question} ${w.learned}`).join("\n")}\n\n` : "") +
     "Think about what made you feel good or bad, what bored you, and what you're curious to try next. " +
     "Then think about what you WANT - anything at all, big or small, possible or impossible: something for your town, " +
@@ -548,7 +564,9 @@ export function reflectionPrompt(s: State) {
     '{"insights": ["a short realisation about yourself", "another one"], ' +
     '"personality": "your updated self-description: 3-5 sentences, first person, including things you like and dislike", ' +
     '"wants": [{"want": "what you want, in a few words", "why": "why you want it, one sentence", "size": "tiny, medium or huge"}], ' +
-    '"questions": ["up to 2 things you\'d love to look up next on the library computer, as short questions"]}'
+    '"questions": ["up to 2 things you\'d love to look up next on the library computer, as short questions"], ' +
+    '"goals": [{"goal": "a bigger project you want to work towards over the next few days (e.g. finish a book, grow a pumpkin, learn the constellations, get good at drawing birds) - only if you want a new one; you can have up to 3", "why": "why it matters to you"}], ' +
+    '"finished": ["the exact text of any goal you have now truly achieved, judging by what you\'ve done"]}'
   );
 }
 
@@ -764,14 +782,41 @@ export function applyChoice(
 
   // the passage of time: needs drain by real minutes passed, not by decisions made
   const night = isNight(now);
+  // mood: works out from what's going on, and lingers
+  {
+    const outdoors = OUTDOORS.has(s.place), w = s.weather;
+    const company = (s.watchers?.ids.length ?? 0) > 0;
+    if (company || !s.lastCompany) s.lastCompany = now;
+    const prev = s.mood;
+    s.mood = nextMood(s.mood, {
+      now, night, outdoors, wetOut: outdoors && wet(w), umbrella: wearing(w, outdoors, s.gifts?.received ?? [], night).umbrella,
+      sunnyOut: outdoors && !!w && w.day !== false && (w.kind === "clear" || w.kind === "partly") && w.temp >= 8 && !night,
+      coldOrDark: night || !!(w && (w.temp <= 3 || w.day === false)),
+      energy: s.needs.energy, joy: s.needs.joy, company, lastCompany: s.lastCompany ?? now,
+      arrived: s.watchers?.arrived ?? [], giftJustNow: s.giftJustNow ?? null,
+      proudOf: s.justFinished ? `you achieved your goal: ${s.justFinished}` : s.justLeveled ? `you just got better at ${(SKILL_NAMES[s.justLeveled.skill] ?? "something").toLowerCase()}` : null,
+      curiousNow: !!s.justLookedUp || (here === "library" && (s.curious?.length ?? 0) > 0 && /computer|online/.test(action)),
+      recentWetOutside: [here, ...s.memories.slice(-2).map((m) => m.place)].filter((pl) => OUTDOORS.has(pl)).length,
+    });
+    if (s.mood.id !== prev?.id) s.moodLog = [...(s.moodLog ?? []), { t, id: s.mood.id, why: s.mood.why }].slice(-40);
+    s.giftJustNow = null; s.justFinished = null;
+  }
   const scale = Math.min(2, Math.max(0.2, minutes / 5));
   const decay: Record<Need, number> = { food: -1, energy: night ? -1.5 : -1, joy: -1 };
   if (action.startsWith("sleep") || action.includes("nap")) decay.energy = 0;
   if (OUTDOORS.has(s.place) && !/shelter/.test(action)) decay.energy -= weatherDrain(s.weather); // rough weather tires a small bird
+  decay.joy += MOODS[s.mood?.id ?? "content"]?.joyDrift ?? 0; // a good mood keeps joy up, a low one wears it down
   for (const n of NEEDS) s.needs[n] = clamp(s.needs[n] + decay[n] * scale);
 
   s.memories.push({ t, place: here, action, thought, note, deltas, first, bored, brain });
   s.memories = s.memories.slice(-1500);
+  // favourites form from what has truly made him happiest
+  {
+    const before = s.favs ?? {}, after = favourites(s.memories.slice(-900), PLACES);
+    const changed = Object.keys(after).find((k) => before[k] !== after[k] && Object.keys(before).length > 0);
+    s.favChanged = changed ? { kind: changed, from: before[changed], to: after[changed] } : null;
+    s.favs = after;
+  }
   s.journal = s.journal.slice(-150);
   if (s.drawings.length > 150) {
     const cut = s.drawings.length - 150;
@@ -803,6 +848,14 @@ export function applyReflection(s: State, reply: any, now: number) {
   const p = reply?.personality;
   if (typeof p === "string" && p.length > 20 && p.length < 1500) s.personality = p.trim();
   if (Array.isArray(reply?.questions)) addCurious(s, reply.questions);
+  {
+    const r = applyGoals(s.goals, reply, t, now);
+    s.goals = r.goals;
+    if (r.finished.length) {
+      s.justFinished = r.finished[0];
+      s.needs.joy = clamp(s.needs.joy + 15); // achieving something he set out to do feels wonderful
+    }
+  }
   if (Array.isArray(reply?.wants)) {
     const fresh: Want[] = reply.wants.slice(0, 5)
       .filter((w: any) => typeof w?.want === "string" && w.want.trim())
@@ -828,6 +881,7 @@ const whoName = (v: Visit) => v.who?.name || "a visitor";
 // Folds what visitors did since the last tick into Pino's needs and memories.
 export function applyVisits(s: State, visits: Visit[], now: number) {
   if (!visits.length) return;
+  s.lastCompany = now;
   const t = clockStr(s, now);
   const base = { t, place: s.place, note: "", first: false, bored: false, brain: "visitor" };
   const remember = (action: string, thought: string, deltas: Partial<Record<Need, number>>) => {
@@ -868,6 +922,7 @@ export function applyVisits(s: State, visits: Visit[], now: number) {
       s.gifts.received.push(g.id);
     }
     s.gifts.log.push({ t, id: g.id, name: g.name, emoji: g.emoji, from: whoName(v) });
+    s.giftJustNow = g.name;
     s.gifts.log = s.gifts.log.slice(-200);
     if (g.kind === "song" && g.song) s.music = { on: true, song: g.song, since: now };
     if (g.id === TEDDY_ID) s.teddy = { holding: true, place: s.place }; // straight into his wings
@@ -900,6 +955,7 @@ export type Person = {
   lastWatch?: number;
   letters?: { at: number; t: string; text: string; read?: boolean }[]; // letters Pino wrote to them
   viewing?: string;                              // where they're looking: "town", "house", "library" or "museum"
+  topics?: Record<string, number>;               // what they like to talk about with him
 };
 
 // ---- seeds 🌱: earned by watching and interacting, spent on gifts
@@ -929,6 +985,8 @@ export function describePerson(p: Person | null, now: number) {
     since > 60 ? `It's been a while since you last saw them (${Math.round(since / 60)} hours).` : "",
     p.gave.length ? `They have given you: ${p.gave.join(", ")}.` : "",
     p.facts.length ? `Things you remember about them:\n${p.facts.map((f) => `- ${f}`).join("\n")}` : "",
+    `They are ${bondLabel(bondOf(p))} of yours.`,
+    topTopics(p.topics).length ? `They like to talk with you about: ${topTopics(p.topics).join(", ")}.` : "",
   ].filter(Boolean).join("\n");
 }
 
@@ -995,6 +1053,8 @@ export function publicView(s: State, unread: number, now: number, chats: { at: n
     tvLog: (s.tvLog ?? []).slice(-30),
     webLog: (s.webLog ?? []).slice(-30), lookingUp: !!s.pendingLookup, knows: (s.knowledge ?? []).length, curious: (s.curious ?? []).slice(0, 5),
     skills: skillsView(s.skills ?? skillsFromHistory(s.tried)), skillLog: (s.skillLog ?? []).slice(-10),
+    mood: s.mood ? { ...s.mood, emoji: MOODS[s.mood.id]?.emoji, word: MOODS[s.mood.id]?.word } : null, moodLog: (s.moodLog ?? []).slice(-12),
+    goals: s.goals ?? [], favs: s.favs ?? {},
     exhibit: s.place === "museum" ? exhibitFromAction(s.doing)?.id ?? null : null,
   };
 }
