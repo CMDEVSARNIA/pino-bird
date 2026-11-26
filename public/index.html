@@ -288,6 +288,7 @@
   .tabs .tab { display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 6px 2px; font-size: 11.5px; border-radius: 12px; position: relative; }
   .tabs .tab .ti { font-size: 17px; line-height: 1.1; }
   .tabs .badge { position: absolute; top: -4px; right: 2px; margin: 0; }
+  .srcs { display: block; margin-top: 4px; color: #8a7a62; } .srcs a { color: #5a7a3a; }
   .subs { display: flex; gap: 4px; background: #f1ebde; border-radius: 999px; padding: 3px; margin-bottom: 10px; }
   .sub { flex: 1; border: 0; background: none; border-radius: 999px; padding: 6px 8px; font: inherit; font-size: 13px; color: var(--muted); cursor: pointer; }
   .sub[aria-selected="true"] { background: #fff; color: var(--ink); font-weight: 700; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
@@ -401,7 +402,7 @@
   </div>
 
   <div class="card panel" id="p-art" hidden>
-    <div class="subs"><button class="sub" data-sub="art-drawings" aria-selected="true">Drawings</button><button class="sub" data-sub="art-books">Books</button><button class="sub" data-sub="art-journal">Journal</button><button class="sub" data-sub="art-museum">Museum</button></div>
+    <div class="subs"><button class="sub" data-sub="art-drawings" aria-selected="true">Drawings</button><button class="sub" data-sub="art-books">Books</button><button class="sub" data-sub="art-journal">Journal</button><button class="sub" data-sub="art-museum">Museum</button><button class="sub" data-sub="art-web">Online</button></div>
     <section data-sub="art-drawings"><div class="gallery" id="drawings"></div></section>
     <section data-sub="art-books" hidden>
       <div id="shelf"></div>
@@ -412,6 +413,10 @@
     <section data-sub="art-museum" hidden>
       <p class="muted" id="museumCount"></p>
       <div class="exhibits" id="exhibitList"></div>
+    </section>
+    <section data-sub="art-web" hidden>
+      <p class="muted">A few times a day, Pino sits down at the laptop in his library and looks up something he's curious about. He can only search kids' and educational websites (like NASA Space Place, Britannica Kids, Nat Geo Kids and museums).</p>
+      <ul class="list" id="webList"></ul>
     </section>
   </div>
 
@@ -978,6 +983,28 @@ function buildWorld() {
   add(new THREE.Mesh(new THREE.PlaneGeometry(0.46, 0.32).rotateX(-Math.PI / 2), M(0xfffdf6)), desk, { cast: false }).position.set(-0.1, 0.805, 0.05);
   add(new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.18, 8), M(0xfff6dc)), desk).position.set(0.5, 0.85, -0.1);
   const candle = add(new THREE.Mesh(new THREE.ConeGeometry(0.03, 0.08, 6), new THREE.MeshBasicMaterial({ color: 0xffc04a })), desk, { cast: false }); candle.position.set(0.5, 0.98, -0.1); flames.push(candle);
+  // the library laptop: Pino looks things up online here (its screen lights up while he's searching)
+  const lapCv = document.createElement("canvas"); lapCv.width = 128; lapCv.height = 84;
+  const lapTex = new THREE.CanvasTexture(lapCv); lapTex.colorSpace = THREE.SRGBColorSpace;
+  const drawLap = (on, t = 0) => {
+    const g = lapCv.getContext("2d");
+    g.fillStyle = on ? "#eaf3ff" : "#1d2230"; g.fillRect(0, 0, 128, 84);
+    if (on) {
+      g.fillStyle = "#4a7bd0"; g.fillRect(0, 0, 128, 12);
+      g.fillStyle = "#fff"; g.fillRect(20, 22, 88, 12); g.strokeStyle = "#9ab"; g.strokeRect(20, 22, 88, 12);
+      g.fillStyle = "#5a6a80"; g.font = "9px sans-serif"; g.fillText("🔍", 23, 32);
+      g.fillStyle = "#9aa8bb"; for (let i = 0; i < 4; i++) g.fillRect(16, 44 + i * 9, 60 + ((i * 37 + Math.floor(t)) % 36), 4);
+    }
+    lapTex.needsUpdate = true;
+  };
+  drawLap(false); let lapOnAt = -1;
+  const laptop = new THREE.Group(); laptop.position.set(-0.56, 0.76, 0.02); desk.add(laptop);
+  add(box(0.34, 0.02, 0.24, M(0x9aa3ad)), laptop).position.y = 0.01;
+  const lid = new THREE.Group(); lid.position.set(0, 0.02, -0.11); lid.rotation.x = -0.25; laptop.add(lid);
+  add(box(0.34, 0.22, 0.015, M(0x9aa3ad)), lid).position.y = 0.11;
+  const lapScreen = add(new THREE.Mesh(new THREE.PlaneGeometry(0.31, 0.19), new THREE.MeshBasicMaterial({ map: lapTex })), lid, { cast: false });
+  lapScreen.position.set(0, 0.11, 0.009);
+  laptop.userData.laptop = true;
   stool(desk, V(-0.1, 0, 0.9)); // moves with the desk
   // THE READING NOOK: tucked in the back corner - squashy armchair, lamp, crackling fireplace, rug, a pile of books
   const NOOK = V(3.9, 0, -2.6);
@@ -1076,6 +1103,7 @@ function buildWorld() {
   const LIB_SPOTS = [
     [/draw|paint|studied|study the drawing/, V(-2.2, 0.36, -0.35), V(-2.2, 0, 3)],
     [/journal/, V(1.5, 0.36, -2.0), V(1.5, 0, -4)],
+    [/library computer|online/, V(1.05, 0.36, -2.0), V(1.05, 0, -4)],
     [/nook|read|nap|sleep/, NOOK.clone().add(V(0.1, 0.4, 0.1)), NOOK.clone().add(V(-2.5, 0, 2.5))],
   ];
   // FURNITURE LAYOUTS: Pino can rearrange his house and the library (the server picks which layout is in use)
@@ -1108,6 +1136,7 @@ function buildWorld() {
       dtab.position.set(l.table[0], 0, l.table[1]); desk.position.set(l.desk[0], 0, l.desk[1]);
       const dr = spotOf(LIB_SPOTS, "draw|paint|studied|study the drawing"); dr[1].set(l.table[0], 0.36, l.table[1] - 0.95); dr[2].set(l.table[0], 0, l.table[1] + 3);
       const jo = spotOf(LIB_SPOTS, "journal"); jo[1].set(l.desk[0] - 0.1, 0.36, l.desk[1] + 0.9); jo[2].set(l.desk[0], 0, l.desk[1] - 1);
+      const pc = spotOf(LIB_SPOTS, "library computer|online"); pc[1].set(l.desk[0] - 0.55, 0.36, l.desk[1] + 0.9); pc[2].set(l.desk[0] - 0.56, 0, l.desk[1] - 1);
     }
   }
 
@@ -1120,7 +1149,7 @@ function buildWorld() {
     [V(4.6, 0, -1.1), V(8, 0.5, -1.1)],                                         // warming up by the nook's fire
     [V(0.6, 0, 0.2), V(0.6, 0, -4)],                                             // the middle of the room
   ];
-  const SEATED = /nook|read|draw|paint|studied|study|journal|nap|sleep/; // things he does sitting down: he stays put
+  const SEATED = /nook|read|draw|paint|studied|study|journal|nap|sleep|library computer|online/; // things he does sitting down: he stays put
   // where the teddy sits when he puts it down at each place
   const TEDDY_SPOTS = {
     park: V(-4.3, 0, 2.7), gallery: V(3.9, 0, 3.3), vending: V(-1.5, 0, -2.4),
@@ -2032,6 +2061,8 @@ function buildWorld() {
     hemi.intensity = (1.15 - f * 0.85) * wl + wx.flash * 1.5; sun.intensity = (1.8 - f * 1.45) * (inMuseum ? 1 : wl * wl); sun.color.setRGB(1 - f * 0.45, 0.95 - f * 0.3, 0.86 + f * 0.1);
     const RL = ROOMS[view.mode]; roomLight.intensity = (RL ? RL.light : 5) * (1 + f * 2.5) * (view.mode === "museum" ? 1 : 0.92 + Math.sin(t * 9) * 0.04 + Math.sin(t * 23) * 0.03);
     // fires flicker; windows show the sky outside
+    { const on = /library computer|online/.test(state.doing || "") && state.room === "library", k = on ? Math.floor(t * 1.5) : -1;
+      if (k !== lapOnAt) { lapOnAt = k; drawLap(on, k); } }
     flames.forEach((fl, i) => { fl.scale.y = 0.8 + Math.abs(Math.sin(t * (7 + i) + i)) * 0.5; fl.scale.x = 0.9 + Math.sin(t * 11 + i) * 0.1; });
     inWindowMats.forEach((m) => m.color.lerpColors(wx.sky, NIGHT, f));
     windowMat.emissiveIntensity = f * 1.6; screenMat.emissiveIntensity = 0.25 + f * 1.2;
@@ -2179,7 +2210,7 @@ function snacksTexture() {
 }
 
 // ================================================================ UI + DATA
-const BADGES = [[/reading nook/, "🛋️"], [/sleep|nap/, "💤"], [/drawing manual/, "🖌️"], [/read/, "📖"], [/journal/, "✏️"], [/draw/, "🎨"], [/seed bar/, "🍫"], [/crisps/, "🥨"], [/juice/, "🧃"],
+const BADGES = [[/library computer|online/, "💻"], [/reading nook/, "🛋️"], [/sleep|nap/, "💤"], [/drawing manual/, "🖌️"], [/read/, "📖"], [/journal/, "✏️"], [/draw/, "🎨"], [/seed bar/, "🍫"], [/crisps/, "🥨"], [/juice/, "🧃"],
   [/leaf/, "🍂"], [/ducks/, "🦆"], [/bench|sit/, "💭"], [/window/, "🪟"], [/tidy/, "🧹"], [/talked/, "💬"], [/petted/, "❤️"], [/treat/, "🍪"], [/reflect/, "🌙"], [/walked/, "👣"], [/swing/, "🎠"], [/telescope/, "🔭"], [/toy train/, "🚂"], [/birdbath/, "💦"], [/kite/, "🪁"], [/given/, "🎁"], [/gramophone|next song/, "🎶"], [/dance/, "💃"], [/hung my drawing|art on the walls|hang/, "🖼️"],
   [/exhibit|museum/, "🏛️"], [/penguin teddy/, "🐧"], [/rearranged the furniture|rearrange the furniture/, "🛋️"], [/postcard/, "📮"], [/bird feeder|birds at/, "🐦"], [/jigsaw/, "🧩"], [/constellation/, "🌌"], [/harmonica/, "🎵"], [/sledding/, "🛷"], [/fairy lights/, "✨"], [/found .* (and kept it|pocket)|treasure shelf/, "✨"], [/letter/, "✉️"], [/plant a|water my garden|look at my garden/, "🌱"], [/harvest|pick the/, "🧺"], [/\bTV\b/, "📺"], [/snow-kiwi|soft snow/, "☃️"], [/snowflakes|snow fall/, "❄️"], [/frozen pond/, "⛸️"], [/puddles|rain on the roof/, "🌧️"], [/shelter/, "🌳"], [/spring flowers/, "🌷"], [/paddle/, "💦"]];
 let latest = null, first = true, speaking = 0, followOn = false;
@@ -2329,6 +2360,7 @@ function render(s) {
   checkLetters(s);
   renderBoost(s);
   renderDreams(s);
+  renderWeb(s);
   const dn = drawingNow(s); $("drawChip").hidden = !dn;
   if (world && JSON.stringify(s.tv) !== tvSig) { tvSig = JSON.stringify(s.tv); world.setTV(s.tv || null); }
   syncMusic(s.music || { on: false });
@@ -2524,6 +2556,30 @@ function gardenSummary(g) {
   const plots = g.plots.filter(Boolean).map((p) => `${EMO[p.crop] || "🌱"} ${p.ready ? "ready!" : p.stage < 0.1 ? "just planted" : `${Math.round(p.stage * 100)}% grown`}${p.thirsty ? " (thirsty)" : ""}`);
   const packs = Object.entries(g.packets || {}).filter(([, n]) => n > 0).map(([c, n]) => `${n} ${EMO[c] || ""}`);
   return `In his garden: ${plots.length ? plots.join(" · ") : "nothing planted yet"}. ${packs.length ? `Seeds in his pocket: ${packs.join(", ")}.` : ""}`;
+}
+
+// ---- things he's looked up online (Art tab)
+let webSig = "";
+function renderWeb(s) {
+  const log = s.webLog || [], sig = log.length + "|" + (log.at(-1)?.reaction || "") + "|" + !!s.lookingUp; if (sig === webSig) return; webSig = sig;
+  const ul = $("webList"); ul.replaceChildren();
+  if (s.lookingUp) ul.append(el("li", "dream", "💻 He's at the library computer looking something up right now…"));
+  if (!log.length && !s.lookingUp) ul.append(el("li", null, "Nothing yet. He'll look something up the next time he's curious in the library."));
+  [...log].reverse().forEach((w) => {
+    const li = el("li", "dream");
+    li.append(el("small", null, w.t), el("b", null, `🔍 ${w.question}`), el("i", null, w.learned));
+    if (w.reaction) li.append(el("span", "meta", `Pino: “${w.reaction}”`));
+    if ((w.sources || []).length) {
+      const src = el("small", "srcs");
+      (w.sources || []).slice(0, 3).forEach((x, i) => {
+        let host = ""; try { host = new URL(x.url).hostname.replace(/^www\./, ""); } catch { return; }
+        const a = el("a", null, host); a.href = x.url; a.target = "_blank"; a.rel = "noopener noreferrer"; a.title = x.title || host;
+        if (i) src.append(document.createTextNode(" · ")); src.append(a);
+      });
+      li.append(src);
+    }
+    ul.append(li);
+  });
 }
 
 // ---- dreams and treasures (Life tab)

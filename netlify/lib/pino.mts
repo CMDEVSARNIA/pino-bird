@@ -146,6 +146,9 @@ export type State = {
   outbox?: { to: string; name: string; text: string; t: string; at: number }[]; // letters waiting to be delivered
   lastWatched?: { channel: string; title: string; lines: string[] } | null; // what he just watched (he reacts next moment)
   tvLog?: { t: string; channel: string; title: string; reaction: string }[];
+  pendingLookup?: boolean;                       // he sat down at the library computer: a web search is waiting
+  justLookedUp?: WebFind | null;                 // what he just found online (he reacts next moment)
+  webLog?: (WebFind & { reaction?: string })[];  // things he's looked up online
   wants: Want[];                                 // what he wants right now, in his own words
   pastWants: Want[];                             // wishes he's let go of or moved on from
   conversations: { t: string; visitor: string; reply: string }[];
@@ -262,6 +265,7 @@ export function activitiesAt(s: State, place: string): Record<string, Effects> {
       acts["put my penguin teddy down here"] = { joy: 1 };
     } else if (s.teddy.place === place) acts["pick up my penguin teddy"] = { joy: 4 };
   }
+  if (place === "library" && canLookUp(s)) acts["look something up on the library computer"] = { joy: 6, energy: -2 };
   if (place === "house" && (s.treasures?.length ?? 0) > 0) acts["admire my treasure shelf"] = { joy: 5, energy: 1 };
   // rearranging the furniture: a big job, so not more than once every few hours
   if ((place === "house" || place === "library") && Date.now() - (s.furniture?.at ?? 0) > 3 * 3_600_000)
@@ -371,6 +375,14 @@ export function buildOptions(s: State, notes: Note[], pals: Pal[] = []): Option[
 }
 
 // Everything in his town, so he always knows what's where (even when he's elsewhere or chatting)
+export type WebFind = { t: string; at: number; question: string; learned: string; sources: { url: string; title: string }[] };
+// the library computer: a few look-ups a day, not back to back
+export function canLookUp(s: State, now = Date.now()) {
+  const today = (s.webLog ?? []).filter((w) => now - w.at < 24 * 3_600_000).length;
+  const last = (s.webLog ?? []).at(-1)?.at ?? 0;
+  return !s.pendingLookup && today < 5 && now - last > 75 * 60_000;
+}
+
 export function townDescription(s: State) {
   const got = s.gifts?.received ?? [];
   const extras = (place: string) => got.map((id) => GIFT_BY_ID[id]).filter((g) => g && g.place === place && g.kind === "thing").map((g) => g!.name);
@@ -381,6 +393,7 @@ export function townDescription(s: State) {
   return [
     `- Your little house: your bed, a rug, a fireplace, an armchair, a TV with five free channels (weather, an aquarium cam, space, town news and cartoons${s.tv?.on ? " - it's on right now" : ""}) and a window over the path${extras("house").length ? `; plus ${extras("house").join(", ")}` : ""}.`,
     `- The library: ${books} books on your shelf, your journal, a big drawing table, and - tucked inside at the back - your warm, cozy reading nook (squashy armchair, lamp, little crackling fireplace)${extras("library").length ? `; plus ${extras("library").join(", ")}` : ""}.`,
+    `- The library computer: a little laptop on your writing desk. A few times a day you can sit down and look something up online - anything you're curious about. You've looked up ${(s.webLog ?? []).length} thing${(s.webLog ?? []).length === 1 ? "" : "s"} so far${(s.webLog ?? []).length ? ` (lately: ${(s.webLog ?? []).slice(-3).map((w) => `"${w.question}"`).join(", ")})` : ""}.`,
     `- The vending machine: ${snacks.join(", ")} (no coins needed).`,
     ...(["house", "library"].filter((p) => wallOf(s, p).length).map((p) => `- Your drawings hanging ${p === "house" ? "at home" : "in the library"}: ${wallOf(s, p).map((d) => `"${d.title ?? "untitled"}"`).join(", ")}.`)),
     `- You can hang your drawings in the gallery, at home or in the library (${WALL_SIZE.house} spots at home, ${WALL_SIZE.library} in the library) - but never in the museum.`,
@@ -446,6 +459,8 @@ export function decisionPrompt(s: State, opts: Option[], notes: Note[], now: num
       (w.arrived.length ? ` Just arrived: ${w.arrived.join(", ")}!` : "") + (w.left.length ? ` Just left: ${w.left.join(", ")}.` : "") +
       ((w.near?.length || w.nearUnnamed) ? ` Right here in the ${PLACES[s.place]?.label ?? s.place} with you, watching up close: ${[...(w.near ?? []), ...(w.nearUnnamed ? [`${w.nearUnnamed} visitor${w.nearUnnamed === 1 ? "" : "s"} you haven't met`] : [])].join(", ")}.` : "") +
       (w.cameIn?.length ? ` ${w.cameIn.join(", ")} just came inside to see you!` : "") + "\n";
+  const web = s.justLookedUp;
+  const webNow = web ? `\nYou just looked something up on the library computer. You wondered: "${web.question}"\nWhat you found out: ${web.learned}\n(From ${web.sources.map((x) => x.title).slice(0, 2).join(" and ") || "the web"}.) Let your thought be your honest reaction - what surprised or delighted you, or what you now wonder next.\n` : "";
   const learnedNow = s.justLearned ? `\nYou just found a constellation with your star chart. ${s.justLearned}\nLet your thought be your reaction to it.\n` : "";
   const dreamNow = s.justDreamed ? `\nYou just woke up from a dream called "${s.justDreamed.title}": ${s.justDreamed.text}\n(You may think about it, or not.)\n` : "";
   const dressed = wearingLine(wearing(s.weather, OUTDOORS.has(s.place), s.gifts?.received ?? [], isNight(now)));
@@ -477,7 +492,7 @@ export function decisionPrompt(s: State, opts: Option[], notes: Note[], now: num
     (openers.length ? ` Your recent thoughts started like ${openers.join(", ")} - start this one a different way.` : "") + "\n";
   return (
     `It is ${weekday}, ${clockStr(s, now)} (${night}). You are at the ${PLACES[s.place].label}: ${PLACES[s.place].desc}.\n\n` +
-    `How you feel right now:\n${feel}\n${weather}${company}${dressed ? dressed + "\n" : ""}${dreamNow}${learnedNow}${bored}${note}${reading}${museum}${tvNow}\n` +
+    `How you feel right now:\n${feel}\n${weather}${company}${dressed ? dressed + "\n" : ""}${dreamNow}${learnedNow}${bored}${note}${reading}${museum}${tvNow}${webNow}\n` +
     (friends ? `Visitors you know:\n${friends}\n\n` : "") +
     `What happened recently (oldest first):\n${history}\n\n` +
     (remembered ? `Older memories that come to mind:\n${remembered}\n\n` : "") +
@@ -566,6 +581,11 @@ export function applyChoice(
     s.tvLog = [...(s.tvLog ?? []), { t, channel: s.lastWatched.channel, title: s.lastWatched.title, reaction: thought }].slice(-120);
   }
   s.lastWatched = null;
+  if (s.justLookedUp) {
+    const w = s.webLog?.at(-1);
+    if (w && w.at === s.justLookedUp.at) w.reaction = thought;
+  }
+  s.justLookedUp = null;
   // dreaming: a doze of 10+ minutes leaves a dream behind when he wakes
   const asleepNow = /^(sleep|take a nap|nap)/.test(opt.name) || /nap/.test(opt.name);
   if (asleepNow) s.asleepSince ??= now;
@@ -653,6 +673,10 @@ export function applyChoice(
       s.garden ??= newGarden(now);
       const did = doGarden(s.garden, action, now);
       if (did) action = `${action} - ${did}`;
+    }
+    if (action === "look something up on the library computer") {
+      s.pendingLookup = true;
+      action = "sat down at the library computer to look something up online";
     }
     const shuffle = action.match(/^rearrange the furniture in the (house|library)$/);
     if (shuffle) {
@@ -919,6 +943,7 @@ export function publicView(s: State, unread: number, now: number, chats: { at: n
     wearing: wearing(s.weather, OUTDOORS.has(s.place), s.gifts?.received ?? [], isNight(now)),
     tv: s.tv?.on ? programme(s.tv.channel, s, now) : null,
     tvLog: (s.tvLog ?? []).slice(-30),
+    webLog: (s.webLog ?? []).slice(-30), lookingUp: !!s.pendingLookup,
     exhibit: s.place === "museum" ? exhibitFromAction(s.doing)?.id ?? null : null,
   };
 }

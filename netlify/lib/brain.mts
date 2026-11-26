@@ -72,3 +72,44 @@ export async function ask(system: string, user: string, maxMs = 20_000, tokens =
   if (openai) return askOpenAI(openai, system, user);
   throw new NoBrain("No brain connected yet: add ANTHROPIC_API_KEY in Netlify, then redeploy. Pino is running on instinct.");
 }
+
+// ---- looking things up on the web (Claude only): Anthropic's web search tool, limited to a few
+// searches and to kids' and educational sites only. Returns the answer text and its sources.
+export const SAFE_SITES = [
+  // made for kids
+  "kids.britannica.com", "kids.nationalgeographic.com", "natgeokids.com", "spaceplace.nasa.gov", "scijinks.gov",
+  "dkfindout.com", "ducksters.com", "sciencekids.co.nz", "kiddle.co", "wonderopolis.org",
+  // educational: encyclopedias, museums, science and nature organisations
+  "simple.wikipedia.org", "britannica.com", "khanacademy.org", "nasa.gov", "si.edu", "amnh.org", "nhm.ac.uk",
+  "metmuseum.org", "allaboutbirds.org", "audubon.org", "doc.govt.nz", "teara.govt.nz", "nps.gov", "worldwildlife.org",
+];
+export async function lookUp(system: string, user: string, maxMs = 25_000, tokens = 700) {
+  const key = Netlify.env.get("ANTHROPIC_API_KEY");
+  if (!key) throw new NoBrain("Looking things up needs a Claude brain (ANTHROPIC_API_KEY).");
+  const model = Netlify.env.get("ANTHROPIC_MODEL") || CLAUDE_MODELS[0];
+  const r = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-api-key": key, "anthropic-version": "2023-06-01" },
+    body: JSON.stringify({
+      model, max_tokens: tokens, system, messages: [{ role: "user", content: user }],
+      tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 2, allowed_domains: SAFE_SITES }],
+    }),
+    signal: AbortSignal.timeout(maxMs),
+  });
+  if (!r.ok) {
+    const detail = (await r.text()).slice(0, 300);
+    if (/web.?search/i.test(detail) && /(disabled|not enabled|enable)/i.test(detail))
+      throw new Error("Web search isn't switched on for this Anthropic account. Turn it on in the Claude Console (Settings > Privacy/Features), then Pino can look things up.");
+    throw new Error(`Anthropic ${r.status}: ${detail}`);
+  }
+  const j: any = await r.json();
+  const blocks: any[] = j?.content ?? [];
+  const text = blocks.filter((c) => c.type === "text").map((c) => c.text).join("").trim();
+  const sources = new Map<string, string>();
+  for (const b of blocks) {
+    for (const c of b.citations ?? []) if (c.url) sources.set(c.url, c.title ?? c.url);
+    if (b.type === "web_search_tool_result" && Array.isArray(b.content)) for (const res of b.content.slice(0, 3)) if (res.url && !sources.has(res.url)) sources.set(res.url, res.title ?? res.url);
+  }
+  const searches = blocks.filter((b) => b.type === "server_tool_use").map((b) => String(b.input?.query ?? "")).filter(Boolean);
+  return { text, sources: [...sources].slice(0, 4).map(([url, title]) => ({ url, title })), searches };
+}
