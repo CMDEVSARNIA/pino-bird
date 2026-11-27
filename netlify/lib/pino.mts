@@ -175,6 +175,8 @@ export type State = {
   habits?: Habit[];                              // routines he's made for himself
   habitLog?: HabitLog;                           // what he's done when, to spot new habits
   justHabit?: { formed?: string; kept?: string } | null;
+  promises?: { what: string; to: string; at: number }[]; // things he told friends he'd do
+  keptPromise?: string | null;
   justMirror?: string | null;                    // what he saw in the mirror (he reacts next moment)
   justSawDrawing?: { title: string; saw: string } | null; // he just looked at a drawing he finished
   justFinished?: string | null;                  // a goal he just achieved
@@ -442,6 +444,14 @@ export function learnFrom(s: State, w: WebFind) {
   if (w.next) addCurious(s, [w.next]);
 }
 
+// Promises: does what he just did keep one? (enough of the same words: "play my harmonica" keeps "play the harmonica for Christian")
+const promiseWords = (x: string) => x.toLowerCase().replace(/[^a-z ]/g, " ").split(/\s+/).filter((w) => w.length > 3 && !["your", "them", "with", "some", "something", "that", "this", "maybe", "later", "today", "tonight", "christian"].includes(w));
+export function keepsPromise(action: string, what: string) {
+  const want = promiseWords(what), did = new Set(promiseWords(action));
+  const hits = want.filter((w) => did.has(w) || [...did].some((d) => d.startsWith(w.slice(0, 5)) || w.startsWith(d.slice(0, 5))));
+  return want.length > 0 && hits.length >= Math.min(2, want.length);
+}
+
 // What he sees in his mirror: how he really looks right now (his feathers, what he's wearing, holding,
 // how he's feeling, and any traces of what he's been up to). Built from his actual state, never made up.
 export function mirrorView(s: State, now: number) {
@@ -551,7 +561,9 @@ export function decisionPrompt(s: State, opts: Option[], notes: Note[], now: num
       (w.cameIn?.length ? ` ${w.cameIn.join(", ")} just came inside to see you!` : "") + "\n";
   const web = s.justLookedUp;
   const webNow = web ? `\nYou just looked something up on the library computer. You wondered: "${web.question}"\nWhat you found out: ${web.learned}\n(From ${web.sources.map((x) => x.title).slice(0, 2).join(" and ") || "the web"}.) Let your thought be your honest reaction - what surprised or delighted you, or what you now wonder next.${web.next ? ` (It made you wonder: "${web.next}")` : ""}\n` : "";
-  const sawNow = s.justSawDrawing ? `\nYou just finished your drawing "${s.justSawDrawing.title}" and looked at how it really came out: ${s.justSawDrawing.saw}\n` : "";
+  const promiseNow = (s.promises ?? []).filter((p) => now - p.at < 24 * 3_600_000).length
+    ? `\nThings you told friends you'd do (keep your word when you can - it would mean a lot to them):\n${(s.promises ?? []).map((p) => `- ${p.what} (you told ${p.to} ${Math.max(1, Math.round((now - p.at) / 60_000))} min ago)`).join("\n")}\n` : "";
+  const sawNow = promiseNow + (s.keptPromise ? `\nYou just kept your promise: ${s.keptPromise}. That feels good.\n` : "") + (s.justSawDrawing ? `\nYou just finished your drawing "${s.justSawDrawing.title}" and looked at how it really came out: ${s.justSawDrawing.saw}\n` : "");
   const mirrorNow = sawNow + (s.justMirror ? `\nYou just looked at yourself in your mirror at home. You saw: ${s.justMirror} Let your thought be what you honestly think of what you see.\n` : "");
   const habitNow = mirrorNow + (s.justHabit?.formed ? `\nYou've noticed something: you've started a little routine - ${s.justHabit.formed}. It's become a habit.\n` : "");
   const moodNow = habitNow + (s.justFinished ? `\nYou just achieved one of your goals: "${s.justFinished}"! Let yourself feel it.\n` : "") + (s.mood ? `\n${moodLine(s.mood, now)}\n` : "");
@@ -864,6 +876,16 @@ export function applyChoice(
       deltas = { ...deltas, joy: (deltas.joy ?? 0) + 5 };
     }
   }
+  // keeping his word feels good (promises he doesn't get round to fade after a day)
+  s.keptPromise = null;
+  s.promises = (s.promises ?? []).filter((p) => now - p.at < 24 * 3_600_000);
+  const kept = s.promises.find((p) => keepsPromise(action, p.what));
+  if (kept) {
+    s.promises = s.promises.filter((p) => p !== kept);
+    s.keptPromise = `${kept.what} for ${kept.to}`;
+    action = `${action} - kept my promise to ${kept.to}`;
+    deltas = { ...deltas, joy: (deltas.joy ?? 0) + 5 };
+  }
   // habits: the same thing at the same time of day on 3 different days becomes a routine; keeping one is comforting
   {
     const lt = localTime(now), date = new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date(now));
@@ -970,7 +992,7 @@ export function applyReflection(s: State, reply: any, now: number) {
 // ---------------------------------------------------------------------------
 // Visitors: pets, treats and conversations
 // ---------------------------------------------------------------------------
-type Visit = { type: "pet" | "treat" | "talk" | "gift"; at: number; text?: string; reply?: string; id?: string; who?: { id: string; name: string }; from?: string };
+type Visit = { type: "pet" | "treat" | "talk" | "gift"; at: number; text?: string; reply?: string; id?: string; who?: { id: string; name: string }; from?: string; promise?: string };
 const whoName = (v: Visit) => v.who?.name || "a visitor";
 
 // Folds what visitors did since the last tick into Pino's needs and memories.
@@ -1045,6 +1067,8 @@ export function applyVisits(s: State, visits: Visit[], now: number) {
   }
   for (const v of visits.filter((x) => x.type === "talk").slice(-5)) {
     remember(`talked with ${whoName(v)}`, `They said "${(v.text ?? "").slice(0, 160)}" and I said "${(v.reply ?? "").slice(0, 160)}"`, { joy: 5 });
+    // he said he'd do something for them: remember it as a promise he can keep
+    if (v.promise) s.promises = [...(s.promises ?? []).filter((p) => p.what !== v.promise), { what: v.promise.slice(0, 80), to: whoName(v), at: v.at }].slice(-6);
   }
   s.memories = s.memories.slice(-1500);
 }
@@ -1112,7 +1136,8 @@ export function talkPrompt(s: State, chats: { you: string; pino: string }[], tex
     "If you're very sleepy you can be drowsy. If asked to do something you can't do in your town, say so in a bird-like way.\n" +
     "Use their name now and then if you know it. If they tell you something worth remembering about themselves " +
     "(their name, what they like, something happening in their life), put it in \"remember\" as a short note; otherwise leave it empty.\n" +
-    'Reply with JSON exactly like this: {"reply": "what you say", "react": "one emoji that shows how their message made you feel", "mood": "one of happy, curious, shy, sleepy, grumpy, excited", "remember": "short note about them, or empty", "their_name": "their name if they told you, or empty"}'
+    'Talking is just talking: you can\'t do things in the middle of a chat. If they ask you to do something and you\'d like to, say you will (when you\'re next in the right place) - and put it in "promise". ' +
+    'Reply with JSON exactly like this: {"reply": "what you say", "react": "one emoji that shows how their message made you feel", "mood": "one of happy, curious, shy, sleepy, grumpy, excited", "remember": "short note about them, or empty", "their_name": "their name if they told you, or empty", "promise": "if you agreed to do something for them, what (a few words, like \'play my harmonica\' or \'draw a picture of the river\'), or empty"}'
   );
 }
 

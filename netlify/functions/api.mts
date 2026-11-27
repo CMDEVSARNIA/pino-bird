@@ -197,7 +197,7 @@ export default async (req: Request, context: Context) => {
       ? { id: who.id, name: who.name, firstMet: now, lastSeen: now, visits: 0, chats: 0, facts: [], gave: [], pets: 0 } : null;
     const mine = chats.filter((c) => who && c.who === who.id);
 
-    let reply = "", mood = "curious", remember = "", theirName = "", react = "";
+    let reply = "", mood = "curious", remember = "", theirName = "", react = "", promise = "";
     if (!hasBrain()) {
       reply = "*tilts head and chirps* (Pino has no brain connected yet.)";
     } else {
@@ -208,6 +208,7 @@ export default async (req: Request, context: Context) => {
         mood = typeof parsed?.mood === "string" ? parsed.mood : mood;
         remember = clean(parsed?.remember, 160);
         theirName = clean(parsed?.their_name, 30);
+        promise = clean(parsed?.promise, 80);
         // one emoji only (a short grapheme run, no words)
         const r = clean(parsed?.react, 16);
         react = /^[\p{Extended_Pictographic}\p{Emoji_Component}\u200d\ufe0f]{1,12}$/u.test(r) ? r : "";
@@ -221,7 +222,7 @@ export default async (req: Request, context: Context) => {
     let got = 0, seeds = seedsOf(person);
     await Promise.all([
       addChat({ at: now, you: text, pino: reply, who: who?.id, name, react }),
-      addEvent({ type: "talk", at: now, text, reply, who: who ? { id: who.id, name } : undefined }),
+      addEvent({ type: "talk", at: now, text, reply, who: who ? { id: who.id, name } : undefined, promise: promise || undefined }),
       meet(who ? { id: who.id, name } : null, (p) => {
         p.chats += 1;
         p.topics = noteTopics(p.topics, text);
