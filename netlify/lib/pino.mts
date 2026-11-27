@@ -377,10 +377,11 @@ export function buildOptions(s: State, notes: Note[], pals: Pal[] = []): Option[
   if (here === "museum") {
     // a few exhibits at a time, ones he hasn't seen first
     const seen = (a: string) => s.tried[a] ?? 0;
-    acts = acts.sort(() => Math.random() - 0.5).sort((a, b) => Math.min(1, seen(a)) - Math.min(1, seen(b))).slice(0, 4);
+    const exhibits = acts.filter((a) => exhibitFromAction(a)), other = acts.filter((a) => !exhibitFromAction(a)); // (his teddy, harmonica...)
+    acts = [...exhibits.sort(() => Math.random() - 0.5).sort((a, b) => Math.min(1, seen(a)) - Math.min(1, seen(b))).slice(0, 4), ...other];
   }
   const opts: Option[] = acts.map((a) => ({
-    type: "do", name: a, label: here === "museum"
+    type: "do", name: a, label: here === "museum" && exhibitFromAction(a)
       ? `${a} (${EXHIBIT_BY_ID[exhibitFromAction(a)?.id ?? ""]?.by ?? "here at the museum"}${s.tried[a] ? ", you've seen it before" : ", you haven't seen it yet"})`
       : a === "choose a record to play on the gramophone"
         ? `choose any record you'd like to hear and put it on (put its exact title in "note"). Your records: ${songsOwned(s.gifts?.received ?? []).map((x) => `"${x.title}"`).join(", ")}`

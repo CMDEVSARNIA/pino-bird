@@ -45,7 +45,7 @@ export function moreActivities(m: More, place: string, owned: string[], w: Weath
     acts["watch the birds at my bird feeder"] = { joy: 9, energy: 1 };
   if (has("thing-puzzle") && place === "house") acts[(m.puzzle?.placed ?? 0) >= PUZZLE_PIECES ? "start my jigsaw puzzle again" : "work on my jigsaw puzzle"] = { joy: 8, energy: -2 };
   if (has("thing-starchart") && place === "park" && night && clearSky(w)) acts["look for constellations with my star chart"] = { joy: 12, energy: -1 };
-  if (has("thing-harmonica") && (place === "house" || place === "park" || place === "garden")) acts["play my harmonica"] = { joy: 9, energy: -2 };
+  if (has("thing-harmonica")) acts["play my harmonica"] = { joy: 9, energy: -2 }; // it fits in his pocket: he can play it anywhere
   if (has("thing-sled") && place === "park" && snowy(w)) acts["go sledding down the snowy hill"] = { joy: 16, energy: -8, food: -4 };
   if (has("thing-lights") && place === "house" && night) acts["lie back and watch my fairy lights twinkle"] = { joy: 6, energy: 4 };
   return acts;
