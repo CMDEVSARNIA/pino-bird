@@ -175,6 +175,7 @@ export type State = {
   habits?: Habit[];                              // routines he's made for himself
   habitLog?: HabitLog;                           // what he's done when, to spot new habits
   justHabit?: { formed?: string; kept?: string } | null;
+  justMirror?: string | null;                    // what he saw in the mirror (he reacts next moment)
   justFinished?: string | null;                  // a goal he just achieved
   favs?: Favs;                                   // his favourites, from what has made him happiest
   favChanged?: { kind: string; from?: string; to: string } | null;
@@ -302,6 +303,7 @@ export function activitiesAt(s: State, place: string): Record<string, Effects> {
   if (place === "library" && canLookUp(s)) acts["look something up on the library computer"] = { joy: 6, energy: -2 };
   if (place === "house" && (s.treasures?.length ?? 0) > 0) acts["admire my treasure shelf"] = { joy: 5, energy: 1 };
   if (place === "house" && Object.keys(s.river?.species ?? {}).length > 0) acts["look at my fish catch board"] = { joy: 5, energy: 1 };
+  if (place === "house") acts["look at myself in the mirror"] = { joy: 4 };
   // rearranging the furniture: a big job, so not more than once every few hours
   if ((place === "house" || place === "library") && Date.now() - (s.furniture?.at ?? 0) > 3 * 3_600_000)
     acts[`rearrange the furniture in the ${place === "house" ? "house" : "library"}`] = { joy: 9, energy: -7, food: -3 };
@@ -439,6 +441,28 @@ export function learnFrom(s: State, w: WebFind) {
   if (w.next) addCurious(s, [w.next]);
 }
 
+// What he sees in his mirror: how he really looks right now (his feathers, what he's wearing, holding,
+// how he's feeling, and any traces of what he's been up to). Built from his actual state, never made up.
+export function mirrorView(s: State, now: number) {
+  const bits: string[] = ["a small, round brown kiwi with soft, shaggy feathers, a long pale curved beak, little dark eyes and sturdy legs"];
+  const w = wearing(s.weather, false, s.gifts?.received ?? [], isNight(now), now);
+  const on = [w.santa && "a Santa hat", w.bowtie && "a smart blue bow tie"].filter(Boolean);
+  if (on.length) bits.push(`wearing ${on.join(" and ")}`);
+  if (s.teddy?.holding) bits.push(`holding Pip the penguin teddy${(s.gifts?.received ?? []).includes("thing-pipbowtie") ? " (in his matching bow tie)" : ""}`);
+  const n = s.needs;
+  if (n.energy < 25) bits.push("sleepy, droopy eyes and feathers gone a bit flat");
+  else if (n.joy >= 75) bits.push("bright eyes and fluffed-up, happy feathers");
+  if (n.food < 25) bits.push("looking a little peaky - your tummy is rumbling");
+  const recent = s.memories.slice(-6).map((m) => m.action).join(" | ");
+  if (/paint|watercolou?r/.test(recent)) bits.push("a smudge of paint on one wing");
+  if (/swim|splash|paddle in|puddles|rain/.test(recent)) bits.push("damp, ruffled feathers");
+  if (/garden|plant|harvest|water the/.test(recent)) bits.push("a little soil on your feet");
+  if (/snow/.test(recent)) bits.push("a few snowflakes melting on your back");
+  const days = Math.max(1, Math.round((now - s.born) / 86_400_000));
+  const mood = s.mood ? `, and you look ${MOODS[s.mood.id]?.word ?? s.mood.id}` : "";
+  return `${bits.join("; ")}${mood}. You're ${days} day${days === 1 ? "" : "s"} old.`;
+}
+
 export function townDescription(s: State) {
   const got = s.gifts?.received ?? [];
   const extras = (place: string) => got.map((id) => GIFT_BY_ID[id]).filter((g) => g && g.place === place && g.kind === "thing").map((g) => g!.name);
@@ -526,7 +550,8 @@ export function decisionPrompt(s: State, opts: Option[], notes: Note[], now: num
       (w.cameIn?.length ? ` ${w.cameIn.join(", ")} just came inside to see you!` : "") + "\n";
   const web = s.justLookedUp;
   const webNow = web ? `\nYou just looked something up on the library computer. You wondered: "${web.question}"\nWhat you found out: ${web.learned}\n(From ${web.sources.map((x) => x.title).slice(0, 2).join(" and ") || "the web"}.) Let your thought be your honest reaction - what surprised or delighted you, or what you now wonder next.${web.next ? ` (It made you wonder: "${web.next}")` : ""}\n` : "";
-  const habitNow = s.justHabit?.formed ? `\nYou've noticed something: you've started a little routine - ${s.justHabit.formed}. It's become a habit.\n` : "";
+  const mirrorNow = s.justMirror ? `\nYou just looked at yourself in your mirror at home. You saw: ${s.justMirror} Let your thought be what you honestly think of what you see.\n` : "";
+  const habitNow = mirrorNow + (s.justHabit?.formed ? `\nYou've noticed something: you've started a little routine - ${s.justHabit.formed}. It's become a habit.\n` : "");
   const moodNow = habitNow + (s.justFinished ? `\nYou just achieved one of your goals: "${s.justFinished}"! Let yourself feel it.\n` : "") + (s.mood ? `\n${moodLine(s.mood, now)}\n` : "");
   const fc = s.favChanged;
   const favNow = fc ? `\nYou've realised ${fc.from ? `you now like "${fc.to}" even more than "${fc.from}"` : `"${fc.to}" has become a favourite`} - your favourite ${FAV_KINDS[fc.kind] ?? fc.kind}.\n` : "";
@@ -662,6 +687,7 @@ export function applyChoice(
     if (w && w.at === s.justLookedUp.at) w.reaction = thought;
   }
   s.justLookedUp = null;
+  if (opt.name !== "look at myself in the mirror") s.justMirror = null; // he reacts to the mirror in the moment after he looks
   // dreaming: a doze of 10+ minutes leaves a dream behind when he wakes
   const asleepNow = /^(sleep|take a nap|nap)/.test(opt.name) || /nap/.test(opt.name);
   if (asleepNow) {
@@ -785,6 +811,11 @@ export function applyChoice(
     s.river ??= newRiver(now);
     const rv = doRiver(s.river, action, t, { fishing: levelOf(s.skills?.fishing ?? 0), skating: levelOf(s.skills?.skating ?? 0), swimming: levelOf(s.skills?.swimming ?? 0), canoeing: levelOf(s.skills?.canoeing ?? 0) });
     if (rv) { action = `${action} - ${rv.note}`; if (rv.learned) s.justLearned = rv.learned; }
+    if (action === "look at myself in the mirror") {
+      const first = !s.tried["look at myself in the mirror"] || s.tried["look at myself in the mirror"] <= 1;
+      s.justMirror = mirrorView(s, now);
+      action = `looked at myself in the mirror${first ? " for the very first time" : ""}`;
+    }
     const pet = doFish(s.fish, action, note, t, now);
     if (pet) { action = `${action} - ${pet.note}`; if (pet.learned) s.justLearned = pet.learned; }
     s.more ??= {};
