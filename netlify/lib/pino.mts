@@ -762,7 +762,7 @@ export function applyChoice(
       action = `rearranged the furniture in the ${room}: now ${LAYOUTS[room][next]}`;
     }
     s.river ??= newRiver(now);
-    const rv = doRiver(s.river, action, t, { fishing: levelOf(s.skills?.fishing ?? 0), skating: levelOf(s.skills?.skating ?? 0) });
+    const rv = doRiver(s.river, action, t, { fishing: levelOf(s.skills?.fishing ?? 0), skating: levelOf(s.skills?.skating ?? 0), swimming: levelOf(s.skills?.swimming ?? 0) });
     if (rv) { action = `${action} - ${rv.note}`; if (rv.learned) s.justLearned = rv.learned; }
     const pet = doFish(s.fish, action, note, t, now);
     if (pet) { action = `${action} - ${pet.note}`; if (pet.learned) s.justLearned = pet.learned; }

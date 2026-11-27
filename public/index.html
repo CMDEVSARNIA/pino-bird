@@ -1971,7 +1971,7 @@ function buildWorld() {
       }
     }
     if (newSlot && !state.room) {
-      const still = state.sleeping || state.indoor || state.base.y > 0.05 || /swing|dance|gramophone|next song|sledding|frozen pond|go fishing|skate on|slide about on the frozen river|paddle in the shallows|splash about in the river/.test(state.doing);
+      const still = state.sleeping || state.indoor || state.base.y > 0.05 || /swing|dance|gramophone|next song|sledding|frozen pond|go fishing|skate on|slide about on the frozen river|paddle in the shallows|splash about in the river|go for a swim/.test(state.doing);
       if (!still) {
         if (slot % 2 === 0) { state.path = [state.base.clone()]; state.wandering = false; }
         else {
@@ -2330,6 +2330,7 @@ function buildWorld() {
   ACT.unshift(
     [/go fishing/, DOCK_END.clone().setY(0.3), BOB_AT.clone()],
     [/skate on|slide about on the frozen river/, rP.clone().setY(0.05), rP.clone().add(rT)],
+    [/go for a swim/, rP.clone().setY(-0.32), rP.clone().add(rT)],
     [/paddle in the shallows|splash about in the river/, bankAt(-0.7).setY(-0.08), rP.clone()],
     [/skip stones|river flow|frogs and minnows|ice forming|ice creak/, bankAt(0.5, 1.6), rP.clone().add(rT.clone().multiplyScalar(1.6))],
   );
@@ -2337,12 +2338,12 @@ function buildWorld() {
   // streetlights along the path to the river, alternating sides, and one by the dock
   {
     const a = JUNCTION.clone(), b = SPOTS.river.clone(), dir = b.clone().sub(a), side = V(-dir.z, 0, dir.x).normalize();
-    [0.38, 0.62, 0.86].forEach((f, k) => { const p = a.clone().lerp(b, f).add(side.clone().multiplyScalar(k % 2 ? -1.1 : 1.1)); makeLamp([p.x, p.z], 4 + k); });
+    [0.6, 0.86].forEach((f, k) => { const p = a.clone().lerp(b, f).add(side.clone().multiplyScalar(k % 2 ? -1.1 : 1.1)); makeLamp([p.x, p.z], 4 + k); }); // (none right in front of his house)
     const byDock = bankAt(1.4, -1.3); makeLamp([byDock.x, byDock.z], 7);
   }
-  const river = { frozen: false, icy: false, skate: 0 };
-  function setRiver(r, skatingLevel) {
-    river.frozen = !!r?.frozen; river.icy = !!r?.icy; river.skate = skatingLevel || 0;
+  const river = { frozen: false, icy: false, skate: 0, swim: 0 };
+  function setRiver(r, skatingLevel, swimLevel) {
+    river.frozen = !!r?.frozen; river.icy = !!r?.icy; river.skate = skatingLevel || 0; river.swim = swimLevel || 0;
     riverWater.material = river.frozen ? iceMatR : waterMatR;
     edgeIce.visible = river.icy;
     waterMatR.color.setHex(wx.snowy || river.icy ? 0xc9dbe6 : 0xffffff);
@@ -2367,6 +2368,16 @@ function buildWorld() {
       g.rotation.z = fallEvery && ph > 0.82 ? 1.1 : Math.sin(t * 7) * Math.max(0.03, 0.32 - lvl * 0.05);
     } else if (/skate on|slide about on the frozen river/.test(state.lastRiver || "") ) g.rotation.z = 0;
     state.lastRiver = d;
+    // swimming: low in the water with just his head and back showing, drifting up and down the calm bend
+    if (!walking && /go for a swim/.test(d) && !river.frozen) {
+      const lvl = river.swim, sp = 0.12 + lvl * 0.03;
+      const u = Math.min(0.99, Math.max(0.01, RU + Math.sin(t * sp) * 0.03)), p = riverCurve.getPointAt(u), tg = riverCurve.getTangentAt(u);
+      const across = rN.clone().multiplyScalar(Math.sin(t * sp * 1.7) * 0.5);
+      g.position.set(p.x + across.x, -0.32 + Math.sin(t * 2.4) * (0.05 - lvl * 0.006), p.z + across.z);
+      g.rotation.y = Math.atan2(tg.x * Math.sign(Math.cos(t * sp) || 1), tg.z * Math.sign(Math.cos(t * sp) || 1));
+      g.rotation.z = Math.sin(t * 5) * Math.max(0.02, 0.18 - lvl * 0.03);
+      if (Math.random() < dt * (lvl <= 1 ? 2.2 : 0.8)) spawn(dropTex, g.position.clone().add(V(0, 0.5, 0)), { vy: 0.8, life: 0.7, size: 0.25, spread: 0.6 });
+    }
     if (!walking && /splash about in the river/.test(d) && Math.random() < dt * 2.5) { state.hop = 0.5; spawn(dropTex, g.position.clone().add(V(0, 0.4, 0)), { vy: 1.2, life: 0.9, size: 0.3, spread: 0.7 }); }
   }
   const dropTex = emojiTexture("💧");
@@ -2601,7 +2612,7 @@ function render(s) {
   if (world) { world.setOwned(s.owned || []); world.setGallery(s.galleryWall || []); world.setWalls(s.walls); world.setMore(s.more, s.owned || []); world.setLayouts(s.furniture); }
   renderWeather(s);
   renderMuseum(s);
-  if (world) { world.setTeddy(s.teddy || null); world.setGarden(s.garden); world.setWearing(s.wearing); world.setTreasures(s.treasures); world.setFish(s.fish || null); world.setRiver(s.river || null, (s.skills || []).find((k) => k.id === "skating")?.level || 0); world.setHoliday(s.holiday || null); world.setMail((s.me?.letters || []).some((l) => !l.read)); }
+  if (world) { world.setTeddy(s.teddy || null); world.setGarden(s.garden); world.setWearing(s.wearing); world.setTreasures(s.treasures); world.setFish(s.fish || null); world.setRiver(s.river || null, (s.skills || []).find((k) => k.id === "skating")?.level || 0, (s.skills || []).find((k) => k.id === "swimming")?.level || 0); world.setHoliday(s.holiday || null); world.setMail((s.me?.letters || []).some((l) => !l.read)); }
   checkLetters(s);
   renderBoost(s);
   renderDreams(s);

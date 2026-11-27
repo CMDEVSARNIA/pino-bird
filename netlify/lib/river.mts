@@ -54,6 +54,8 @@ export function riverActivities(r: River | undefined, w: Weather | undefined, se
     acts["paddle in the shallows of the river"] = { joy: 11, energy: -2 };
     acts["splash about in the river"] = { joy: 14, energy: -5, food: -2 };
   }
+  // a proper swim in the calm bend of the river: only on warm, calm days
+  if (!night && t >= 20 && w?.kind !== "storm" && w?.kind !== "rain") acts["go for a swim in the river"] = { joy: 15, energy: -6, food: -3 };
   return acts;
 }
 
@@ -67,7 +69,17 @@ const SKATE_STEPS = [
   "skated backwards! and did a little hockey stop that sprayed ice",
   "did a real twirling spin, like the skaters on TV",
 ];
-export function doRiver(r: River, action: string, t: string, skill: { fishing: number; skating: number }): { note: string; learned?: string } | null {
+// swimming gets better with practice too (kiwis can really swim - they're just not graceful about it)
+const SWIM_STEPS = [
+  "splashed about in a very wobbly doggy-paddle and swallowed a bit of river",
+  "paddled in circles with my head held high, very proud of myself",
+  "swam a little way along the bank without touching the bottom",
+  "swam out to the middle of the calm bend and floated on my back",
+  "swam right across the bend and back again",
+  "did a smooth little glide and a duck-dive like the ducks do",
+  "swam like a real river kiwi - fast, smooth and splashing nobody",
+];
+export function doRiver(r: River, action: string, t: string, skill: { fishing: number; skating: number; swimming: number }): { note: string; learned?: string } | null {
   if (action === "go fishing at the river (catch and release)") {
     const chance = 0.25 + skill.fishing * 0.1;
     if (Math.random() > chance) return { note: "the bobber bobbed... but nothing bit this time" };
@@ -78,6 +90,10 @@ export function doRiver(r: River, action: string, t: string, skill: { fishing: n
     const first = !r.catches.some((c) => c.fish === fish);
     r.catches = [...r.catches, { t, fish }].slice(-60);
     return { note: `caught ${fish}${first ? " (my first one ever!)" : ""} and gently let it go`, learned: first ? FISH_FACTS[fish] : undefined };
+  }
+  if (action === "go for a swim in the river") {
+    const step = Math.min(6, skill.swimming);
+    return { note: SWIM_STEPS[step] };
   }
   if (action === "skate on the frozen river") {
     const step = Math.min(6, skill.skating);
@@ -92,7 +108,7 @@ export function riverLine(r: River | undefined, w: Weather | undefined, owned: s
     : riverIcy(r) ? "starting to freeze: ice is creeping out from the banks, but it's not safe yet"
     : (w?.temp ?? 10) >= 18 ? "warm enough to paddle and splash in" : "flowing past, cold and clear";
   const caught = r?.catches.length ? ` You've caught and released ${r.catches.length} fish (${[...new Set(r.catches.map((c) => c.fish.split(" - ")[0]))].slice(-5).join(", ")}).` : "";
-  return `The river, past your garden on the west side of town (a stretch of the real St. Clair River): right now it's ${ice}. In summer you can paddle, splash and fish there (you always let the fish go).${caught}`;
+  return `The river, past your garden on the west side of town (a stretch of the real St. Clair River): right now it's ${ice}. In summer you can paddle, splash, swim and fish there (you always let the fish go).${caught}`;
 }
 
 export function riverView(r: River | undefined) {
