@@ -1318,7 +1318,7 @@ function buildWorld() {
   }
 
   // ---- GARDEN: two raised beds to the left of his house, under a glass cold frame
-  const GARDEN = V(-7.8, 0, -4.4);
+  const GARDEN = V(-8.1, 0, -6.2);   // set back from the path
   const gardenG = new THREE.Group(); gardenG.position.copy(GARDEN); scene.add(gardenG);
   const soil = M(0x5b3d2a), plank = M(0x9b6b43), glass = new THREE.MeshStandardMaterial({ color: 0xd8f0f8, transparent: true, opacity: 0.28, roughness: 0.05, depthWrite: false });
   const PLOT_AT = [];
@@ -1431,7 +1431,7 @@ function buildWorld() {
   let holidayNow = null;
 
   // spots where Pino stands at each place, what he faces, and extra spots for some activities
-  const SPOTS = { house: V(-4.7, 0, -2.2), library: V(4.8, 0, -2.3), vending: V(-1.45, 0, -1.55), park: V(-2.4, 0, 4.6), gallery: V(4.16, 0, 3.73), museum: V(0, 0, -7.0), garden: V(-7.8, 0, -2.55) };
+  const SPOTS = { house: V(-4.7, 0, -2.2), library: V(4.8, 0, -2.3), vending: V(-1.45, 0, -1.55), park: V(-2.4, 0, 4.6), gallery: V(4.16, 0, 3.73), museum: V(0, 0, -7.0), garden: V(-8.1, 0, -4.35) };
   const LOOK = { house: V(-4.7, 0, -3.8), library: V(4.8, 0, -3.8), vending: V(-2.3, 0, -2.6), park: POND, gallery: V(4.6, 0, 2.3), museum: MUS, garden: GARDEN };
   // [activity, where he goes, what he faces, building he disappears into]
   const HOUSE_DOOR = V(-4.7, 0, -3.55), LIB_DOOR = V(4.8, 0, -3.45);
@@ -1454,7 +1454,7 @@ function buildWorld() {
     [/spring flowers/, V(-1.6, 0, 1.4), V(-1.6, 0, 0)],
     [/sledding/, V(-6.3, 0, 1.4), V(-8, 0, 0.6)],
     [/constellations/, V(-0.6, 0.52, 7.4), V(-0.6, 3, 4)],
-    [/bird feeder/, V(-8.4, 0, -1.3), V(-9.2, 0, -2.1)],
+    [/bird feeder/, V(-9.9, 0, -4.6), V(-10.6, 0, -5.5)],
     [/paddle my feet/, V(-1.9, 0, 7.2), POND],
     [/bench|sit and think/, V(-0.6, 0.52, 7.4), POND],
   ];
@@ -1603,7 +1603,7 @@ function buildWorld() {
     x.fillStyle = g; x.fillRect(0, 0, 64, 64); return new THREE.CanvasTexture(c);
   })();
   const lampPost = M(0x2f4a3a), lamps = [];
-  [[1.0, -4.2], [-1.0, -5.6], [-2.2, 1.0], [0.3, 6.6]].forEach(([lx, lz], i) => {
+  const makeLamp = ([lx, lz], i) => {
     const lp = new THREE.Group(); lp.position.set(lx, 0, lz); scene.add(lp);
     add(new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.2, 0.2, 8), lampPost), lp).position.y = 0.1;
     add(new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.07, 2.5, 8), lampPost), lp).position.y = 1.3;
@@ -1616,7 +1616,9 @@ function buildWorld() {
     const pool = add(new THREE.Mesh(new THREE.CircleGeometry(1.9, 24).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ map: glowTex, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending })), lp, { cast: false });
     pool.position.y = 0.035;
     lamps.push({ bulb, halo, pool, on: 0, at: 0.35 + i * 0.07, flicker: 0 });
-  });
+    return lp;
+  };
+  [[1.0, -4.2], [-1.0, -5.6], [-2.2, 1.0], [0.3, 6.6]].forEach(makeLamp);
 
   // ================================================================ PINO
   const pino = makeKiwi(M); pino.group.scale.setScalar(1.45); scene.add(pino.group);
@@ -1663,7 +1665,7 @@ function buildWorld() {
 
   // ---- MORE GIFTS in 3D: bird feeder + wild birds, jigsaw on his table, postcards on his wall,
   //      a sledding hill (when it snows), a Santa hat, and fairy lights in his house
-  const feeder = new THREE.Group(); feeder.position.set(-9.2, 0, -2.1); feeder.visible = false; scene.add(feeder);
+  const feeder = new THREE.Group(); feeder.position.set(-10.6, 0, -5.5); feeder.visible = false; scene.add(feeder);
   add(new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.05, 1.5, 6), M(0x7b5636)), feeder).position.y = 0.75;
   add(box(0.5, 0.05, 0.5, M(0x9b6b43)), feeder).position.y = 1.5;
   add(new THREE.Mesh(new THREE.ConeGeometry(0.42, 0.25, 4).rotateY(Math.PI / 4), M(0xb8433a)), feeder).position.y = 1.85;
@@ -2332,6 +2334,12 @@ function buildWorld() {
     [/skip stones|river flow|frogs and minnows|ice forming|ice creak/, bankAt(0.5, 1.6), rP.clone().add(rT.clone().multiplyScalar(1.6))],
   );
   strip(JUNCTION, SPOTS.river); strip(SPOTS.river, bankAt(0.6), 0.9);
+  // streetlights along the path to the river, alternating sides, and one by the dock
+  {
+    const a = JUNCTION.clone(), b = SPOTS.river.clone(), dir = b.clone().sub(a), side = V(-dir.z, 0, dir.x).normalize();
+    [0.38, 0.62, 0.86].forEach((f, k) => { const p = a.clone().lerp(b, f).add(side.clone().multiplyScalar(k % 2 ? -1.1 : 1.1)); makeLamp([p.x, p.z], 4 + k); });
+    const byDock = bankAt(1.4, -1.3); makeLamp([byDock.x, byDock.z], 7);
+  }
   const river = { frozen: false, icy: false, skate: 0 };
   function setRiver(r, skatingLevel) {
     river.frozen = !!r?.frozen; river.icy = !!r?.icy; river.skate = skatingLevel || 0;
