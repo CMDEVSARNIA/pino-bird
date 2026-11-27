@@ -7,6 +7,9 @@ export type Skill = { id: string; name: string; emoji: string; re: RegExp; perk:
 
 export const SKILLS: Skill[] = [
   { id: "museum", name: "Museum smarts", emoji: "🏛️", re: /exhibit|museum/, perk: "understanding the exhibits" }, // first, so "the exhibit: Moon rock" isn't stargazing
+  { id: "fishkeeping", name: "Fish keeping", emoji: "🐠", re: /my (new )?fish|fish tank/, perk: "a happier fish, and more bubble nests" },
+  { id: "fishing", name: "Fishing", emoji: "🎣", re: /go fishing/, perk: "more bites, and a better chance at rare fish" },
+  { id: "skating", name: "Skating", emoji: "⛸️", re: /skate on the/, perk: "from falling over to spinning like a real skater" },
   { id: "drawing", name: "Drawing & painting", emoji: "🎨", re: /draw|paint|sketch|watercolou?r|doodle/, perk: "a steadier hand and better pictures" },
   { id: "writing", name: "Writing", emoji: "✏️", re: /journal|letter|wrote|write|replied|reply/, perk: "richer journal entries and letters" },
   { id: "reading", name: "Reading", emoji: "📖", re: /^read |reading nook|story|poem/, perk: "understanding books more deeply" },

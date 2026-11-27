@@ -8,6 +8,8 @@ import { spotTreasure, TREASURE_BY_ID, wearing, wearingLine, type Dream, type Fo
 import { birdsAtFeeder, cocoaWeather, doMore, harmonicaSkill, moreActivities, moreLines, PUZZLE_PIECES, type More } from "./more.mts";
 import { SONG_BY_ID, nextSong, randomSong, silence, songsOwned, type Music } from "./music.mts";
 import { recall, recallKnowledge } from "./memory.mts";
+import { doRiver, newRiver, riverActivities, riverLine, riverView, type River } from "./river.mts";
+import { doFish, FISH_GIFT, fishActivities, fishLines, fishView, newFish, type Fish } from "./fish.mts";
 import { applyGoals, bondLabel, bondOf, favLines, favourites, FAV_KINDS, goalLines, MOODS, moodLine, nextMood, topTopics, type Favs, type Goal, type Mood } from "./life.mts";
 import { levelOf, LEVELS, SKILLS, skillFor, skillLines, skillsFromHistory, skillsView } from "./skills.mts";
 const SKILL_NAMES: Record<string, string> = Object.fromEntries(SKILLS.map((k) => [k.id, k.name]));
@@ -88,6 +90,11 @@ export const PLACES: Record<string, Place> = {
     desc: "your garden to the left of your house: two raised beds under a glass cold frame, where whatever you plant grows all year round",
     activities: {}, // depends on what's planted (see garden.mts)
   },
+  river: {
+    label: "river",
+    desc: "the river past your garden on the west side of town - a stretch of the real St. Clair River, with a little wooden dock, reeds and smooth stones. It freezes over after days of hard cold",
+    activities: {}, // depends on the season and the ice (see river.mts)
+  },
   museum: {
     label: "museum",
     desc: "the grand town museum with a dome and stone columns, full of real treasures from around the world: famous paintings, a T. rex skeleton, ancient wonders like the Rosetta Stone, and things from space. Every exhibit has a plaque that tells its true story",
@@ -95,7 +102,7 @@ export const PLACES: Record<string, Place> = {
   },
 };
 // places that are outdoors (weather reaches him there)
-export const OUTDOORS = new Set(["park", "gallery", "vending", "garden"]);
+export const OUTDOORS = new Set(["park", "gallery", "vending", "garden", "river"]);
 
 // ---------------------------------------------------------------------------
 // State
@@ -157,6 +164,8 @@ export type State = {
   webLog?: (WebFind & { reaction?: string })[];  // things he's looked up online
   knowledge?: Fact[];                            // facts he has learned from his own research (he builds on them)
   curious?: string[];                            // questions he wants to look up next (from research and reflection)
+  fish?: Fish;                                   // his pet betta fish (once someone gives him one)
+  river?: River;                                 // the river on the west side of town (ice, fish caught, skating)
   mood?: Mood;                                   // how he feels overall - it lingers
   moodLog?: { t: string; id: string; why: string }[];
   lastCompany?: number;                          // last time anyone was watching or visiting
@@ -261,6 +270,7 @@ export function activitiesAt(s: State, place: string): Record<string, Effects> {
   const acts: Record<string, Effects> = { ...PLACES[place].activities };
   if (place === "museum") for (const e of EXHIBITS) acts[exhibitAction(e)] = { joy: 7, energy: -1 };
   if (place === "garden") Object.assign(acts, gardenActivities(s.garden ?? newGarden(Date.now()), Date.now()));
+  if (place === "river") Object.assign(acts, riverActivities(s.river, s.weather, season(Date.now()).name, s.gifts?.received ?? [], isNight(Date.now()) || s.weather?.day === false));
   const w = s.weather, sea = season(Date.now()).name;
   if (place === "park") {
     // the seasons and the real weather change what there is to do
@@ -314,6 +324,7 @@ export function activitiesAt(s: State, place: string): Record<string, Effects> {
     if (g?.place === place && g.activity) acts[g.activity] = { ...(g.fx ?? {}) };
   }
   Object.assign(acts, moreActivities(s.more ?? {}, place, s.gifts?.received ?? [], w, isNight(Date.now()) || s.weather?.day === false, Date.now()));
+  Object.assign(acts, fishActivities(s.fish, place, Date.now()));
   return acts;
 }
 
@@ -438,6 +449,8 @@ export function townDescription(s: State) {
     `- The museum: a grand domed building full of real treasures - famous paintings (like The Starry Night and the Mona Lisa), a T. rex skeleton, a giant moa skeleton, the Rosetta Stone, an Egyptian mummy, the Wright brothers' airplane, a moon rock, a Saturn V rocket and more. You've looked at ${new Set((s.museumLog ?? []).map((m) => m.id)).size} of its ${EXHIBITS.length} exhibits.`,
     `- Your garden, just to the left of your house: ${gardenLine(s.garden, Date.now())}.`,
     ...moreLines(s.more ?? {}, s.gifts?.received ?? [], s.weather, isNight(Date.now()) || s.weather?.day === false, Date.now()).map((l) => `- ${l}`),
+    ...(s.fish ? [`- ${fishLines(s.fish, Date.now())}`] : []),
+    `- ${riverLine(s.river, s.weather, s.gifts?.received ?? [])}`,
     ...((s.pocket ?? []).length ? [`- In your pocket, waiting to go on your treasure shelf at home: ${(s.pocket ?? []).map((f) => TREASURE_BY_ID[f.id]?.name).join(", ")}. (You can only shelve them once you're home.)`] : []),
     `- Your treasure shelf at home: ${(s.treasures ?? []).length ? (s.treasures ?? []).map((f) => TREASURE_BY_ID[f.id]?.name).filter(Boolean).join(", ") : "empty so far - keep an eye out for little treasures when you're out and about"}.`,
     `- The weather in town right now: ${weatherLine(s.weather, Date.now())}`,
@@ -748,6 +761,11 @@ export function applyChoice(
       s.furniture = { ...s.furniture, [room]: next, at: now };
       action = `rearranged the furniture in the ${room}: now ${LAYOUTS[room][next]}`;
     }
+    s.river ??= newRiver(now);
+    const rv = doRiver(s.river, action, t, { fishing: levelOf(s.skills?.fishing ?? 0), skating: levelOf(s.skills?.skating ?? 0) });
+    if (rv) { action = `${action} - ${rv.note}`; if (rv.learned) s.justLearned = rv.learned; }
+    const pet = doFish(s.fish, action, note, t, now);
+    if (pet) { action = `${action} - ${pet.note}`; if (pet.learned) s.justLearned = pet.learned; }
     s.more ??= {};
     const fun = doMore(s.more, action, s.weather, now);
     if (fun.note) action = `${action} - ${fun.note}`;
@@ -924,6 +942,8 @@ export function applyVisits(s: State, visits: Visit[], now: number) {
       s.more.postcards = [...(s.more.postcards ?? []), { from: whoName(v), place: v.from || "somewhere", text: v.text || "Hello!", t, at: now }].slice(-40);
     } else if (g.kind === "cocoa") {
       // drunk straight away
+    } else if (g.kind === "fishfood") {
+      if (s.fish) { s.fish.fed = now; s.fish.log = [...s.fish.log, { t, what: `${whoName(v)} fed ${s.fish.name ?? "my fish"}` }].slice(-40); }
     } else if (g.kind === "birdcake") {
       s.more ??= {};
       s.more.birdCakeUntil = Math.max(now, s.more.birdCakeUntil ?? 0) + 3 * 3_600_000;
@@ -940,6 +960,7 @@ export function applyVisits(s: State, visits: Visit[], now: number) {
     s.gifts.log = s.gifts.log.slice(-200);
     if (g.kind === "song" && g.song) s.music = { on: true, song: g.song, since: now };
     if (g.id === TEDDY_ID) s.teddy = { holding: true, place: s.place }; // straight into his wings
+    if (g.id === FISH_GIFT && !s.fish) s.fish = newFish(whoName(v), now);   // a new pet!
     const what = g.kind === "book" || g.kind === "holiday" ? `${g.name} for my library shelf`
       : g.kind === "artbook" ? `${g.name} - a drawing manual to learn from`
       : g.kind === "song" ? `${g.name} - it's playing on my gramophone right now!`
@@ -949,6 +970,8 @@ export function applyVisits(s: State, visits: Visit[], now: number) {
       : g.kind === "snack" ? `${g.name} - now I can "${g.activity}"`
       : g.kind === "postcard" ? `a postcard from ${v.from || "somewhere"} saying "${(v.text ?? "").slice(0, 160)}" - I pinned it on my wall at home`
       : g.kind === "cocoa" ? `a mug of hot cocoa - so warm!`
+      : g.kind === "fishfood" ? `a pinch of food for ${s.fish?.name ?? "my fish"} - they fed him for me`
+      : g.id === FISH_GIFT ? `a ${s.fish?.color ?? ""} betta fish in a little tank for my house - my very own pet! I need to think of a name`
       : g.kind === "birdcake" ? `a bird seed cake for my feeder - special birds will visit for the next few hours`
       : g.kind === "thing" ? `${g.name} at the ${PLACES[g.place!]?.label}${g.activity ? ` - now I can "${g.activity}"` : ""}` : g.name;
     remember(`was given ${what} by ${whoName(v)}`,
@@ -1068,7 +1091,7 @@ export function publicView(s: State, unread: number, now: number, chats: { at: n
     webLog: (s.webLog ?? []).slice(-30), lookingUp: !!s.pendingLookup, knows: (s.knowledge ?? []).length, curious: (s.curious ?? []).slice(0, 5),
     skills: skillsView(s.skills ?? skillsFromHistory(s.tried)), skillLog: (s.skillLog ?? []).slice(-10),
     mood: s.mood ? { ...s.mood, emoji: MOODS[s.mood.id]?.emoji, word: MOODS[s.mood.id]?.word } : null, moodLog: (s.moodLog ?? []).slice(-12),
-    goals: s.goals ?? [], favs: s.favs ?? {},
+    goals: s.goals ?? [], favs: s.favs ?? {}, fish: fishView(s.fish, now), river: riverView(s.river),
     exhibit: s.place === "museum" ? exhibitFromAction(s.doing)?.id ?? null : null,
   };
 }

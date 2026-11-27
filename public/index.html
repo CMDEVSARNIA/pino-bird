@@ -493,12 +493,12 @@ function buildWorld() {
   const scene = new THREE.Scene();
   const DAY = new THREE.Color(0xbfe3f5), NIGHT = new THREE.Color(0x141b3d);
   scene.background = DAY.clone();
-  scene.fog = new THREE.Fog(DAY.clone(), 30, 60);
+  scene.fog = new THREE.Fog(DAY.clone(), 40, 80);
 
   const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 200);
   const controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true; controls.dampingFactor = 0.08;
-  controls.minDistance = 5; controls.maxDistance = 38;
+  controls.minDistance = 5; controls.maxDistance = 50;
   controls.maxPolarAngle = 1.38; controls.minPolarAngle = 0.25;
   controls.enablePan = false;
   controls.target.set(-0.9, 0.5, 0.6);
@@ -508,8 +508,8 @@ function buildWorld() {
   scene.add(hemi);
   const sun = new THREE.DirectionalLight(0xfff3dc, 1.8);
   sun.position.set(8, 14, 7); sun.castShadow = true;
-  sun.shadow.mapSize.set(1024, 1024);
-  Object.assign(sun.shadow.camera, { left: -13, right: 13, top: 13, bottom: -13, near: 1, far: 40 });
+  sun.shadow.mapSize.set(2048, 2048);
+  Object.assign(sun.shadow.camera, { left: -21, right: 21, top: 21, bottom: -21, near: 1, far: 60 });
   sun.shadow.bias = -0.0015;
   scene.add(sun);
 
@@ -524,17 +524,17 @@ function buildWorld() {
   const glowMats = [windowMat];
 
   // ---- ground
-  const ground = add(new THREE.Mesh(new THREE.CircleGeometry(24, 48).rotateX(-Math.PI / 2), M(0x9bd27a, { flatShading: false })), scene, { cast: false, receive: true });
+  const ground = add(new THREE.Mesh(new THREE.CircleGeometry(38, 64).rotateX(-Math.PI / 2), M(0x9bd27a, { flatShading: false })), scene, { cast: false, receive: true });
   const hillMat = M(0x86c266);
   for (let i = 0; i < 16; i++) {
     const a = (i / 16) * Math.PI * 2, r = 17 + (i % 3);
     const h = add(new THREE.Mesh(new THREE.IcosahedronGeometry(3 + (i % 4), 0), hillMat), scene, { cast: false, receive: true });
-    h.position.set(Math.cos(a) * r, -1.2, Math.sin(a) * r); h.scale.y = 0.55;
+    h.position.set(Math.cos(a) * r, -1.2, Math.sin(a) * r); h.scale.y = 0.55; h.userData.hill = true;
   }
   // scattered little trees and flowers
   const pineMat = M(0x4f9a52), trunkMat = M(0x7b5636);
   [[-10, -9], [-12, -2], [11, -9], [12, 1], [-11, 8], [9, 10], [-4.2, -12.5], [-9, 9], [13, 6]].forEach(([x, z], i) => {
-    const t = new THREE.Group(); t.position.set(x, 0, z); t.scale.setScalar(0.8 + (i % 3) * 0.2);
+    const t = new THREE.Group(); t.position.set(x, 0, z); t.scale.setScalar(0.8 + (i % 3) * 0.2); t.userData.pine = true;
     add(box(0.3, 0.8, 0.3, trunkMat), t).position.y = 0.4;
     add(new THREE.Mesh(new THREE.ConeGeometry(1, 2, 6), pineMat), t).position.y = 1.7;
     add(new THREE.Mesh(new THREE.ConeGeometry(0.75, 1.5, 6), pineMat), t).position.y = 2.5;
@@ -554,7 +554,7 @@ function buildWorld() {
     const d = b.clone().sub(a), len = d.length();
     const m = add(box(w, 0.03, len, sand), scene, { cast: false, receive: true });
     m.position.copy(a).add(b).multiplyScalar(0.5); m.position.y = 0.015;
-    m.rotation.y = Math.atan2(d.x, d.z);
+    m.rotation.y = Math.atan2(d.x, d.z); m.userData.strip = true;
   }
   add(new THREE.Mesh(new THREE.CylinderGeometry(1.3, 1.3, 0.03, 24), sand), scene, { cast: false, receive: true }).position.set(0, 0.016, 0.6);
 
@@ -974,6 +974,55 @@ function buildWorld() {
   add(new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 1.3, 6), M(0x8b5a3c)), broom).position.y = 0.75;
   add(new THREE.Mesh(new THREE.ConeGeometry(0.18, 0.35, 8), M(0xd9b45a)), broom).position.y = 0.15;
   add(box(0.9, 1.8, 0.08, M(0x8b5a3c)), hroom, { cast: false }).position.set(0, 0.9, HD - 0.14); // front door
+  // the fish tank (appears once someone gives him a betta fish): on a stand against the back wall, between the bed and the window
+  const tank = new THREE.Group(); tank.position.set(-1.05, 0, -HD + 0.3); tank.visible = false; hroom.add(tank);
+  add(box(0.85, 0.62, 0.42, M(0x7b5636)), tank).position.y = 0.31;
+  const TW = 0.74, TH = 0.46, TD = 0.34, TY = 0.62;
+  const tankGlass = add(box(TW, TH, TD, new THREE.MeshStandardMaterial({ color: 0xdff3ff, transparent: true, opacity: 0.18, roughness: 0.05, depthWrite: false })), tank, { cast: false });
+  tankGlass.position.y = TY + TH / 2;
+  const waterMat = new THREE.MeshStandardMaterial({ color: 0x5fb6e8, transparent: true, opacity: 0.28, roughness: 0.2, depthWrite: false });
+  const water = add(box(TW - 0.03, TH - 0.07, TD - 0.03), tank, { cast: false }); water.material = waterMat; water.position.y = TY + (TH - 0.07) / 2 + 0.01;
+  add(box(TW - 0.03, 0.05, TD - 0.03, M(0xc9b48a)), tank, { cast: false }).position.y = TY + 0.03; // gravel
+  add(box(TW + 0.02, 0.025, TD + 0.02, M(0x2b2b2e)), tank, { cast: false }).position.y = TY + TH + 0.01; // lid rim
+  const castle = new THREE.Group(); castle.position.set(-0.2, TY + 0.05, -0.04); tank.add(castle);
+  add(box(0.12, 0.13, 0.1, M(0x9a8f86)), castle, { cast: false }).position.y = 0.065;
+  add(new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.07, 6), M(0xb5533c)), castle, { cast: false }).position.set(0, 0.165, 0);
+  for (const [x, h] of [[0.2, 0.3], [0.27, 0.22], [-0.3, 0.26]]) {
+    const weed = add(new THREE.Mesh(new THREE.ConeGeometry(0.025, h, 5), M(0x3f9a4a)), tank, { cast: false }); weed.position.set(x, TY + 0.05 + h / 2, 0.06 - Math.abs(x) * 0.2);
+  }
+  const leaf = add(new THREE.Mesh(new THREE.CircleGeometry(0.07, 10).rotateX(-Math.PI / 2), M(0x4fae5a)), tank, { cast: false }); leaf.position.set(0.22, TY + TH - 0.09, 0.05);
+  // the betta: a little body with a big flowing tail
+  const fish = new THREE.Group(); tank.add(fish);
+  const fishMat = new THREE.MeshStandardMaterial({ color: 0x2a5bd7, roughness: 0.35, metalness: 0.1 });
+  const fBody = add(new THREE.Mesh(new THREE.SphereGeometry(0.035, 12, 8), fishMat), fish, { cast: false }); fBody.scale.set(1.6, 1, 0.75);
+  const fTail = add(new THREE.Mesh(new THREE.CircleGeometry(0.06, 12, -0.9, 1.8), fishMat), fish, { cast: false }); fTail.position.x = -0.05; fTail.rotation.y = Math.PI / 2 - Math.PI / 2;
+  fTail.material = new THREE.MeshStandardMaterial({ color: 0x2a5bd7, side: THREE.DoubleSide, transparent: true, opacity: 0.85, roughness: 0.4 });
+  fTail.rotation.z = Math.PI; fTail.position.set(-0.04, 0, 0);
+  const fFin = add(new THREE.Mesh(new THREE.CircleGeometry(0.035, 10, 0.2, 1.6), fTail.material), fish, { cast: false }); fFin.position.set(0, 0.02, 0);
+  const fEye = add(new THREE.Mesh(new THREE.SphereGeometry(0.007, 6, 6), M(0x111111)), fish, { cast: false }); fEye.position.set(0.042, 0.008, 0.02);
+  // bubble nest: a raft of tiny bubbles at the surface when he's built one
+  const nest = new THREE.Group(); nest.position.set(-0.22, TY + TH - 0.075, 0.02); nest.visible = false; tank.add(nest);
+  for (let i = 0; i < 26; i++) { const b = add(new THREE.Mesh(new THREE.SphereGeometry(0.008 + (i % 3) * 0.003, 6, 5), new THREE.MeshStandardMaterial({ color: 0xffffff, transparent: true, opacity: 0.85, roughness: 0.1 })), nest, { cast: false });
+    b.position.set(Math.cos(i * 2.4) * 0.07 * Math.sqrt(i / 26), 0, Math.sin(i * 2.4) * 0.06 * Math.sqrt(i / 26)); }
+  tank.userData.fish = true;
+  let fishNow = null;
+  function setFish(f) {
+    fishNow = f; tank.visible = !!f; if (!f) return;
+    fishMat.color.set(f.hex || "#2a5bd7"); fTail.material.color.set(f.hex || "#2a5bd7");
+    nest.visible = !!f.nest;
+    waterMat.color.set(f.cloudy ? 0x8fb59a : 0x5fb6e8); waterMat.opacity = f.cloudy ? 0.45 : 0.28;
+  }
+  // swimming: drifts around the tank; slow and low when mopey, quick and twirly when happy
+  function swimFish(t) {
+    if (!tank.visible) return;
+    const m = fishNow?.mood?.id, lazy = m === "mopey" || m === "bored" || m === "sluggish", sp = lazy ? 0.25 : 0.55;
+    const x = Math.sin(t * sp) * (TW / 2 - 0.09), z = Math.sin(t * sp * 1.7 + 1) * (TD / 2 - 0.07);
+    const y = lazy ? TY + 0.1 + Math.sin(t * 0.7) * 0.01 : TY + TH * 0.5 + Math.sin(t * sp * 1.3) * (TH * 0.25);
+    const dx = Math.cos(t * sp) * sp, dz = Math.cos(t * sp * 1.7 + 1) * sp * 1.7;
+    fish.position.set(x, y, z); fish.rotation.y = Math.atan2(-dz, dx);
+    fTail.rotation.y = Math.sin(t * (lazy ? 3 : 7)) * 0.5; fFin.rotation.x = Math.sin(t * 5) * 0.3;
+    if (fishNow?.nest) nest.children.forEach((b, i) => (b.position.y = Math.sin(t * 1.5 + i) * 0.003));
+  }
 
   // The library: tall bookcases, a big drawing table, a writing desk, and the cozy reading nook at the back
   const LROOM = V(80, 0, 0), LW = 6, LD = 4.5, LH = 4.2;
@@ -1119,6 +1168,7 @@ function buildWorld() {
     [/harmonica/, V(0, 0, 0.4), V(0, 0, 4)],
     [/rain on the roof/, V(0, 0, 0.4), V(0, 0, 3)],
     [/tidy/, V(-1.0, 0, 0.9), V(-4, 0, 1)],
+    [/my (new )?fish|fish tank/, V(-1.62, 0, -2.0), V(-1.05, 0.8, -HD + 0.3)],
   ];
   const LIB_SPOTS = [
     [/draw|paint|studied|study the drawing/, V(-2.2, 0.36, -0.35), V(-2.2, 0, 3)],
@@ -1184,13 +1234,13 @@ function buildWorld() {
   const wx = { kind: "clear", season: "autumn", snowy: false, frozen: false, light: 1, flash: 0, wind: 0, amount: 0, sky: new THREE.Color(SKY.clear) };
   // rain: short falling streaks
   const RAIN_N = 900, rainPos = new Float32Array(RAIN_N * 6);
-  for (let i = 0; i < RAIN_N; i++) { const x = (Math.random() - 0.5) * 30, y = Math.random() * 16, z = (Math.random() - 0.5) * 30; rainPos.set([x, y, z, x, y + 0.4, z], i * 6); }
+  for (let i = 0; i < RAIN_N; i++) { const x = (Math.random() - 0.5) * 44, y = Math.random() * 16, z = (Math.random() - 0.5) * 44; rainPos.set([x, y, z, x, y + 0.4, z], i * 6); }
   const rainGeo = new THREE.BufferGeometry(); rainGeo.setAttribute("position", new THREE.BufferAttribute(rainPos, 3));
   const rain = new THREE.LineSegments(rainGeo, new THREE.LineBasicMaterial({ color: 0xd4e3f0, transparent: true, opacity: 0.55 }));
   rain.visible = false; rain.frustumCulled = false; scene.add(rain);
   // snow: drifting flakes
   const SNOW_N = 1100, snowPos = new Float32Array(SNOW_N * 3);
-  for (let i = 0; i < SNOW_N; i++) snowPos.set([(Math.random() - 0.5) * 30, Math.random() * 16, (Math.random() - 0.5) * 30], i * 3);
+  for (let i = 0; i < SNOW_N; i++) snowPos.set([(Math.random() - 0.5) * 44, Math.random() * 16, (Math.random() - 0.5) * 44], i * 3);
   const snowGeo = new THREE.BufferGeometry(); snowGeo.setAttribute("position", new THREE.BufferAttribute(snowPos, 3));
   const flakeC = Object.assign(document.createElement("canvas"), { width: 32, height: 32 }), fx = flakeC.getContext("2d");
   const grad = fx.createRadialGradient(16, 16, 0, 16, 16, 16); grad.addColorStop(0, "rgba(255,255,255,1)"); grad.addColorStop(1, "rgba(255,255,255,0)");
@@ -1218,8 +1268,8 @@ function buildWorld() {
     const heavy = /heavy|pouring|showers/.test(w?.desc || ""), light = /light|drizzle|grains/.test(w?.desc || "");
     wx.amount = heavy ? 1 : light ? 0.45 : 0.75;
     wx.sky.setHex(SKY[wx.kind] ?? SKY.clear);
-    const fogNear = { fog: 6, snow: 22, rain: 22, storm: 16, drizzle: 26 }[wx.kind] ?? 30;
-    wx.fogNear = fogNear; wx.fogFar = wx.kind === "fog" ? 26 : fogNear * 2.2 + 8;
+    const fogNear = ({ fog: 8, snow: 30, rain: 30, storm: 22, drizzle: 35 }[wx.kind] ?? 40);
+    wx.fogNear = fogNear; wx.fogFar = wx.kind === "fog" ? 34 : fogNear * 2.2 + 10;
     rain.visible = /rain|drizzle|storm/.test(wx.kind); snow.visible = wx.kind === "snow";
     rainGeo.setDrawRange(0, Math.round(RAIN_N * (wx.kind === "drizzle" ? 0.35 : wx.amount)) * 2);
     snowGeo.setDrawRange(0, Math.round(SNOW_N * wx.amount));
@@ -1788,7 +1838,7 @@ function buildWorld() {
     } else if (!same) {
       state.path = place !== state.place ? [JUNCTION.clone(), SPOTS[place].clone(), target.clone()] : [target.clone()];
       if (state.since) fastForward(wallSec() - state.since); // if you got the news late, catch him up to where he really is
-      if (place !== state.place && pino.group.position.distanceTo(JUNCTION) > 6) state.path.unshift(SPOTS[state.place].clone());
+      if (place !== state.place && pino.group.position.distanceTo(JUNCTION) > 8) state.path.unshift(SPOTS[state.place].clone());
     }
     state.look = look; state.place = place; state.doing = doing; state.base = target.clone(); state.wandering = false;
     state.indoor = act?.[3] || null;
@@ -1827,7 +1877,7 @@ function buildWorld() {
     const w = stage.clientWidth, h = stage.clientHeight;
     renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix();
     // portrait phones look down more steeply, so the town's depth fills the tall screen
-    const portrait = w / h < 0.9, dist = portrait ? 30.5 : w / h < 1.3 ? 24 : 20;
+    const portrait = w / h < 0.9, dist = (portrait ? 30.5 : w / h < 1.3 ? 24 : 20) * 1.28;
     if (!resize.done) { const tg = controls.target; camera.position.set(tg.x, tg.y + dist * (portrait ? 0.74 : 0.62), tg.z + dist * (portrait ? 0.67 : 0.78)); resize.done = true; }
   }
   new ResizeObserver(resize).observe(stage); resize();
@@ -1845,6 +1895,7 @@ function buildWorld() {
       let o = hit?.object; while (o && !o.userData.exhibit) o = o.parent;
       if (o) window.dispatchEvent(new CustomEvent("pino:exhibit", { detail: o.userData.exhibit }));
     }
+    else if (view.mode === "house" && tank.visible && ray.intersectObject(tank, true).length) window.dispatchEvent(new CustomEvent("pino:fish"));
     else if (view.mode === "house" && ray.intersectObject(tvSet, true).length) window.dispatchEvent(new CustomEvent("pino:tv"));
     else if (view.mode === "library" && ray.intersectObject(dtab, true).length) window.dispatchEvent(new CustomEvent("pino:drawtable"));
     else if (view.mode !== "town") { /* inside the house or library: nothing else to tap but Pino */ }
@@ -1899,7 +1950,7 @@ function buildWorld() {
       }
     }
     if (newSlot && !state.room) {
-      const still = state.sleeping || state.indoor || state.base.y > 0.05 || /swing|dance|gramophone|next song|sledding|frozen pond/.test(state.doing);
+      const still = state.sleeping || state.indoor || state.base.y > 0.05 || /swing|dance|gramophone|next song|sledding|frozen pond|go fishing|skate on|slide about on the frozen river|paddle in the shallows|splash about in the river/.test(state.doing);
       if (!still) {
         if (slot % 2 === 0) { state.path = [state.base.clone()]; state.wandering = false; }
         else {
@@ -2068,6 +2119,7 @@ function buildWorld() {
     weatherTick(dt, t);
     if (!walking && /frozen pond/.test(d)) { g.position.x = POND.x + Math.sin(t * 0.9) * 0.7; g.position.z = POND.z + Math.sin(t * 1.8) * 0.35; g.rotation.y = Math.cos(t * 0.9) > 0 ? Math.PI / 2 : -Math.PI / 2; }
     if (!walking && /puddles/.test(d) && Math.random() < dt * 1.2) state.hop = 0.6;
+    riverTick(dt, t, d, walking, g);
 
     // duck paddling
     const da = t * 0.35; duck.position.set(POND.x + Math.cos(da) * 0.8, 0.1 + Math.sin(t * 3) * 0.015, POND.z + Math.sin(da) * 0.8); duck.rotation.y = -da;
@@ -2077,10 +2129,11 @@ function buildWorld() {
     const f = state.nightF;
     const inMuseum = view.mode !== "town", wl = inMuseum ? 1 : wx.light;
     scene.background.lerpColors(inMuseum ? DAY : wx.sky, NIGHT, f); scene.fog.color.copy(scene.background);
-    scene.fog.near = inMuseum ? 200 : (wx.fogNear ?? 30); scene.fog.far = inMuseum ? 400 : (wx.fogFar ?? 60);
+    scene.fog.near = inMuseum ? 200 : (wx.fogNear ?? 40); scene.fog.far = inMuseum ? 400 : (wx.fogFar ?? 80);
     hemi.intensity = (1.15 - f * 0.85) * wl + wx.flash * 1.5; sun.intensity = (1.8 - f * 1.45) * (inMuseum ? 1 : wl * wl); sun.color.setRGB(1 - f * 0.45, 0.95 - f * 0.3, 0.86 + f * 0.1);
     const RL = ROOMS[view.mode]; roomLight.intensity = (RL ? RL.light : 5) * (1 + f * 2.5) * (view.mode === "museum" ? 1 : 0.92 + Math.sin(t * 9) * 0.04 + Math.sin(t * 23) * 0.03);
     // fires flicker; windows show the sky outside
+    swimFish(t);
     { const on = /library computer|online/.test(state.doing || "") && state.room === "library", k = on ? Math.floor(t * 1.5) : -1;
       if (k !== lapOnAt) { lapOnAt = k; drawLap(on, k); } }
     flames.forEach((fl, i) => { fl.scale.y = 0.8 + Math.abs(Math.sin(t * (7 + i) + i)) * 0.5; fl.scale.x = 0.9 + Math.sin(t * 11 + i) * 0.1; });
@@ -2147,7 +2200,147 @@ function buildWorld() {
     if (!silent) window.dispatchEvent(new CustomEvent("pino:pet"));
   }
 
+  // ================================================================ MORE ROOM
+  // The town is spread out from the middle so everything has space: every building, path and spot moves
+  // outward by TOWN_K (their sizes stay the same). Then the river is laid along the new west side.
+  const TOWN_K = 1.35;
+  {
+    const skip = new Set([ground, sun, hemi, pino.group, kite, kiteString, sled, teddy, rain, snow, stars, moon, roomLight]);
+    for (const o of scene.children) {
+      if (skip.has(o) || o.isCamera || o.position.length() > 45) continue;  // the indoor rooms live far away
+      if (o.isGroup && Math.abs(o.position.x) < 0.01 && Math.abs(o.position.z) < 0.01 && !o.userData.strip) {
+        o.children.forEach((c) => { c.position.x *= TOWN_K; c.position.z *= TOWN_K; });   // e.g. the park, puddles
+        continue;
+      }
+      o.position.x *= TOWN_K; o.position.z *= TOWN_K;
+      if (o.userData.strip) o.scale.z *= TOWN_K;                                       // paths get longer, not wider
+    }
+    const vs = new Set([JUNCTION, POND, MUS, GARDEN, MUSEUM_DOOR, HOUSE_DOOR, LIB_DOOR, CHIMNEY, SLED_TOP, SLED_BOTTOM,
+      ...Object.values(SPOTS), ...Object.values(LOOK), ...Object.values(INSIDE_ANCHOR), ...ACT.flatMap((a) => [a[1], a[2]])]);
+    vs.forEach((v) => { if (v && v.isVector3) { v.x *= TOWN_K; v.z *= TOWN_K; } });
+    controls.target.x *= TOWN_K; controls.target.z *= TOWN_K;
+  }
+
+  // ================================================================ THE RIVER (west side, past the garden)
+  const RIVER_PTS = [V(-14, 0, -40), V(-18.5, 0, -24), V(-21.5, 0, -10), V(-22, 0, 2), V(-20, 0, 14), V(-14, 0, 26), V(-6, 0, 40)];
+  const riverCurve = new THREE.CatmullRomCurve3(RIVER_PTS);
+  const RHALF = 1.9, RSEG = 160;
+  function ribbon(half, y, mat, uvScale = 1) {
+    const pos = [], uv = [], idx = [];
+    for (let i = 0; i <= RSEG; i++) {
+      const u = i / RSEG, p = riverCurve.getPointAt(u), tg = riverCurve.getTangentAt(u), n = V(-tg.z, 0, tg.x).normalize();
+      const w = half * (1 + Math.sin(u * 23) * 0.08);
+      pos.push(p.x + n.x * w, y, p.z + n.z * w, p.x - n.x * w, y, p.z - n.z * w);
+      uv.push(0, u * 40 * uvScale, 1, u * 40 * uvScale);
+      if (i < RSEG) { const a = i * 2; idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2); }
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3)); geo.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2));
+    geo.setIndex(idx); geo.computeVertexNormals();
+    if (geo.attributes.normal.getY(0) < 0) { for (let k = 0; k < idx.length; k += 3) [idx[k + 1], idx[k + 2]] = [idx[k + 2], idx[k + 1]]; geo.setIndex(idx); geo.computeVertexNormals(); } // face up
+    return add(new THREE.Mesh(geo, mat), scene, { cast: false, receive: true });
+  }
+  // the banks, then the water on top
+  const bankMat = M(0xb59a6a, { flatShading: false });
+  ribbon(RHALF + 0.9, 0.012, bankMat);
+  const flowCv = Object.assign(document.createElement("canvas"), { width: 64, height: 256 }), fcx = flowCv.getContext("2d");
+  fcx.fillStyle = "#4f9fd0"; fcx.fillRect(0, 0, 64, 256);
+  for (let i = 0; i < 40; i++) { fcx.strokeStyle = `rgba(255,255,255,${0.12 + Math.random() * 0.2})`; fcx.lineWidth = 1.5; const x = Math.random() * 64, y = Math.random() * 256; fcx.beginPath(); fcx.moveTo(x, y); fcx.quadraticCurveTo(x + 4, y + 8, x, y + 16 + Math.random() * 12); fcx.stroke(); }
+  const flowTex = new THREE.CanvasTexture(flowCv); flowTex.wrapS = flowTex.wrapT = THREE.RepeatWrapping; flowTex.colorSpace = THREE.SRGBColorSpace;
+  const iceCv = Object.assign(document.createElement("canvas"), { width: 64, height: 256 }), icx = iceCv.getContext("2d");
+  icx.fillStyle = "#dceef7"; icx.fillRect(0, 0, 64, 256);
+  for (let i = 0; i < 30; i++) { icx.strokeStyle = `rgba(150,190,215,${0.25 + Math.random() * 0.3})`; icx.lineWidth = 1; icx.beginPath(); const x = Math.random() * 64, y = Math.random() * 256; icx.moveTo(x, y); icx.lineTo(x + (Math.random() - 0.5) * 30, y + (Math.random() - 0.5) * 30); icx.stroke(); }
+  const iceTex = new THREE.CanvasTexture(iceCv); iceTex.wrapS = iceTex.wrapT = THREE.RepeatWrapping; iceTex.colorSpace = THREE.SRGBColorSpace;
+  const waterMatR = new THREE.MeshStandardMaterial({ map: flowTex, roughness: 0.15, metalness: 0.1, transparent: true, opacity: 0.92 });
+  const iceMatR = new THREE.MeshStandardMaterial({ map: iceTex, roughness: 0.35, metalness: 0.05 });
+  const riverWater = ribbon(RHALF, 0.03, waterMatR);
+  // ice creeping out from the banks when it's starting to freeze
+  const edgeIce = new THREE.Group(); scene.add(edgeIce); edgeIce.visible = false;
+  for (const side of [1, -1]) {
+    const pos = [], idx = [];
+    for (let i = 0; i <= RSEG; i++) {
+      const u = i / RSEG, p = riverCurve.getPointAt(u), tg = riverCurve.getTangentAt(u), n = V(-tg.z, 0, tg.x).normalize().multiplyScalar(side);
+      const inner = RHALF * (0.55 + Math.sin(u * 37 + side) * 0.12);
+      pos.push(p.x + n.x * RHALF, 0.04, p.z + n.z * RHALF, p.x + n.x * inner, 0.04, p.z + n.z * inner);
+      if (i < RSEG) { const a = i * 2; idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2); }
+    }
+    const geo = new THREE.BufferGeometry(); geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3)); geo.setIndex(idx); geo.computeVertexNormals();
+    if (geo.attributes.normal.getY(0) < 0) { for (let k = 0; k < idx.length; k += 3) [idx[k + 1], idx[k + 2]] = [idx[k + 2], idx[k + 1]]; geo.setIndex(idx); geo.computeVertexNormals(); }
+    edgeIce.add(new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: 0xe8f4fa, roughness: 0.4, side: THREE.DoubleSide })));
+  }
+  // hills and trees that would sit in the water make way for it
+  const nearRiver = (pt, r) => { for (let i = 0; i <= 80; i++) if (riverCurve.getPointAt(i / 80).distanceTo(V(pt.x, 0, pt.z)) < r) return true; return false; };
+  scene.children.filter((o) => (o.userData.hill || o.userData.pine) && nearRiver(o.position, o.userData.hill ? RHALF + 5 : RHALF + 2.5)).forEach((o) => (o.visible = false));
+  // where he spends time there: the little dock, the bank, the shallows
+  const nearestOnRiver = (pt) => { let best = 0, bd = 1e9; for (let i = 0; i <= 200; i++) { const d2 = riverCurve.getPointAt(i / 200).distanceTo(pt); if (d2 < bd) { bd = d2; best = i / 200; } } return best; };
+  const RU = nearestOnRiver(V(-16, 0, -7.5));                 // the point of the river nearest the garden
+  const rP = riverCurve.getPointAt(RU), rT = riverCurve.getTangentAt(RU), rN = V(-rT.z, 0, rT.x).normalize();
+  const towardTown = rN.x > 0 ? rN.clone() : rN.clone().negate();  // the bank on the town side
+  const bankAt = (off, along = 0) => rP.clone().add(towardTown.clone().multiplyScalar(RHALF + off)).add(rT.clone().multiplyScalar(along));
+  const DOCK_END = rP.clone().add(towardTown.clone().multiplyScalar(0.4));
+  const dock = new THREE.Group(); dock.position.copy(bankAt(0.6)); dock.rotation.y = Math.atan2(-towardTown.x, -towardTown.z); scene.add(dock);
+  const plankM = M(0x9b6b43);
+  for (let i = 0; i < 6; i++) add(box(1.3, 0.08, 0.34, plankM), dock).position.set(0, 0.26, 0.2 + i * 0.38);
+  for (const [x, z] of [[-0.6, 0.3], [0.6, 0.3], [-0.6, 2.1], [0.6, 2.1]]) add(new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.6, 6), plankM), dock).position.set(x, 0.1, z);
+  const reedM = M(0x6f8f3a), rockM = M(0x9a958c);
+  for (let i = 0; i < 70; i++) {
+    const u = (i * 0.618) % 1, p = riverCurve.getPointAt(u), tg = riverCurve.getTangentAt(u), n = V(-tg.z, 0, tg.x).normalize().multiplyScalar(i % 2 ? 1 : -1);
+    if (p.distanceTo(rP) < 3) continue;  // keep the dock clear
+    const at = p.clone().add(n.multiplyScalar(RHALF + 0.25 + (i % 3) * 0.2));
+    if (i % 3 === 0) { const rk = add(new THREE.Mesh(new THREE.IcosahedronGeometry(0.18 + (i % 4) * 0.06, 0), rockM), scene); rk.position.copy(at).setY(0.08); }
+    else for (let k = 0; k < 3; k++) { const rd = add(new THREE.Mesh(new THREE.ConeGeometry(0.03, 0.7 + k * 0.15, 4), reedM), scene, { cast: false }); rd.position.copy(at).add(V(k * 0.08, 0.35 + k * 0.07, k * 0.05)); }
+  }
+  // fishing: a rod in his wing and a bobber out on the water
+  const rod = new THREE.Group(); rod.visible = false; pino.group.add(rod);
+  const rodStick = add(new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.02, 1.3, 5), M(0x6b4a2e)), rod, { cast: false });
+  rodStick.position.set(0.22, 0.95, 0.45); rodStick.rotation.x = 0.95;
+  const rodTip = new THREE.Object3D(); rodTip.position.set(0.22, 1.36, 1.0); rod.add(rodTip);
+  const bobber = add(new THREE.Mesh(new THREE.SphereGeometry(0.07, 8, 6), M(0xd9312a)), scene, { cast: false }); bobber.visible = false;
+  const fishLine = new THREE.Line(new THREE.BufferGeometry().setFromPoints([V(0, 0, 0), V(0, 1, 0)]), new THREE.LineBasicMaterial({ color: 0x444444 }));
+  fishLine.frustumCulled = false; fishLine.visible = false; scene.add(fishLine);
+  const BOB_AT = rP.clone().add(towardTown.clone().multiplyScalar(-0.6)).add(rT.clone().multiplyScalar(0.8)).setY(0.05);
+  // his spots at the river (checked before any others)
+  SPOTS.river = bankAt(2.2); LOOK.river = rP.clone();
+  ACT.unshift(
+    [/go fishing/, DOCK_END.clone().setY(0.3), BOB_AT.clone()],
+    [/skate on|slide about on the frozen river/, rP.clone().setY(0.05), rP.clone().add(rT)],
+    [/paddle in the shallows|splash about in the river/, bankAt(-0.7).setY(-0.08), rP.clone()],
+    [/skip stones|river flow|frogs and minnows|ice forming|ice creak/, bankAt(0.5, 1.6), rP.clone().add(rT.clone().multiplyScalar(1.6))],
+  );
+  strip(JUNCTION, SPOTS.river); strip(SPOTS.river, bankAt(0.6), 0.9);
+  const river = { frozen: false, icy: false, skate: 0 };
+  function setRiver(r, skatingLevel) {
+    river.frozen = !!r?.frozen; river.icy = !!r?.icy; river.skate = skatingLevel || 0;
+    riverWater.material = river.frozen ? iceMatR : waterMatR;
+    edgeIce.visible = river.icy;
+    waterMatR.color.setHex(wx.snowy || river.icy ? 0xc9dbe6 : 0xffffff);
+  }
+  function riverTick(dt, t, d, walking, g) {
+    if (!river.frozen) flowTex.offset.y -= dt * 0.25;               // the water runs south
+    const fishing = !walking && /go fishing/.test(d) && !state.room && !state.indoor;
+    rod.visible = fishing; bobber.visible = fishing; fishLine.visible = fishing;
+    if (fishing) {
+      bobber.position.copy(BOB_AT).setY(0.06 + Math.sin(t * 2.2) * 0.02 + (Math.sin(t * 0.7) > 0.93 ? -0.05 : 0));
+      const tip = rodTip.getWorldPosition(new THREE.Vector3()), pts = fishLine.geometry.attributes.position;
+      pts.setXYZ(0, tip.x, tip.y, tip.z); pts.setXYZ(1, bobber.position.x, bobber.position.y + 0.05, bobber.position.z); pts.needsUpdate = true;
+    }
+    // skating: wobbly and falling over at first; gliding, skating backwards and spinning with practice
+    if (!walking && river.frozen && /skate on|slide about on the frozen river/.test(d)) {
+      const lvl = /skate on/.test(d) ? river.skate : 1, sp = 0.25 + lvl * 0.07;
+      const u = Math.min(0.99, Math.max(0.01, RU + Math.sin(t * sp) * 0.035)), p = riverCurve.getPointAt(u), tg = riverCurve.getTangentAt(u);
+      g.position.set(p.x, 0.05, p.z);
+      const dir = Math.cos(t * sp) >= 0 ? 1 : -1, back = lvl >= 5 && Math.sin(t * 0.3) > 0.4;
+      g.rotation.y = Math.atan2(tg.x * dir, tg.z * dir) + (back ? Math.PI : 0) + (lvl >= 6 && Math.sin(t * 0.5) > 0.85 ? t * 9 : 0);
+      const fallEvery = lvl <= 0 ? 4 : lvl === 1 ? 6 : lvl === 2 ? 11 : 0, ph = fallEvery ? (t % fallEvery) / fallEvery : 1;
+      g.rotation.z = fallEvery && ph > 0.82 ? 1.1 : Math.sin(t * 7) * Math.max(0.03, 0.32 - lvl * 0.05);
+    } else if (/skate on|slide about on the frozen river/.test(state.lastRiver || "") ) g.rotation.z = 0;
+    state.lastRiver = d;
+    if (!walking && /splash about in the river/.test(d) && Math.random() < dt * 2.5) { state.hop = 0.5; spawn(dropTex, g.position.clone().add(V(0, 0.4, 0)), { vy: 1.2, life: 0.9, size: 0.3, spread: 0.7 }); }
+  }
+  const dropTex = emojiTexture("💧");
+
   return {
+    setRiver,
     setActivity,
     setNight: (n) => (state.night = n),
     setFollow: (on) => (state.follow = on),
@@ -2159,7 +2352,7 @@ function buildWorld() {
     setWeather,
     setTeddy: (t) => (teddyState = t),
     setClock: (serverNow) => { const off = serverNow - Date.now(); clockOffset = Math.abs(off - clockOffset) > 2000 || !clockOffset ? off : clockOffset * 0.8 + off * 0.2; },
-    setGarden, setWearing, setTreasures, setWalls, setMore, setLayouts,
+    setGarden, setWearing, setTreasures, setWalls, setMore, setLayouts, setFish,
     setHoliday: (id) => { holidayNow = id; deco.winter.visible = id === "winter"; deco.halloween.visible = id === "halloween"; },
     setMail: (up) => (mailUp = up),
     setTV: (p) => { tvProg = p; tvDrawn = -1; if (view.mode !== "house") drawTV(0); },
@@ -2376,7 +2569,7 @@ function render(s) {
   if (world) { world.setOwned(s.owned || []); world.setGallery(s.galleryWall || []); world.setWalls(s.walls); world.setMore(s.more, s.owned || []); world.setLayouts(s.furniture); }
   renderWeather(s);
   renderMuseum(s);
-  if (world) { world.setTeddy(s.teddy || null); world.setGarden(s.garden); world.setWearing(s.wearing); world.setTreasures(s.treasures); world.setHoliday(s.holiday || null); world.setMail((s.me?.letters || []).some((l) => !l.read)); }
+  if (world) { world.setTeddy(s.teddy || null); world.setGarden(s.garden); world.setWearing(s.wearing); world.setTreasures(s.treasures); world.setFish(s.fish || null); world.setRiver(s.river || null, (s.skills || []).find((k) => k.id === "skating")?.level || 0); world.setHoliday(s.holiday || null); world.setMail((s.me?.letters || []).some((l) => !l.read)); }
   checkLetters(s);
   renderBoost(s);
   renderDreams(s);
@@ -2713,6 +2906,19 @@ function checkLetters(s) {
 
 // ---- Pino's TV: tap it (inside his house) to see what's on and what he thought of it
 let tvSig = "-";
+// tap the fish tank: who the fish is and how he's doing
+window.addEventListener("pino:fish", () => {
+  const p = $("plaque"), f = latest?.fish; if (!f) return; p.replaceChildren();
+  const x = el("button", "x", "×"); x.type = "button"; x.onclick = () => (p.hidden = true);
+  const MOODEMO = { happy: "😊", proud: "🫧", hungry: "🍽️", bored: "🥱", sluggish: "🌫️", mopey: "🥺" };
+  p.append(x, el("b", null, `🐠 ${f.name || "Pino's new fish (no name yet!)"}`), el("small", null, `A ${f.color} betta fish · a gift from ${f.from}`));
+  p.append(el("div", null, `${MOODEMO[f.mood?.id] || "🐟"} Feeling ${f.mood?.word}: ${f.mood?.why}.`));
+  if (f.nest && f.mood?.id !== "proud") p.append(el("div", null, "🫧 He's built a bubble nest at the top of the tank: that's what happy bettas do."));
+  else if (f.nest) p.append(el("small", null, "Bubble nests are what happy, well-looked-after bettas build."));
+  if (f.traits?.length) { p.append(el("small", null, "Things Pino has noticed about him:")); f.traits.slice(-4).forEach((tr) => p.append(el("div", null, `• ${tr}`))); }
+  if (f.mood?.id === "hungry" || f.mood?.id === "mopey") p.append(el("small", null, "You can feed him for Pino: Give → \"Give again and again\" → fish food."));
+  p.hidden = false;
+});
 window.addEventListener("pino:tv", () => {
   const p = $("plaque"), tv = latest?.tv; p.replaceChildren();
   const x = el("button", "x", "×"); x.type = "button"; x.onclick = () => (p.hidden = true);
@@ -2870,7 +3076,7 @@ setInterval(async () => {
 // ---- give tab
 // gift categories: [kinds, emoji, title, hint]
 const KINDS = [
-  [["postcard", "cocoa", "birdcake"], "💌", "Give again and again", "Postcards, hot cocoa and seed cakes never run out."],
+  [["postcard", "cocoa", "birdcake", "fishfood"], "💌", "Give again and again", "Postcards, hot cocoa, seed cakes and fish food never run out."],
   [["toy"], "🧸", "Toys", "Free!"],
   [["thing"], "🏡", "Things for his town", "One of a kind: each comes with new things for him to do."],
   [["outfit"], "🎀", "Things to wear", "He dresses for the weather."],

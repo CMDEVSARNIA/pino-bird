@@ -9,6 +9,7 @@ import { fetchWeather, needsRefresh, wet } from "../lib/weather.mts";
 import { grow, newGarden } from "../lib/garden.mts";
 import { dreamPrompt, dreamSystem } from "../lib/extras.mts";
 import { LEVELS, levelOf } from "../lib/skills.mts";
+import { newRiver, updateIce } from "../lib/river.mts";
 import { bondLabel, missesThem } from "../lib/life.mts";
 import { acquireLock, deleteKeys, loadDue, rebuildBonds, deleteNote, getBoost, listEvents, listNotes, loadState, peopleIndex, releaseLock, saveState, updatePerson } from "../lib/store.mts";
 
@@ -164,6 +165,9 @@ Then reply with ONLY a JSON object, no other text: {"question": "the question he
     for (const d of [...s.drawings, ...(s.galleryWall ?? []), ...Object.values(s.walls ?? {}).flat()]) if (d.svg) d.svg = tidySvg(d.svg);
     s.svgTidy = true;
   }
+  // the river freezes slowly in hard cold, and thaws again
+  s.river ??= newRiver(now);
+  updateIce(s.river, s.weather, now);
   // the garden grows (rain waters it for him)
   if (s.garden) grow(s.garden, now, wet(s.weather), 1 + 0.06 * levelOf(s.skills?.gardening ?? 0)); // up to 36% faster for a master gardener
   else s.garden = newGarden(now);

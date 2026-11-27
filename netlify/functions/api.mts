@@ -50,7 +50,7 @@ export default async (req: Request, context: Context) => {
     return json({
       ...liteArt(publicView(s, unread, now, chats.map(({ at, you, pino, name, react }) => ({ at, you, pino, name, react }))), url.searchParams.get("art") === "full"),
       version: context?.deploy?.id ?? "",
-      giftsAvailable: GIFTS.filter((g) => !gone.has(g.id) && (g.kind !== "cocoa" || cocoaWeather(s.weather, now)) && (g.kind !== "birdcake" || (s.gifts?.received ?? []).includes("thing-feeder"))).map(({ id, kind, name, emoji, desc, price }) => ({ id, kind, name, emoji, desc, price })),
+      giftsAvailable: GIFTS.filter((g) => !gone.has(g.id) && (g.kind !== "cocoa" || cocoaWeather(s.weather, now)) && (g.kind !== "birdcake" || (s.gifts?.received ?? []).includes("thing-feeder")) && (g.kind !== "fishfood" || (!!s.fish && now - s.fish.fed > 4 * 3_600_000))).map(({ id, kind, name, emoji, desc, price }) => ({ id, kind, name, emoji, desc, price })),
       me: { owner: OWNERS.has(meId), boostUntil: OWNERS.has(meId) ? boost : undefined, letters: (mePerson?.letters ?? []).slice(-20), name: mePerson?.name ?? null, seeds: seedsOf(mePerson), earned: mePerson?.earned ?? null, rules: EARN, treatPrice: QUICK_TREAT_PRICE },
       friends: Object.values(people).filter((p) => p.visits > 0).sort((a, b) => b.lastSeen - a.lastSeen).slice(0, 30)
         .map(({ name, visits, note, lastSeen, bond }) => ({ name, visits, note, lastSeen, bond: bondLabel(bond ?? 0) })),
@@ -148,10 +148,13 @@ export default async (req: Request, context: Context) => {
     }
     if (gift.kind === "cocoa" && !cocoaWeather(s.weather, now)) return json({ ok: false, error: "It's too warm for cocoa right now!" }, 409);
     if (gift.kind === "birdcake" && !(s.gifts?.received ?? []).includes("thing-feeder")) return json({ ok: false, error: "Pino needs a bird feeder first." }, 409);
+    if (gift.kind === "fishfood" && !s.fish) return json({ ok: false, error: "Pino doesn't have a fish yet." }, 409);
+    if (gift.kind === "fishfood" && Date.now() - s.fish!.fed < 4 * 3_600_000) return json({ ok: false, error: `${s.fish!.name ?? "His fish"} has been fed recently - not too much!` }, 409);
     await addEvent({ type: "gift", id: gift.id, at: now, who, ...extra });
     const after = await meet(who, (p) => { p.gave = [...p.gave, gift.name].slice(-20); p.seeds = seedsOf(p) - gift.price; });
     const reaction = gift.kind === "postcard" ? `Pino reads your postcard twice, then pins it on his wall at home. 📮`
       : gift.kind === "cocoa" ? `Pino wraps his wings around the warm mug. ☕ Sip... ahhh.`
+      : gift.kind === "fishfood" ? `You sprinkle a pinch of food into the tank. ${s.fish?.name ?? "The fish"} gobbles it up! 🐟`
       : gift.kind === "birdcake" ? `Pino hangs the seed cake on his feeder. Listen - the birds are already coming! 🪺`
       : gift.kind === "seedpack" ? `Pino tucks ${gift.name} into his feathers. ${gift.emoji} He'll plant it in his garden when he's ready.`
       : gift.kind === "treat" ? `Pino's eyes go wide at ${gift.name}. He'll dig in any second!`
