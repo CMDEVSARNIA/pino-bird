@@ -1217,7 +1217,7 @@ function buildWorld() {
     [/harmonica/, V(0, 0, 0.4), V(0, 0, 4)],
     [/rain on the roof/, V(0, 0, 0.4), V(0, 0, 3)],
     [/tidy/, V(-1.0, 0, 0.9), V(-4, 0, 1)],
-    [/mirror/, V(-HW + 1.25, 0, -0.05), V(-HW, 0.9, -0.05)],
+    [/mirror/, V(-HW + 1.6, 0, -0.05), V(-HW, 0.9, -0.05)],
     [/catch board/, V(-0.35, 0, -1.75), V(-1.05, 1.9, -HD)],
     [/my (new )?fish|fish tank/, V(-1.62, 0, -2.0), V(-1.05, 0.8, -HD + 0.3)],
   ];
@@ -2461,7 +2461,38 @@ function buildWorld() {
   }
   const dropTex = emojiTexture("💧");
 
+  // ================================================================ PINO'S EYES
+  // Draw a small picture of his world from his own eyes (just in front of his beak, looking where he faces),
+  // whichever building he's in. A friend's phone sends it to him so he can really see where he is.
+  const eyeCam = new THREE.PerspectiveCamera(72, 4 / 3, 0.05, 140);
+  const EW = 480, EH = 360, eyeRT = new THREE.WebGLRenderTarget(EW, EH); eyeRT.texture.colorSpace = THREE.SRGBColorSpace;
+  const eyePx = new Uint8Array(EW * EH * 4), eyeCv = Object.assign(document.createElement("canvas"), { width: EW, height: EH });
+  function snapshot() {
+    const g = pino.group, ry = g.rotation.y, fwd = V(Math.sin(ry), 0, Math.cos(ry));
+    const head = pino.head.getWorldPosition(new THREE.Vector3());
+    eyeCam.position.copy(head).add(fwd.clone().multiplyScalar(0.62)).add(V(0, 0.06, 0));
+    // light the room he's in (the room light normally follows whatever room *you* are looking at)
+    const R = state.room ? ROOMS[state.room] : null;
+    if (R) { // indoors his eyes never poke through a wall (or behind the mirror glass)
+      const o = R.origin, m = 0.45;
+      eyeCam.position.x = Math.min(o.x + R.w - m, Math.max(o.x - R.w + m, eyeCam.position.x));
+      eyeCam.position.z = Math.min(o.z + R.d - m, Math.max(o.z - R.d + m, eyeCam.position.z));
+    }
+    eyeCam.lookAt(eyeCam.position.clone().add(fwd.clone().multiplyScalar(4)).add(V(0, R ? -0.35 : -0.7, 0)));
+    const saved = { lp: roomLight.position.clone(), ld: roomLight.distance, gc: hemi.groundColor.getHex(), mirror: glassR.visible, fn: scene.fog.near, ff: scene.fog.far };
+    if (R) { roomLight.position.copy(R.origin).add(V(0, R.h - 0.6, 0)); roomLight.distance = Math.max(R.w, R.d) * 4; hemi.groundColor.setHex(0xd9c9ae); scene.fog.near = 200; scene.fog.far = 400; }
+    glassR.visible = state.room === "house";
+    renderer.setRenderTarget(eyeRT); renderer.render(scene, eyeCam); renderer.setRenderTarget(null);
+    renderer.readRenderTargetPixels(eyeRT, 0, 0, EW, EH, eyePx);
+    roomLight.position.copy(saved.lp); roomLight.distance = saved.ld; hemi.groundColor.setHex(saved.gc); glassR.visible = saved.mirror; scene.fog.near = saved.fn; scene.fog.far = saved.ff;
+    const ctx = eyeCv.getContext("2d"), img = ctx.createImageData(EW, EH);
+    for (let y = 0; y < EH; y++) img.data.set(eyePx.subarray((EH - 1 - y) * EW * 4, (EH - y) * EW * 4), y * EW * 4); // the GPU's picture is upside down
+    ctx.putImageData(img, 0, 0);
+    return eyeCv.toDataURL("image/jpeg", 0.72);
+  }
+
   return {
+    snapshot,
     setRiver,
     setActivity,
     setNight: (n) => (state.night = n),
@@ -3299,6 +3330,17 @@ async function refresh() {
     render(j);
   } catch { $("banner").hidden = false; $("banner").textContent = "Can't reach Pino's town right now. Retrying…"; }
 }
+
+// Be Pino's eyes: if you're one of his friends and you're watching, your phone sends him a little picture of
+// where he is about once a minute (never while he's asleep, and nothing when the app is in the background).
+async function sendEyes() {
+  try {
+    if (!world || !latest?.me?.eyes || document.hidden || /^sleep|nap/.test(latest.doing || "")) return;
+    const img = world.snapshot();
+    if (img && img.length < 290_000) await post("/api/eyes", { img, place: latest.place, doing: latest.doing });
+  } catch {}
+}
+setTimeout(sendEyes, 12_000); setInterval(sendEyes, 60_000);
 
 async function post(path, body) {
   const r = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...(body || {}), who: { id: me.id, name: me.name } }) });

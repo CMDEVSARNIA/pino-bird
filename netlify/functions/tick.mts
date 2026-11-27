@@ -4,14 +4,15 @@ import {
   parseJSON, readChoice, reflectionPrompt, REFLECT_EVERY, applyVisits, paceMinutes, type State,
   drawingPrompt, sanitizeSvg, artSkill, mustSleep, clockStr, drawingInProgress, tidySvg, learnFrom, stillAsleep, sleepOn, bedtimeOptions, salvageDrawing,
 } from "../lib/pino.mts";
-import { ask, hasBrain, lookUp, NoBrain } from "../lib/brain.mts";
+import { ask, hasBrain, lookUp, NoBrain, type Img } from "../lib/brain.mts";
+import { drawingImage, EYES_FRESH_MS, eyesPrompt } from "../lib/sight.mts";
 import { fetchWeather, needsRefresh, wet } from "../lib/weather.mts";
 import { grow, newGarden } from "../lib/garden.mts";
 import { dreamPrompt, dreamSystem } from "../lib/extras.mts";
 import { LEVELS, levelOf } from "../lib/skills.mts";
 import { newRiver, updateIce } from "../lib/river.mts";
 import { bondLabel, missesThem } from "../lib/life.mts";
-import { acquireLock, deleteKeys, loadDue, rebuildBonds, deleteNote, getBoost, listEvents, listNotes, loadState, peopleIndex, releaseLock, saveState, updatePerson } from "../lib/store.mts";
+import { acquireLock, deleteKeys, loadDue, loadEyes, rebuildBonds, deleteNote, getBoost, listEvents, listNotes, loadState, peopleIndex, releaseLock, saveState, updatePerson } from "../lib/store.mts";
 
 // Pino's heartbeat. Netlify wakes this every minute (its shortest schedule).
 // While Pino is new (his first few hours) he lives two moments per wake-up,
@@ -198,6 +199,28 @@ Then reply with ONLY a JSON object, no other text: {"question": "the question he
     console.log(`Pino is still asleep (${s.doing}), energy ${Math.round(s.needs.energy)}`);
     return;
   }
+  // he finished a drawing: look at how it really came out (a picture of it), and learn from it
+  const done = s.drawings.find((d) => d.svg && d.drawStart && now >= d.drawStart + (d.drawMs ?? 0) && now - (d.drawStart + (d.drawMs ?? 0)) < 30 * 60_000 && !d.seen); // just finished (not old ones)
+  if (done && hasBrain() && Netlify.env.get("ANTHROPIC_API_KEY") && start + HARD_STOP - Date.now() > 15_000) {
+    done.seen = "-"; // only once, even if looking fails
+    try {
+      const img = await drawingImage(done.svg!);
+      const { text } = await ask(identityPrompt(s),
+        `You just finished drawing "${done.title ?? done.text}". The picture above is exactly how it came out on your paper - look at it carefully, the way an artist looks at their own work.\n` +
+        `Reply with ONLY JSON: {"saw": "what you honestly see in it: what worked, what didn't, in 1-2 short sentences in your own voice", "lesson": "one specific, practical thing to try next time, based on what you see"}`,
+        Math.max(8_000, start + HARD_STOP - Date.now() - 4_000), 300, [img]);
+      const j = parseJSON(text);
+      if (j?.saw) {
+        done.seen = String(j.saw).slice(0, 300);
+        s.justSawDrawing = { title: done.title ?? done.text, saw: done.seen };
+        if (typeof j.lesson === "string" && j.lesson.trim()) { s.art ??= { drawn: 0, lessons: [] }; s.art.lessons = [...s.art.lessons, j.lesson.trim().slice(0, 200)].slice(-12); done.lesson = j.lesson.trim().slice(0, 200); }
+        console.log(`Pino looked at his finished drawing "${done.title ?? done.text}": ${done.seen}`);
+      }
+    } catch (e) { console.log("Couldn't look at the drawing:", (e as Error).message); }
+    s.tick += 1;
+    await persist();
+    return;
+  }
   const busy = drawingInProgress(s, now);
   if (busy) {
     s.tick += 1;
@@ -240,7 +263,12 @@ Then reply with ONLY a JSON object, no other text: {"question": "the question he
     }
     try {
       const friends = await friendsSummary(now);
-      const { text, model } = await ask(identityPrompt(s), decisionPrompt(s, opts, notes, now, friends), timeLeft(), 1000);
+      // his eyes: a fresh picture of where he is, drawn by a friend's phone (if anyone's watching)
+      const eyes = Netlify.env.get("ANTHROPIC_API_KEY") ? await loadEyes() : null;
+      const sees = !!eyes && now - eyes.meta.at < EYES_FRESH_MS && eyes.meta.place === s.place;
+      const imgs: Img[] = sees ? [{ media_type: "image/jpeg", data: eyes!.data }] : [];
+      const { text, model } = await ask(identityPrompt(s), decisionPrompt(s, opts, notes, now, friends) + (sees ? eyesPrompt : ""), timeLeft(), 1000, imgs);
+      if (sees) console.log("Pino could see where he was (a friend's view)");
       ({ idx, thought, note } = readChoice(parseJSON(text), opts.length));
       if (idx < 0) console.log("Brain reply unreadable:", text.slice(0, 300));
       brain = model;

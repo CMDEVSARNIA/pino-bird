@@ -5,10 +5,14 @@ import { GIFTS, GIFT_BY_ID, QUICK_TREAT_PRICE, repeatable } from "../lib/gifts.m
 import { cocoaWeather } from "../lib/more.mts";
 import {
   addChat, addEvent, addNote, claimGift, claimedGiftIds, countEvents, countNotes, getPerson, loadState, meet,
-  getBoost, peopleIndex, recentChats, setBoost, store, updatePerson, type Who,
+  getBoost, peopleIndex, recentChats, setBoost, store, updatePerson, saveEyes, eyesAge, type Who,
 } from "../lib/store.mts";
 import { EXHIBIT_BY_ID } from "../lib/museum.mts";
-import { bondLabel, noteTopics } from "../lib/life.mts";
+import { bondLabel, bondOf, noteTopics } from "../lib/life.mts";
+import { EYES_MAX_BYTES, fromB64 } from "../lib/b64.mts";
+// who can be Pino's eyes: his owner, and anyone who has become at least "a friend"
+const canBeEyes = (id: string, p: { visits: number; chats: number; pets: number; gave: string[] } | null | undefined) =>
+  OWNERS.has(id) || (!!p && bondOf(p) >= 20);
 
 // GET  /api/state   -> what the viewer page shows
 // POST /api/talk    -> talk to him, instant reply      {"text", "who": {"id","name"}}
@@ -51,7 +55,7 @@ export default async (req: Request, context: Context) => {
       ...liteArt(publicView(s, unread, now, chats.map(({ at, you, pino, name, react }) => ({ at, you, pino, name, react }))), url.searchParams.get("art") === "full"),
       version: context?.deploy?.id ?? "",
       giftsAvailable: GIFTS.filter((g) => !gone.has(g.id) && (g.kind !== "cocoa" || cocoaWeather(s.weather, now)) && (g.kind !== "birdcake" || (s.gifts?.received ?? []).includes("thing-feeder")) && (g.kind !== "fishfood" || (!!s.fish && now - s.fish.fed > 4 * 3_600_000)) && (g.id !== "thing-pipbowtie" || !!s.teddy)).map(({ id, kind, name, emoji, desc, price }) => ({ id, kind, name, emoji, desc, price })),
-      me: { owner: OWNERS.has(meId), boostUntil: OWNERS.has(meId) ? boost : undefined, letters: (mePerson?.letters ?? []).slice(-20), name: mePerson?.name ?? null, seeds: seedsOf(mePerson), earned: mePerson?.earned ?? null, rules: EARN, treatPrice: QUICK_TREAT_PRICE },
+      me: { eyes: canBeEyes(meId, mePerson), owner: OWNERS.has(meId), boostUntil: OWNERS.has(meId) ? boost : undefined, letters: (mePerson?.letters ?? []).slice(-20), name: mePerson?.name ?? null, seeds: seedsOf(mePerson), earned: mePerson?.earned ?? null, rules: EARN, treatPrice: QUICK_TREAT_PRICE },
       friends: Object.values(people).filter((p) => p.visits > 0).sort((a, b) => b.lastSeen - a.lastSeen).slice(0, 30)
         .map(({ name, visits, note, lastSeen, bond }) => ({ name, visits, note, lastSeen, bond: bondLabel(bond ?? 0) })),
     });
@@ -68,6 +72,20 @@ export default async (req: Request, context: Context) => {
     await setBoost(until);
     console.log(hours ? `Fast thinking on for ${hours} h` : "Fast thinking off");
     return json({ ok: true, until });
+  }
+
+  // Pino's eyes: a friend's phone sends a small picture of his world from where he's standing
+  if (pathname === "/api/eyes") {
+    if (!who) return json({ ok: false }, 400);
+    const person = await getPerson(who.id);
+    if (!canBeEyes(who.id, person)) return json({ ok: false, error: "Only Pino's friends can be his eyes." }, 403);
+    const m = /^data:image\/jpeg;base64,([A-Za-z0-9+/=]+)$/.exec(String(b.img ?? ""));
+    if (!m) return json({ ok: false, error: "bad picture" }, 400);
+    const jpeg = fromB64(m[1]);
+    if (jpeg.length > EYES_MAX_BYTES || jpeg[0] !== 0xff || jpeg[1] !== 0xd8) return json({ ok: false, error: "bad picture" }, 400);
+    if (await eyesAge() < 40_000) return json({ ok: true, skipped: true });   // someone else just sent one
+    await saveEyes(jpeg, { at: now, by: who.id, place: String(b.place ?? "").slice(0, 20), room: String(b.room ?? "").slice(0, 20), doing: String(b.doing ?? "").slice(0, 200) });
+    return json({ ok: true });
   }
 
   if (pathname === "/api/letter-read") {
@@ -218,7 +236,7 @@ export default async (req: Request, context: Context) => {
 };
 
 export const config: Config = {
-  path: ["/api/state", "/api/message", "/api/pet", "/api/treat", "/api/give", "/api/talk", "/api/watch", "/api/museum-image", "/api/letter-read", "/api/boost"],
+  path: ["/api/state", "/api/message", "/api/pet", "/api/treat", "/api/give", "/api/talk", "/api/watch", "/api/museum-image", "/api/letter-read", "/api/boost", "/api/eyes"],
   method: ["GET", "POST"],
 };
 

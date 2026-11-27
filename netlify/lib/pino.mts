@@ -113,7 +113,7 @@ export type Memory = {
   deltas: Partial<Record<Need, number>>; first: boolean; bored: boolean; brain: string;
 };
 export type Note = { key: string; text: string; at: number };
-export type Drawing = { t: string; text: string; title?: string; svg?: string; skill?: number; seed?: number; lesson?: string; tries?: number; drawStart?: number; drawMs?: number };
+export type Drawing = { t: string; text: string; title?: string; svg?: string; skill?: number; seed?: number; lesson?: string; tries?: number; drawStart?: number; drawMs?: number; seen?: string };
 // a drawing he's still putting on paper (everyone can watch it appear, stroke by stroke)
 export const drawingInProgress = (s: { drawings: Drawing[] }, now: number) => s.drawings.find((d) => d.svg && d.drawStart && now < d.drawStart + (d.drawMs ?? 0));
 export type Want = { t: string; want: string; why: string; size?: string };
@@ -176,6 +176,7 @@ export type State = {
   habitLog?: HabitLog;                           // what he's done when, to spot new habits
   justHabit?: { formed?: string; kept?: string } | null;
   justMirror?: string | null;                    // what he saw in the mirror (he reacts next moment)
+  justSawDrawing?: { title: string; saw: string } | null; // he just looked at a drawing he finished
   justFinished?: string | null;                  // a goal he just achieved
   favs?: Favs;                                   // his favourites, from what has made him happiest
   favChanged?: { kind: string; from?: string; to: string } | null;
@@ -550,7 +551,8 @@ export function decisionPrompt(s: State, opts: Option[], notes: Note[], now: num
       (w.cameIn?.length ? ` ${w.cameIn.join(", ")} just came inside to see you!` : "") + "\n";
   const web = s.justLookedUp;
   const webNow = web ? `\nYou just looked something up on the library computer. You wondered: "${web.question}"\nWhat you found out: ${web.learned}\n(From ${web.sources.map((x) => x.title).slice(0, 2).join(" and ") || "the web"}.) Let your thought be your honest reaction - what surprised or delighted you, or what you now wonder next.${web.next ? ` (It made you wonder: "${web.next}")` : ""}\n` : "";
-  const mirrorNow = s.justMirror ? `\nYou just looked at yourself in your mirror at home. You saw: ${s.justMirror} Let your thought be what you honestly think of what you see.\n` : "";
+  const sawNow = s.justSawDrawing ? `\nYou just finished your drawing "${s.justSawDrawing.title}" and looked at how it really came out: ${s.justSawDrawing.saw}\n` : "";
+  const mirrorNow = sawNow + (s.justMirror ? `\nYou just looked at yourself in your mirror at home. You saw: ${s.justMirror} Let your thought be what you honestly think of what you see.\n` : "");
   const habitNow = mirrorNow + (s.justHabit?.formed ? `\nYou've noticed something: you've started a little routine - ${s.justHabit.formed}. It's become a habit.\n` : "");
   const moodNow = habitNow + (s.justFinished ? `\nYou just achieved one of your goals: "${s.justFinished}"! Let yourself feel it.\n` : "") + (s.mood ? `\n${moodLine(s.mood, now)}\n` : "");
   const fc = s.favChanged;
@@ -687,7 +689,8 @@ export function applyChoice(
     if (w && w.at === s.justLookedUp.at) w.reaction = thought;
   }
   s.justLookedUp = null;
-  if (opt.name !== "look at myself in the mirror") s.justMirror = null; // he reacts to the mirror in the moment after he looks
+  if (opt.name !== "look at myself in the mirror") s.justMirror = null;
+  s.justSawDrawing = null; // he reacts to the mirror in the moment after he looks
   // dreaming: a doze of 10+ minutes leaves a dream behind when he wakes
   const asleepNow = /^(sleep|take a nap|nap)/.test(opt.name) || /nap/.test(opt.name);
   if (asleepNow) {

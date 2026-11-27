@@ -4,6 +4,7 @@
   "type": "module",
   "dependencies": {
     "@netlify/blobs": "^11.1.11",
-    "@netlify/functions": "^6.1.2"
+    "@netlify/functions": "^6.1.2",
+    "@resvg/resvg-wasm": "2.6.2"
   }
 }

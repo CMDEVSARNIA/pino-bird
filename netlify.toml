@@ -4,6 +4,8 @@
 
 [functions]
   directory = "netlify/functions"
+  # the picture-maker Pino uses to look at his own drawings
+  included_files = ["node_modules/@resvg/resvg-wasm/index_bg.wasm"]
 
 # Make sure browsers recognise the app manifest and always get the newest service worker
 [[headers]]

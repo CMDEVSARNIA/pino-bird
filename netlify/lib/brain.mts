@@ -15,6 +15,8 @@ let timeoutMs = 20_000;
 let maxTokens = 500;
 const timeout = () => AbortSignal.timeout(timeoutMs);
 
+export type Img = { media_type: "image/jpeg" | "image/png"; data: string }; // base64
+let images: Img[] = [];
 async function askClaude(key: string, system: string, user: string) {
   const chosen = Netlify.env.get("ANTHROPIC_MODEL");
   let lastErr = "";
@@ -22,7 +24,9 @@ async function askClaude(key: string, system: string, user: string) {
     const r = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-api-key": key, "anthropic-version": "2023-06-01" },
-      body: JSON.stringify({ model, max_tokens: maxTokens, system, messages: [{ role: "user", content: user }] }),
+      body: JSON.stringify({ model, max_tokens: maxTokens, system, messages: [{ role: "user", content: images.length
+        ? [...images.map((im) => ({ type: "image", source: { type: "base64", ...im } })), { type: "text", text: user }]
+        : user }] }),
       signal: timeout(),
     });
     if (r.ok) {
@@ -63,9 +67,11 @@ async function askOpenAI(key: string, system: string, user: string) {
   throw new Error(lastErr || "No OpenAI model worked");
 }
 
-export async function ask(system: string, user: string, maxMs = 20_000, tokens = 500): Promise<{ text: string; model: string }> {
+// images: pictures for him to look at (what his eyes see, or a drawing he just finished) - Claude only
+export async function ask(system: string, user: string, maxMs = 20_000, tokens = 500, imgs: Img[] = []): Promise<{ text: string; model: string }> {
   timeoutMs = maxMs;
   maxTokens = tokens;
+  images = imgs;
   const claude = Netlify.env.get("ANTHROPIC_API_KEY");
   if (claude) return askClaude(claude, system, user);
   const openai = Netlify.env.get("OPENAI_API_KEY");

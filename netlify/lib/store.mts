@@ -1,5 +1,6 @@
 import { getStore } from "@netlify/blobs";
 import { bondOf, topTopics } from "./life.mts";
+import { toB64 } from "./b64.mts";
 export type IndexEntry = { name: string; lastSeen: number; note: string; visits: number; viewing?: string; bond?: number; topics?: string[] };
 import { newState, START_SEEDS, type Note, type Person, type State } from "./pino.mts";
 
@@ -193,4 +194,20 @@ export async function rebuildBonds() {
     const p = (await store().get(b.key, { type: "json" })) as Person | null;
     if (p?.id && p.visits > 0) await indexPerson(p);
   }
+}
+
+// ---- Pino's eyes: the latest view of his world, drawn by a friend's phone
+export type EyesMeta = { at: number; by: string; place: string; room: string; doing: string };
+export async function saveEyes(jpeg: Uint8Array, meta: EyesMeta) {
+  await store().set("eyes", jpeg.buffer.slice(jpeg.byteOffset, jpeg.byteOffset + jpeg.byteLength) as ArrayBuffer, { metadata: meta });
+}
+export async function loadEyes(): Promise<{ data: string; meta: EyesMeta } | null> {
+  try {
+    const r = await store().getWithMetadata("eyes", { type: "arrayBuffer" });
+    if (!r?.data) return null;
+    return { data: toB64(new Uint8Array(r.data as ArrayBuffer)), meta: r.metadata as EyesMeta };
+  } catch { return null; }
+}
+export async function eyesAge(): Promise<number> {
+  try { const m = await store().getMetadata("eyes"); return m ? Date.now() - ((m.metadata as EyesMeta)?.at ?? 0) : Infinity; } catch { return Infinity; }
 }
