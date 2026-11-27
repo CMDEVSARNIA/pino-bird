@@ -328,7 +328,7 @@
     <div class="museumbar" id="museumBar" hidden><button type="button" id="museumBack">⬅ Back to town</button><span id="roomNote">🏛️ Tap an exhibit to read about it</span></div>
     <div class="plaque" id="plaque" hidden></div>
     <button class="drawchip" id="drawChip" type="button" hidden>🎨 Pino is drawing · watch</button>
-    <div class="hint" id="hint" hidden>Tap Pino to pet him · tap a building to go inside</div>
+    <div class="hint" id="hint" hidden>Drag to move around town · pinch to zoom · two fingers to turn<br>Tap Pino to pet him · tap a building to go inside</div>
     <div class="toast" id="toast"></div>
     <div class="controls">
       <button class="fab" id="soundBtn" type="button" aria-pressed="false" title="Sound: birds, music and Pino">🔇</button>
@@ -471,9 +471,9 @@ function toast(msg) {
   const t = $("toast"); t.textContent = msg; t.classList.add("show");
   clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove("show"), 3800);
 }
-(() => {  // the "tap Pino" hint only shows on your first visit
-  let seen = false; try { seen = localStorage.getItem("pinoHintSeen") === "1"; localStorage.setItem("pinoHintSeen", "1"); } catch {}
-  if (!seen) { $("hint").hidden = false; setTimeout(() => ($("hint").style.opacity = 0), 7000); }
+(() => {  // the hint shows on your first visit - and once more for everyone when the camera learned to slide around
+  let seen = false; try { seen = localStorage.getItem("pinoHintSeen2") === "1"; localStorage.setItem("pinoHintSeen2", "1"); } catch {}
+  if (!seen) { $("hint").hidden = false; setTimeout(() => ($("hint").style.opacity = 0), 9000); }
 })();
 
 // ================================================================ 3D WORLD
@@ -500,8 +500,16 @@ function buildWorld() {
   controls.enableDamping = true; controls.dampingFactor = 0.08;
   controls.minDistance = 5; controls.maxDistance = 50;
   controls.maxPolarAngle = 1.38; controls.minPolarAngle = 0.25;
-  controls.enablePan = false;
   controls.target.set(-0.9, 0.5, 0.6);
+  // In town the camera works like a map: one finger slides around, pinch zooms, two fingers turn and tilt.
+  // Inside buildings, one finger looks around instead (there's nowhere to slide to).
+  const TOWN_TOUCH = { ONE: THREE.TOUCH.PAN, TWO: THREE.TOUCH.DOLLY_ROTATE }, ROOM_TOUCH = { ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN };
+  const TOWN_MOUSE = { LEFT: THREE.MOUSE.PAN, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.ROTATE }, ROOM_MOUSE = { LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.ROTATE };
+  function townControls(on) {
+    controls.enablePan = on; controls.screenSpacePanning = false; controls.panSpeed = 1.1;
+    controls.touches = on ? TOWN_TOUCH : ROOM_TOUCH; controls.mouseButtons = on ? TOWN_MOUSE : ROOM_MOUSE;
+  }
+  townControls(true);
 
   // lights
   const hemi = new THREE.HemisphereLight(0xffffff, 0x6f9a55, 1.15);
@@ -1861,6 +1869,7 @@ function buildWorld() {
     controls.target.copy(at); camera.position.copy(at).add(inNook ? V(-2.6, 1.6, 3.2) : onCouch ? V(-2.9, 1.3, 2.7) : R.cam);
     camera.fov = R.fov || 62; camera.updateProjectionMatrix();
     Object.assign(controls, { minDistance: R.minD, maxDistance: R.maxD, minPolarAngle: 0.95, maxPolarAngle: 1.52 });
+    townControls(false);
     roomLight.position.copy(R.origin).add(V(0, R.h - 0.6, 0)); roomLight.distance = Math.max(R.w, R.d) * 4;
     hemi.groundColor.setHex(0xd9c9ae); // indoors, light bounces off a warm floor, not green grass
     window.dispatchEvent(new CustomEvent("pino:view", { detail: name }));
@@ -1868,7 +1877,7 @@ function buildWorld() {
   const enterMuseum = () => enterRoom("museum");
   function exitMuseum() {
     if (view.mode === "town") return;
-    view.mode = "town"; const v = view.saved; camera.fov = 45; camera.updateProjectionMatrix(); hemi.groundColor.setHex(0x6f9a55);
+    view.mode = "town"; const v = view.saved; camera.fov = 45; camera.updateProjectionMatrix(); hemi.groundColor.setHex(0x6f9a55); townControls(true);
     if (v) { camera.position.copy(v.pos); controls.target.copy(v.target); Object.assign(controls, { minDistance: v.min, maxDistance: v.max, minPolarAngle: v.minP, maxPolarAngle: v.maxP }); }
     window.dispatchEvent(new CustomEvent("pino:view", { detail: "town" }));
   }
@@ -1883,6 +1892,16 @@ function buildWorld() {
   new ResizeObserver(resize).observe(stage); resize();
 
   // tap Pino to pet him (taps only, not drags)
+  // sliding the map yourself stops following Pino (pinching and turning don't)
+  const fingers = new Map(); let slideFrom = null;
+  renderer.domElement.addEventListener("pointerdown", (e) => { fingers.set(e.pointerId, e); slideFrom = fingers.size === 1 ? { x: e.clientX, y: e.clientY } : null; });
+  renderer.domElement.addEventListener("pointermove", (e) => {
+    if (!slideFrom || fingers.size !== 1 || view.mode !== "town" || !state.follow) return;
+    if (Math.hypot(e.clientX - slideFrom.x, e.clientY - slideFrom.y) > 12 && (e.pointerType !== "mouse" || e.buttons === 1)) {
+      state.follow = false; slideFrom = null; window.dispatchEvent(new CustomEvent("pino:unfollow"));
+    }
+  });
+  for (const ev of ["pointerup", "pointercancel", "pointerleave"]) renderer.domElement.addEventListener(ev, (e) => { fingers.delete(e.pointerId); if (!fingers.size) slideFrom = null; });
   const ray = new THREE.Raycaster(); let down = null;
   renderer.domElement.addEventListener("pointerdown", (e) => (down = { x: e.clientX, y: e.clientY, t: performance.now() }));
   renderer.domElement.addEventListener("pointerup", (e) => {
@@ -2161,6 +2180,11 @@ function buildWorld() {
       controls.target.add(tmp); camera.position.add(tmp);
     }
     controls.update();
+    if (view.mode === "town") {
+      // don't slide off the edge of the world: keep the view's centre within the town and its river
+      const tg = controls.target, r = Math.hypot(tg.x, tg.z), MAXR = 24;
+      if (r > MAXR) { const k = MAXR / r, dx = tg.x * (k - 1), dz = tg.z * (k - 1); tg.x += dx; tg.z += dz; camera.position.x += dx; camera.position.z += dz; }
+    }
     if (RL) {
       // stay inside the room's walls
       const o = RL.origin;
@@ -3203,7 +3227,8 @@ $("treatBtn").addEventListener("click", async () => {
   if (j.reaction) toast(j.reaction);
   setTimeout(() => (btn.disabled = false), 4000);
 });
-// follow camera
+// follow camera (sliding the map yourself switches it off)
+window.addEventListener("pino:unfollow", () => { followOn = false; $("followBtn").setAttribute("aria-pressed", false); });
 $("followBtn").addEventListener("click", () => {
   followOn = !followOn; $("followBtn").setAttribute("aria-pressed", followOn); world && world.setFollow(followOn);
 });
