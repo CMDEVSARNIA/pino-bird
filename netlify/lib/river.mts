@@ -4,7 +4,8 @@
 import type { Weather } from "./weather.mts";
 
 export const SKATES_GIFT = "thing-skates";
-export type River = { ice: number; at: number; catches: { t: string; fish: string }[]; falls: number; skated: number };
+export const CANOE_GIFT = "thing-canoe";
+export type River = { ice: number; at: number; catches: { t: string; fish: string }[]; falls: number; skated: number; species?: Record<string, number>; paddled?: number };
 export const newRiver = (now: number): River => ({ ice: 0, at: now, catches: [], falls: 0, skated: 0 });
 
 // Ice builds up slowly in hard cold and melts in thaws. ice >= 1 means thick enough to skate on.
@@ -46,6 +47,7 @@ export function riverActivities(r: River | undefined, w: Weather | undefined, se
     return acts;
   }
   acts["watch the river flow by"] = { joy: 5, energy: 3 };
+  if (owned.includes(CANOE_GIFT) && !night && t >= 5 && !riverIcy(r) && w?.kind !== "storm") acts["paddle my canoe along the river"] = { joy: 13, energy: -5, food: -2 };
   if (!riverIcy(r)) acts["skip stones across the river"] = { joy: 8, energy: -2 };
   else acts["look at the ice forming along the river's edge"] = { joy: 6, energy: 1 };
   if (!night && t >= 5 && seasonName !== "winter") acts["look for frogs and minnows at the river's edge"] = { joy: 7, energy: -1 };
@@ -69,6 +71,15 @@ const SKATE_STEPS = [
   "skated backwards! and did a little hockey stop that sprayed ice",
   "did a real twirling spin, like the skaters on TV",
 ];
+const CANOE_STEPS = [
+  "went round and round in circles and bumped back into the dock",
+  "zig-zagged down the river, switching sides with my paddle every two strokes",
+  "paddled in a mostly-straight line, very pleased with myself",
+  "paddled upstream against the current and drifted back down",
+  "glided so quietly I got close to a heron standing in the reeds",
+  "paddled all the way to the bend and back without splashing once",
+  "steered like a real voyageur, reading the current like a book",
+];
 // swimming gets better with practice too (kiwis can really swim - they're just not graceful about it)
 const SWIM_STEPS = [
   "splashed about in a very wobbly doggy-paddle and swallowed a bit of river",
@@ -79,7 +90,7 @@ const SWIM_STEPS = [
   "did a smooth little glide and a duck-dive like the ducks do",
   "swam like a real river kiwi - fast, smooth and splashing nobody",
 ];
-export function doRiver(r: River, action: string, t: string, skill: { fishing: number; skating: number; swimming: number }): { note: string; learned?: string } | null {
+export function doRiver(r: River, action: string, t: string, skill: { fishing: number; skating: number; swimming: number; canoeing: number }): { note: string; learned?: string } | null {
   if (action === "go fishing at the river (catch and release)") {
     const chance = 0.25 + skill.fishing * 0.1;
     if (Math.random() > chance) return { note: "the bobber bobbed... but nothing bit this time" };
@@ -87,9 +98,16 @@ export function doRiver(r: River, action: string, t: string, skill: { fishing: n
     const pool = FISH.map(([n, w], i) => [n, w * (1 + (i >= 4 ? skill.fishing * 0.4 : 0))] as [string, number]);
     let x = Math.random() * pool.reduce((a, [, w]) => a + w, 0), fish = pool[0][0];
     for (const [n, w] of pool) { x -= w; if (x <= 0) { fish = n; break; } }
-    const first = !r.catches.some((c) => c.fish === fish);
+    const tally = { ...speciesOf(r) };                       // every kind ever caught (kept even after old catches roll off)
+    const first = !tally[fish];
+    tally[fish] = (tally[fish] ?? 0) + 1;
+    r.species = tally;
     r.catches = [...r.catches, { t, fish }].slice(-60);
     return { note: `caught ${fish}${first ? " (my first one ever!)" : ""} and gently let it go`, learned: first ? FISH_FACTS[fish] : undefined };
+  }
+  if (action === "paddle my canoe along the river") {
+    r.paddled = (r.paddled ?? 0) + 1;
+    return { note: CANOE_STEPS[Math.min(6, skill.canoeing)] };
   }
   if (action === "go for a swim in the river") {
     const step = Math.min(6, skill.swimming);
@@ -108,10 +126,14 @@ export function riverLine(r: River | undefined, w: Weather | undefined, owned: s
     : riverIcy(r) ? "starting to freeze: ice is creeping out from the banks, but it's not safe yet"
     : (w?.temp ?? 10) >= 18 ? "warm enough to paddle and splash in" : "flowing past, cold and clear";
   const caught = r?.catches.length ? ` You've caught and released ${r.catches.length} fish (${[...new Set(r.catches.map((c) => c.fish.split(" - ")[0]))].slice(-5).join(", ")}).` : "";
-  return `The river, past your garden on the west side of town (a stretch of the real St. Clair River): right now it's ${ice}. In summer you can paddle, splash, swim and fish there (you always let the fish go).${caught}`;
+  return `The river, past your garden on the west side of town (a stretch of the real St. Clair River): right now it's ${ice}. In summer you can paddle, splash, swim and fish there (you always let the fish go)${owned.includes(CANOE_GIFT) ? ", and you have a canoe tied up at your dock" : ""}.${caught}`;
 }
 
+// every kind of fish he's caught, for the board on his wall at home
+export const ALL_FISH = FISH.map(([n]) => n);
+export const speciesOf = (r: River | undefined) => r?.species ?? Object.fromEntries([...new Set((r?.catches ?? []).map((c) => c.fish))].map((f) => [f, (r?.catches ?? []).filter((c) => c.fish === f).length]));
 export function riverView(r: River | undefined) {
-  if (!r) return { ice: 0, frozen: false, icy: false, catches: [], skated: 0 };
-  return { ice: Math.round(r.ice * 100) / 100, frozen: riverFrozen(r), icy: riverIcy(r), catches: r.catches.slice(-12), skated: r.skated };
+  const species = speciesOf(r);
+  if (!r) return { ice: 0, frozen: false, icy: false, catches: [], skated: 0, species, allFish: ALL_FISH };
+  return { ice: Math.round(r.ice * 100) / 100, frozen: riverFrozen(r), icy: riverIcy(r), catches: r.catches.slice(-12), skated: r.skated, species, allFish: ALL_FISH };
 }

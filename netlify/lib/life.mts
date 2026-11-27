@@ -134,3 +134,41 @@ export const favLines = (f: Favs | undefined) => {
   return "Your favourites (worked out from what has truly made you happiest - they can change as you change):\n" +
     e.map(([k, v]) => `- favourite ${FAV_KINDS[k] ?? k}: ${v}`).join("\n");
 };
+
+// ---------------------------------------------------------------- habits
+// Little routines he makes for himself: doing the same thing at about the same time of day on 3 different
+// days (within a week) turns it into a habit. Keeping a habit is comforting; habits he stops keeping fade.
+export type Habit = { action: string; slot: string; since: string; at: number; last: number };
+export type HabitLog = Record<string, { days: string[]; last: number }>;
+export const SLOTS: [string, number, number][] = [["early morning", 6, 9], ["morning", 9, 12], ["afternoon", 12, 17], ["evening", 17, 22]];
+export const slotOf = (hour: number) => SLOTS.find(([, a, b]) => hour >= a && hour < b)?.[0] ?? null;
+// the gist of an action: "read "Peter Pan" (page 3)" -> "read a book", drop notes after " - "
+export function habitKey(action: string) {
+  let a = action.split(" - ")[0].trim();
+  if (/^read "/.test(a)) a = "read a book";
+  if (/^see the exhibit/.test(a)) a = "visit the museum exhibits";
+  if (/^(walked|sleep|take a nap|reflected|sat down|was |hung|wrote a letter|found|put )/.test(a) || a.length < 4) return null;
+  return a;
+}
+export function noteHabit(habits: Habit[] | undefined, log: HabitLog | undefined, action: string, hour: number, date: string, t: string, now: number) {
+  const key = habitKey(action), slot = slotOf(hour);
+  let hs = [...(habits ?? [])].filter((h) => now - h.last < 4 * 86_400_000);       // habits he's stopped keeping fade
+  const lg: HabitLog = Object.fromEntries(Object.entries(log ?? {}).filter(([, v]) => now - v.last < 8 * 86_400_000));
+  let formed: Habit | null = null, kept: Habit | null = null;
+  if (key && slot) {
+    const k = `${key}|${slot}`, e = lg[k] ?? { days: [], last: 0 };
+    lg[k] = { days: [...new Set([...e.days, date])].slice(-7), last: now };
+    const h = hs.find((x) => x.action === key && x.slot === slot);
+    if (h) { h.last = now; kept = h; }
+    else if (lg[k].days.length >= 3) { formed = { action: key, slot, since: t, at: now, last: now }; hs = [...hs, formed].slice(-8); }
+  }
+  return { habits: hs, log: lg, formed, kept };
+}
+export function habitLines(habits: Habit[] | undefined, hour: number, today: string, log: HabitLog | undefined) {
+  if (!habits?.length) return "";
+  const slot = slotOf(hour);
+  const due = habits.filter((h) => h.slot === slot && !(log?.[`${h.action}|${h.slot}`]?.days ?? []).includes(today));
+  return "Your habits (little routines you've made for yourself - keeping them feels comforting, but they're yours to keep or change):\n" +
+    habits.map((h) => `- in the ${h.slot}: ${h.action}`).join("\n") +
+    (due.length ? `\nIt's about the time you usually ${due.map((h) => h.action).join(", or ")}.` : "");
+}

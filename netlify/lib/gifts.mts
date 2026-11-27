@@ -53,6 +53,8 @@ const THINGS: (Omit<Gift, "price"> & { price?: number })[] = [
   { id: "thing-harmonica", kind: "thing", name: "a harmonica", emoji: "🎵", desc: "Everyone watching hears him play - badly at first, better with practice.", place: "house" },
   { id: "thing-sled", kind: "thing", name: "a wooden sled", emoji: "🛷", desc: "When there's snow in Sarnia, a sledding hill appears behind the park.", place: "park" },
   { id: "thing-fishtank", kind: "thing", name: "a betta fish in a little tank", emoji: "🐠", price: 40, desc: "A pet for his house! He names it himself, feeds it, plays with it and slowly gets to know it. It never gets sick - just a bit mopey if he forgets.", place: "house" },
+  { id: "thing-canoe", kind: "thing", name: "a little red canoe", emoji: "🛶", price: 45, desc: "Tied up at his river dock. He'll go round in circles at first - with practice he paddles upstream and sneaks up on herons.", place: "river" },
+  { id: "thing-pipbowtie", kind: "thing", name: "a tiny bow tie for Pip, his penguin teddy", emoji: "🎀", price: 15, desc: "A little blue bow tie that matches Pino's own, so Pip can be smart too. (Pino needs his penguin teddy first.)", place: "house" },
   { id: "thing-skates", kind: "thing", name: "a pair of hockey skates", emoji: "⛸️", price: 35, desc: "For when the river freezes over in winter. He'll fall over a lot at first - and slowly learn to glide, skate backwards and even spin.", place: "river" },
   { id: "thing-lights", kind: "thing", name: "a string of fairy lights", emoji: "✨", desc: "Twinkly lights for his house that glow in the evening.", place: "house" },
 ];

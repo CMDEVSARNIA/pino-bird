@@ -9,6 +9,7 @@ export const SKILLS: Skill[] = [
   { id: "museum", name: "Museum smarts", emoji: "🏛️", re: /exhibit|museum/, perk: "understanding the exhibits" }, // first, so "the exhibit: Moon rock" isn't stargazing
   { id: "fishkeeping", name: "Fish keeping", emoji: "🐠", re: /my (new )?fish|fish tank/, perk: "a happier fish, and more bubble nests" },
   { id: "fishing", name: "Fishing", emoji: "🎣", re: /go fishing/, perk: "more bites, and a better chance at rare fish" },
+  { id: "canoeing", name: "Canoeing", emoji: "🛶", re: /paddle my canoe/, perk: "from going round in circles to steering like a voyageur" },
   { id: "swimming", name: "Swimming", emoji: "🏊", re: /go for a swim/, perk: "from a wobbly doggy-paddle to swimming like a real river kiwi" },
   { id: "skating", name: "Skating", emoji: "⛸️", re: /skate on the/, perk: "from falling over to spinning like a real skater" },
   { id: "drawing", name: "Drawing & painting", emoji: "🎨", re: /draw|paint|sketch|watercolou?r|doodle/, perk: "a steadier hand and better pictures" },

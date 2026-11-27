@@ -10,6 +10,7 @@ import { SONG_BY_ID, nextSong, randomSong, silence, songsOwned, type Music } fro
 import { recall, recallKnowledge } from "./memory.mts";
 import { doRiver, newRiver, riverActivities, riverLine, riverView, type River } from "./river.mts";
 import { doFish, FISH_GIFT, fishActivities, fishLines, fishView, newFish, type Fish } from "./fish.mts";
+import { habitLines, noteHabit, type Habit, type HabitLog } from "./life.mts";
 import { applyGoals, bondLabel, bondOf, favLines, favourites, FAV_KINDS, goalLines, MOODS, moodLine, nextMood, topTopics, type Favs, type Goal, type Mood } from "./life.mts";
 import { levelOf, LEVELS, SKILLS, skillFor, skillLines, skillsFromHistory, skillsView } from "./skills.mts";
 const SKILL_NAMES: Record<string, string> = Object.fromEntries(SKILLS.map((k) => [k.id, k.name]));
@@ -171,6 +172,9 @@ export type State = {
   lastCompany?: number;                          // last time anyone was watching or visiting
   giftJustNow?: string | null;                   // a gift that just arrived (lifts his mood)
   goals?: Goal[];                                // long projects he set himself in reflection
+  habits?: Habit[];                              // routines he's made for himself
+  habitLog?: HabitLog;                           // what he's done when, to spot new habits
+  justHabit?: { formed?: string; kept?: string } | null;
   justFinished?: string | null;                  // a goal he just achieved
   favs?: Favs;                                   // his favourites, from what has made him happiest
   favChanged?: { kind: string; from?: string; to: string } | null;
@@ -297,6 +301,7 @@ export function activitiesAt(s: State, place: string): Record<string, Effects> {
   }
   if (place === "library" && canLookUp(s)) acts["look something up on the library computer"] = { joy: 6, energy: -2 };
   if (place === "house" && (s.treasures?.length ?? 0) > 0) acts["admire my treasure shelf"] = { joy: 5, energy: 1 };
+  if (place === "house" && Object.keys(s.river?.species ?? {}).length > 0) acts["look at my fish catch board"] = { joy: 5, energy: 1 };
   // rearranging the furniture: a big job, so not more than once every few hours
   if ((place === "house" || place === "library") && Date.now() - (s.furniture?.at ?? 0) > 3 * 3_600_000)
     acts[`rearrange the furniture in the ${place === "house" ? "house" : "library"}`] = { joy: 9, energy: -7, food: -3 };
@@ -312,9 +317,10 @@ export function activitiesAt(s: State, place: string): Record<string, Effects> {
     if (w?.kind === "snow") acts["watch the snow fall from the window"] = { joy: 7, energy: 2 };
   }
   if (place === "park") {
-    if (!s.music?.on) acts["turn on the gramophone"] = { joy: 6 };
+    if (!s.music?.on) { acts["turn on the gramophone"] = { joy: 6 }; acts["choose a record to play on the gramophone"] = { joy: 7 }; }
     else {
       acts["skip to the next song"] = { joy: 3 };
+      acts["choose a record to play on the gramophone"] = { joy: 6 };
       acts["dance to the music"] = { joy: 12, energy: -6, food: -4 };
       acts["turn off the gramophone"] = { energy: 1 };
     }
@@ -371,6 +377,9 @@ export function buildOptions(s: State, notes: Note[], pals: Pal[] = []): Option[
   const opts: Option[] = acts.map((a) => ({
     type: "do", name: a, label: here === "museum"
       ? `${a} (${EXHIBIT_BY_ID[exhibitFromAction(a)?.id ?? ""]?.by ?? "here at the museum"}${s.tried[a] ? ", you've seen it before" : ", you haven't seen it yet"})`
+      : a === "choose a record to play on the gramophone"
+        ? `choose any record you'd like to hear and put it on (put its exact title in "note"). Your records: ${songsOwned(s.gifts?.received ?? []).map((x) => `"${x.title}"`).join(", ")}`
+      : a === "give my new fish a name" ? `give your new fish a name (put the name you choose in "note")`
       : `${a} (here at the ${PLACES[here].label})`,
   }));
   for (const [k, p] of Object.entries(PLACES)) {
@@ -455,7 +464,7 @@ export function townDescription(s: State) {
     `- Your treasure shelf at home: ${(s.treasures ?? []).length ? (s.treasures ?? []).map((f) => TREASURE_BY_ID[f.id]?.name).filter(Boolean).join(", ") : "empty so far - keep an eye out for little treasures when you're out and about"}.`,
     `- The weather in town right now: ${weatherLine(s.weather, Date.now())}`,
     ...(holiday(Date.now()) ? [`- ${holiday(Date.now())!.line}`] : []),
-    ...(s.teddy ? [`- Your penguin teddy: ${s.teddy.holding ? "you're carrying it with you right now" : `you left it at the ${PLACES[s.teddy.place]?.label ?? s.teddy.place}`}. You can pick it up, hug it, and put it down wherever you like.`] : []),
+    ...(s.teddy ? [`- Your penguin teddy: ${s.teddy.holding ? "you're carrying it with you right now" : `you left it at the ${PLACES[s.teddy.place]?.label ?? s.teddy.place}`}. You can pick it up, hug it, and put it down wherever you like.${(s.gifts?.received ?? []).includes("thing-pipbowtie") ? " Pip now wears a tiny blue bow tie that matches yours." : ""}`] : []),
     `- The park: a big tree, ${season(Date.now()).name === "autumn" ? "a leaf pile, " : ""}a bench, a swing set, a pond${frozenPond(s.weather) ? " (frozen over - the ducks have gone)" : " with ducks"}, and your gramophone - a wind-up record player with ${records} records (${playing})${extras("park").length ? `; plus ${extras("park").join(", ")}` : ""}.`,
   ].join("\n");
 }
@@ -478,6 +487,7 @@ export function identityPrompt(s: State) {
     "",
     `Things you want right now:\n${s.wants.map((w) => `- ${w.want}`).join("\n") || "- (you haven't worked that out yet)"}`,
     "",
+    ...(s.habits?.length ? [habitLines(s.habits, localTime(Date.now()).hour, new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date()), s.habitLog), ""] : []),
     ...(goalLines(s.goals, Date.now()) ? [goalLines(s.goals, Date.now()), ""] : []),
     ...(favLines(s.favs) ? [favLines(s.favs), ""] : []),
     ...(skillLines(s.skills ?? skillsFromHistory(s.tried)) ? [skillLines(s.skills ?? skillsFromHistory(s.tried)), ""] : []),
@@ -496,7 +506,7 @@ export function decisionPrompt(s: State, opts: Option[], notes: Note[], now: num
     : e < 30 ? "\nYou're very tired. Your body is asking for sleep (your bed is at home, or you could nap where you are).\n"
     : isNight(now) && e < 70 ? "\nIt's late and you're getting sleepy.\n" : "";
   const playing = s.music?.on && SONG_BY_ID[s.music.song];
-  const music = playing ? `\nMusic: the gramophone in the park is playing "${playing.title}" by ${playing.by}. You can hear it all over town.\n` : "";
+  const music = playing ? `\nMusic: the gramophone in the park is playing "${playing.title}" by ${playing.by}. You can hear it all over town. (You can change it to any record you like whenever you're in the park.)\n` : "";
   let bored = tired + music;
   if (recent.length) {
     const top = recent.reduce((a, b) => (recent.filter((x) => x === a).length >= recent.filter((x) => x === b).length ? a : b));
@@ -516,7 +526,8 @@ export function decisionPrompt(s: State, opts: Option[], notes: Note[], now: num
       (w.cameIn?.length ? ` ${w.cameIn.join(", ")} just came inside to see you!` : "") + "\n";
   const web = s.justLookedUp;
   const webNow = web ? `\nYou just looked something up on the library computer. You wondered: "${web.question}"\nWhat you found out: ${web.learned}\n(From ${web.sources.map((x) => x.title).slice(0, 2).join(" and ") || "the web"}.) Let your thought be your honest reaction - what surprised or delighted you, or what you now wonder next.${web.next ? ` (It made you wonder: "${web.next}")` : ""}\n` : "";
-  const moodNow = (s.justFinished ? `\nYou just achieved one of your goals: "${s.justFinished}"! Let yourself feel it.\n` : "") + (s.mood ? `\n${moodLine(s.mood, now)}\n` : "");
+  const habitNow = s.justHabit?.formed ? `\nYou've noticed something: you've started a little routine - ${s.justHabit.formed}. It's become a habit.\n` : "";
+  const moodNow = habitNow + (s.justFinished ? `\nYou just achieved one of your goals: "${s.justFinished}"! Let yourself feel it.\n` : "") + (s.mood ? `\n${moodLine(s.mood, now)}\n` : "");
   const fc = s.favChanged;
   const favNow = fc ? `\nYou've realised ${fc.from ? `you now like "${fc.to}" even more than "${fc.from}"` : `"${fc.to}" has become a favourite`} - your favourite ${FAV_KINDS[fc.kind] ?? fc.kind}.\n` : "";
   const lv = s.justLeveled;
@@ -739,7 +750,17 @@ export function applyChoice(
     if (action === "turn on the gramophone") s.music = { on: true, song: randomSong(records), since: now };
     else if (action === "skip to the next song") s.music = { on: true, song: nextSong(s.music.song, records), since: now };
     else if (action === "turn off the gramophone") s.music = silence();
+    else if (action === "choose a record to play on the gramophone") {
+      // he picks the record himself: match what he wrote to one he owns
+      const want = (note || thought).toLowerCase().replace(/[^a-z0-9 ]/g, " ");
+      const mine = songsOwned(records);
+      const pick = mine.find((x) => want.includes(x.title.toLowerCase().replace(/[^a-z0-9 ]/g, " ").trim()))
+        ?? mine.find((x) => x.title.toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length > 3).some((w) => want.includes(w)));
+      s.music = { on: true, song: pick?.id ?? randomSong(records), since: now };
+      note = "";
+    }
     if (/gramophone|next song/.test(action) && s.music.on) {
+      if (action === "choose a record to play on the gramophone") action = "put on a record I chose on the gramophone";
       const song = SONG_BY_ID[s.music.song];
       action = `${action} - now playing "${song.title}" by ${song.by}`;
     }
@@ -762,7 +783,7 @@ export function applyChoice(
       action = `rearranged the furniture in the ${room}: now ${LAYOUTS[room][next]}`;
     }
     s.river ??= newRiver(now);
-    const rv = doRiver(s.river, action, t, { fishing: levelOf(s.skills?.fishing ?? 0), skating: levelOf(s.skills?.skating ?? 0), swimming: levelOf(s.skills?.swimming ?? 0) });
+    const rv = doRiver(s.river, action, t, { fishing: levelOf(s.skills?.fishing ?? 0), skating: levelOf(s.skills?.skating ?? 0), swimming: levelOf(s.skills?.swimming ?? 0), canoeing: levelOf(s.skills?.canoeing ?? 0) });
     if (rv) { action = `${action} - ${rv.note}`; if (rv.learned) s.justLearned = rv.learned; }
     const pet = doFish(s.fish, action, note, t, now);
     if (pet) { action = `${action} - ${pet.note}`; if (pet.learned) s.justLearned = pet.learned; }
@@ -808,6 +829,14 @@ export function applyChoice(
       s.skillLog = [...(s.skillLog ?? []), { t, skill: sk.id, level: after }].slice(-60);
       deltas = { ...deltas, joy: (deltas.joy ?? 0) + 5 };
     }
+  }
+  // habits: the same thing at the same time of day on 3 different days becomes a routine; keeping one is comforting
+  {
+    const lt = localTime(now), date = new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date(now));
+    const h = noteHabit(s.habits, s.habitLog, action, lt.hour, date, t, now);
+    s.habits = h.habits; s.habitLog = h.log;
+    s.justHabit = h.formed ? { formed: `${h.formed.action} in the ${h.formed.slot}` } : null;
+    if (h.kept) deltas = { ...deltas, joy: (deltas.joy ?? 0) + 3 };
   }
   for (const [k, v] of Object.entries(deltas)) s.needs[k as Need] = clamp(s.needs[k as Need] + (v ?? 0));
 
@@ -971,6 +1000,8 @@ export function applyVisits(s: State, visits: Visit[], now: number) {
       : g.kind === "postcard" ? `a postcard from ${v.from || "somewhere"} saying "${(v.text ?? "").slice(0, 160)}" - I pinned it on my wall at home`
       : g.kind === "cocoa" ? `a mug of hot cocoa - so warm!`
       : g.kind === "fishfood" ? `a pinch of food for ${s.fish?.name ?? "my fish"} - they fed him for me`
+      : g.id === "thing-pipbowtie" ? `a tiny blue bow tie for Pip, my penguin teddy - now we match!`
+      : g.id === "thing-canoe" ? `a little red canoe, tied up at my river dock`
       : g.id === FISH_GIFT ? `a ${s.fish?.color ?? ""} betta fish in a little tank for my house - my very own pet! I need to think of a name`
       : g.kind === "birdcake" ? `a bird seed cake for my feeder - special birds will visit for the next few hours`
       : g.kind === "thing" ? `${g.name} at the ${PLACES[g.place!]?.label}${g.activity ? ` - now I can "${g.activity}"` : ""}` : g.name;
@@ -1091,7 +1122,7 @@ export function publicView(s: State, unread: number, now: number, chats: { at: n
     webLog: (s.webLog ?? []).slice(-30), lookingUp: !!s.pendingLookup, knows: (s.knowledge ?? []).length, curious: (s.curious ?? []).slice(0, 5),
     skills: skillsView(s.skills ?? skillsFromHistory(s.tried)), skillLog: (s.skillLog ?? []).slice(-10),
     mood: s.mood ? { ...s.mood, emoji: MOODS[s.mood.id]?.emoji, word: MOODS[s.mood.id]?.word } : null, moodLog: (s.moodLog ?? []).slice(-12),
-    goals: s.goals ?? [], favs: s.favs ?? {}, fish: fishView(s.fish, now), river: riverView(s.river),
+    goals: s.goals ?? [], favs: s.favs ?? {}, habits: s.habits ?? [], fish: fishView(s.fish, now), river: riverView(s.river),
     exhibit: s.place === "museum" ? exhibitFromAction(s.doing)?.id ?? null : null,
   };
 }

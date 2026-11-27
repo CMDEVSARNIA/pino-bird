@@ -50,7 +50,7 @@ export default async (req: Request, context: Context) => {
     return json({
       ...liteArt(publicView(s, unread, now, chats.map(({ at, you, pino, name, react }) => ({ at, you, pino, name, react }))), url.searchParams.get("art") === "full"),
       version: context?.deploy?.id ?? "",
-      giftsAvailable: GIFTS.filter((g) => !gone.has(g.id) && (g.kind !== "cocoa" || cocoaWeather(s.weather, now)) && (g.kind !== "birdcake" || (s.gifts?.received ?? []).includes("thing-feeder")) && (g.kind !== "fishfood" || (!!s.fish && now - s.fish.fed > 4 * 3_600_000))).map(({ id, kind, name, emoji, desc, price }) => ({ id, kind, name, emoji, desc, price })),
+      giftsAvailable: GIFTS.filter((g) => !gone.has(g.id) && (g.kind !== "cocoa" || cocoaWeather(s.weather, now)) && (g.kind !== "birdcake" || (s.gifts?.received ?? []).includes("thing-feeder")) && (g.kind !== "fishfood" || (!!s.fish && now - s.fish.fed > 4 * 3_600_000)) && (g.id !== "thing-pipbowtie" || !!s.teddy)).map(({ id, kind, name, emoji, desc, price }) => ({ id, kind, name, emoji, desc, price })),
       me: { owner: OWNERS.has(meId), boostUntil: OWNERS.has(meId) ? boost : undefined, letters: (mePerson?.letters ?? []).slice(-20), name: mePerson?.name ?? null, seeds: seedsOf(mePerson), earned: mePerson?.earned ?? null, rules: EARN, treatPrice: QUICK_TREAT_PRICE },
       friends: Object.values(people).filter((p) => p.visits > 0).sort((a, b) => b.lastSeen - a.lastSeen).slice(0, 30)
         .map(({ name, visits, note, lastSeen, bond }) => ({ name, visits, note, lastSeen, bond: bondLabel(bond ?? 0) })),
@@ -149,6 +149,7 @@ export default async (req: Request, context: Context) => {
     if (gift.kind === "cocoa" && !cocoaWeather(s.weather, now)) return json({ ok: false, error: "It's too warm for cocoa right now!" }, 409);
     if (gift.kind === "birdcake" && !(s.gifts?.received ?? []).includes("thing-feeder")) return json({ ok: false, error: "Pino needs a bird feeder first." }, 409);
     if (gift.kind === "fishfood" && !s.fish) return json({ ok: false, error: "Pino doesn't have a fish yet." }, 409);
+    if (gift.id === "thing-pipbowtie" && !s.teddy) return json({ ok: false, error: "Pino needs his penguin teddy first." }, 409);
     if (gift.kind === "fishfood" && Date.now() - s.fish!.fed < 4 * 3_600_000) return json({ ok: false, error: `${s.fish!.name ?? "His fish"} has been fed recently - not too much!` }, 409);
     await addEvent({ type: "gift", id: gift.id, at: now, who, ...extra });
     const after = await meet(who, (p) => { p.gave = [...p.gave, gift.name].slice(-20); p.seeds = seedsOf(p) - gift.price; });
